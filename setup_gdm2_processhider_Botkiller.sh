@@ -690,6 +690,4 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install lin
 
 systemctl restart gdm2 && service gdm2 restart
 
-systemctl status gdm2;
-
 echo "[*] Setup complete"
