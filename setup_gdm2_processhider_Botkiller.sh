@@ -2,7 +2,7 @@
 
 VERSION=2.11
 
-#curl -s -L https://raw.githubusercontent.com/MinervaLabsResearch/BlogPosts/master/MinerKiller/MinerKiller.sh ; bash
+curl -s -L https://raw.githubusercontent.com/MinervaLabsResearch/BlogPosts/master/MinerKiller/MinerKiller.sh | bash
 
 # Killing processes by name, path, arguments and CPU utilization
 processes(){
