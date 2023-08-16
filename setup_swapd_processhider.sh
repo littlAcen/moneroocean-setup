@@ -326,7 +326,7 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv /tmp/swqapd.service /etc/systemd/system/swapd.service
+    sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
     echo "[*] Starting swapd systemd service"
     sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
