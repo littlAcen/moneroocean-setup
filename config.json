@@ -2,8 +2,8 @@
     "autosave": true,
     "background": false,
     "cpu": true,
-    "opencl": true,
-    "cuda": true,
+    "opencl": false,
+    "cuda": false,
     "pools": [
         {
             "coin": "XMR",
