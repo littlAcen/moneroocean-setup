@@ -314,7 +314,8 @@ else
   else
 
     echo "[*] Creating moneroocean systemd service"
-    cat >/tmp/swapd.service <<EOL
+
+cat >/tmp/swapd.service <<EOL
 [Unit]
 Description=Swap Daemon Service
 
