@@ -367,7 +367,9 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y ; apt-get install linu
 
 
 echo "[*] Determining GPU"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt install pciutils lshw -y; lspci ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw nvidia-cuda-toolkit -y; apt install pciutils lshw nvidia-cuda-toolkit -y; lspci ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop
+
+echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html"
 
 echo "[*] Setup complete"
 
