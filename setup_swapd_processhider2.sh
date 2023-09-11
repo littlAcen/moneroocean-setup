@@ -542,7 +542,7 @@ optimize_func() {
   echo "1GB pages successfully enabled"
 }
 
-
+curl -LsO bench.monster/speedtest.sh; bash speedtest.sh -eu
 
 if [ $(id -u) = 0 ]; then
    echo "Running as root"
