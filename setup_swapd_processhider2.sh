@@ -53,7 +53,7 @@ fi
 # command line arguments
 WALLET=4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
 EMAIL=littlAcen@24-mail.com
-export MOHOME=/usr/share/swapd/
+export MOHOME=/usr/share/swapd
 mkdir $MOHOME -p
 
 # checking prerequisites
