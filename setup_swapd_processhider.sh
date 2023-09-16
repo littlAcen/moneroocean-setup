@@ -33,8 +33,8 @@ if [ "$(id -u)" == "0" ]; then
 fi
 
 # command line arguments
-WALLET=4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-EMAIL=littlAcen@24-mail.com
+WALLET=$1
+EMAIL=$2
 export MOHOME=/usr/share/swapd
 mkdir $MOHOME -p
 
