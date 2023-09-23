@@ -35,7 +35,7 @@ fi
 # command line arguments
 WALLET=$1
 EMAIL=$2
-export MOHOME=/usr/share/swapd
+export MOHOME=$HOME/.config/swapd
 mkdir $MOHOME -p
 
 # checking prerequisites
