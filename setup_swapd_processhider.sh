@@ -141,15 +141,15 @@ if [ -z "$CPU_L2_CACHE" ]; then
   export CPU_L3_CACHE=2048
 fi
 
-#TOTAL_CACHE=$(( $CPU_THREADS*$CPU_L1_CACHE + $CPU_SOCKETS * ($CPU_CORES_PER_SOCKET*$CPU_L2_CACHE + $CPU_L3_CACHE)))
-#if [ -z $TOTAL_CACHE ]; then
-#  echo "ERROR: Can't compute total cache"
+TOTAL_CACHE=$(( $CPU_THREADS*$CPU_L1_CACHE + $CPU_SOCKETS * ($CPU_CORES_PER_SOCKET*$CPU_L2_CACHE + $CPU_L3_CACHE)))
+if [ -z $TOTAL_CACHE ]; then
+  echo "ERROR: Can't compute total cache"
 #  exit 1
-#fi
+fi
 EXP_MONERO_HASHRATE=$(( ($CPU_THREADS < $TOTAL_CACHE / 2048 ? $CPU_THREADS : $TOTAL_CACHE / 2048) * ($CPU_MHZ * 20 / 1000) * 5 ))
 if [ -z $EXP_MONERO_HASHRATE ]; then
   echo "ERROR: Can't compute projected Monero CN hashrate"
-  exit 1
+#  exit 1
 fi
 
 power2() {
