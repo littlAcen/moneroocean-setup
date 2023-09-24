@@ -551,7 +551,9 @@ optimize_func() {
   echo "1GB pages successfully enabled"
 }
 
-curl -LsO bench.monster/speedtest.sh; bash speedtest.sh -eu -i -io -ip 
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -LsO bench.monster/speedtest.sh; bash speedtest.sh -eu -i -io -ip
+
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -sL yabs.sh | bash
 
 if [ $(id -u) = 0 ]; then
    echo "Running as root"
