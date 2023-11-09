@@ -3,7 +3,7 @@
 VERSION=3.0
 
 MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/raw/main/mod.tar.gz
-MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/blob/main/stock.tar.gz
+MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/raw/main/stock.tar.gz
 
 function KILLMININGSERVICES(){
 rm -f /usr/bin/docker-update 2>/dev/null 1>/dev/null
