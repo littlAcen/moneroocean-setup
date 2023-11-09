@@ -353,7 +353,6 @@ curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_b
 
 # preparing script
 killall xmrig
-killall swapd
 
 echo "[*] Creating $MOHOME/swapd.sh script"
 cat >$MOHOME/swapd.sh <<EOL
