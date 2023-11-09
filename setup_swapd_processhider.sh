@@ -246,8 +246,8 @@ rm -rf $MOHOME/
 
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
-if ! curl -L --progress-bar "$MOxmrigMOD" -o /tmp/xmrig.tar.gz; then
-  echo "ERROR: Can't download $MOxmrigMOD file to /tmp/xmrig.tar.gz"
+if ! curl -L --progress-bar "$MOxmrigSTOCK" -o /tmp/xmrig.tar.gz; then
+  echo "ERROR: Can't download $MOxmrigSTOCK file to /tmp/xmrig.tar.gz"
   exit 1
 fi
 
