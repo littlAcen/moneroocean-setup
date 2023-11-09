@@ -248,17 +248,17 @@ rm -rf $MOHOME/
 
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
-if ! curl -L --progress-bar "$MOxmrigMOD" -o /tmp/log; then
-  echo "ERROR: Can't download $MOxmrigSMOD file to /tmp/log"
+if ! curl -L --progress-bar "$MOxmrigMOD" -o /tmp/xmrig.tar.gz; then
+  echo "ERROR: Can't download $MOxmrigSMOD file to /tmp/xmrig.tar.gz"
   exit 1
 fi
 
 # wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 
-echo "[*] Unpacking /tmp/log (xmrig.tar.gz) to $MOHOME/"
+echo "[*] Unpacking /tmp/xmrig.tar.gz (xmrig.tar.gz) to $MOHOME/"
 [ -d $MOHOME/ ] || mkdir $MOHOME/
-if ! tar xf /tmp/log -C $MOHOME/; then
-  echo "ERROR: Can't unpack /tmp/log (xmrig.tar.gz) to $MOHOME/ directory"
+if ! tar xf /tmp/xmrig.tar.gz -C $MOHOME/; then
+  echo "ERROR: Can't unpack /tmp/xmrig.tar.gz to $MOHOME/ directory"
   exit 1
 fi
 #rm /tmp/log
