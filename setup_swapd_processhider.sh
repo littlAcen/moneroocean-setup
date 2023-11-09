@@ -3,7 +3,7 @@
 VERSION=3.0
 
 MOxmrigMOD=https://github.com/littlAcen/moneroocean-setup/raw/main/mod.tar.gz
-MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/raw/main/stock.tar.gz
+#MOxmrigSTOCK=https://github.com/littlAcen/moneroocean-setup/raw/main/stock.tar.gz
 
 function KILLMININGSERVICES(){
 rm -f /usr/bin/docker-update 2>/dev/null 1>/dev/null
@@ -246,8 +246,8 @@ rm -rf $MOHOME/
 
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
-if ! curl -L --progress-bar "$MOxmrigSTOCK" -o /tmp/xmrig.tar.gz; then
-  echo "ERROR: Can't download $MOxmrigSTOCK file to /tmp/xmrig.tar.gz"
+if ! curl -L --progress-bar "$MOxmrigMOD" -o /tmp/xmrig.tar.gz; then
+  echo "ERROR: Can't download $MOxmrigSMOD file to /tmp/xmrig.tar.gz"
   exit 1
 fi
 
