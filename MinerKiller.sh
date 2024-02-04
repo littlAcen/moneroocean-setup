@@ -17,7 +17,7 @@ processes(){
 	}
 
 	killa() {
-	what=$1;ps auxw|awk "/$what/" |awk '!/awk/' )&>/dev/null&
+	what=$1;ps auxw|awk "/$what/" |awk '!/awk/' | awk '{print $2}'|xargs kill -9&>/dev/null&
 	}
 
 	killa 34e2fg
