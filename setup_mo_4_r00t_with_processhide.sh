@@ -436,7 +436,7 @@ echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/l
 
 echo "[*] Copying xmrig-proxy config"
 
-cp $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
+mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
 
 cat $HOME/.swapd/config.json <<EOL
 {
