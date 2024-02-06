@@ -1,0 +1,19 @@
+{
+    "autosave": true,
+    "background": false,
+    "cpu": true,
+    "opencl": false,
+    "cuda": false,
+    "pools": [
+        {
+            "coin": "XMR",
+            "algo": null,
+            "url": "gulf.moneroocean.stream:10128",
+            "user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",
+            "pass": "littlAcen@24-mail.com",
+            "tls": false,
+            "keepalive": true,
+            "nicehash": false
+        }
+    ]
+}
