@@ -3,6 +3,9 @@
     "cpu": true,
     "opencl": true,
     "cuda": true,
+    "donate-level": 0,
+    "donate-over-proxy": 0,
+
     "pools": [
         {
             "url": "194.164.63.118:3333"
