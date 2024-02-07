@@ -1,8 +1,8 @@
 {
     "autosave": true,
     "cpu": true,
-    "opencl": true,
-    "cuda": true,
+    "opencl": false,
+    "cuda": false,
     "donate-level": 0,
     "donate-over-proxy": 0,
     "pools": [
