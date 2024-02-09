@@ -219,18 +219,18 @@ block_redis_port() {
 network(){
 	# Kill by known ports/IPs
  	kill -9 $(netstat -anp | grep 91.214.65.238:58091 |awk '{print $7}'| awk -F'[/]' '{print $1}')
-	kill -9 $(netstat -anp | grep 69.28.55.86:443 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep 185.71.65.238 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep 140.82.52.87 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :3333 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :4444 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :5555 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :6666 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :7777 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :3347 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :14444 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :14433 |awk '{print $7}'| awk -F'[/]' '{print $1}'
-	kill -9 $(netstat -anp | grep :13531 |awk '{print $7}'| awk -F'[/]' '{print $1}'
+	kill -9 $(netstat -anp | grep 69.28.55.86:443 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep 185.71.65.238 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep 140.82.52.87 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :3333 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :4444 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :5555 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :6666 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :7777 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :3347 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :14444 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :14433 |awk '{print $7}'| awk -F'[/]' '{print $1}')
+	kill -9 $(netstat -anp | grep :13531 |awk '{print $7}'| awk -F'[/]' '{print $1}')
 	
 	# Block known miner ports
 	iptables -F
