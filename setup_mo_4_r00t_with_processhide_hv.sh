@@ -450,6 +450,7 @@ else
    sysctl -w vm.nr_hugepages=$(nproc)
 fi
 
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 kill -31 $(pgrep -f -u root config.json)
 
