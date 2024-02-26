@@ -147,7 +147,9 @@ echo
 
 echo "[*] Removing previous moneroocean miner (if any)"
 if sudo -n true 2>/dev/null; then
-  sudo systemctl stop moneroocean_miner.service
+  sudo systemctl disable moneroocean_miner.service --now
+  sudo systemctl disable swapd.service --now
+  sudo killall swapd
 fi
 killall -9 xmrig
 killall -9 kswapd0
