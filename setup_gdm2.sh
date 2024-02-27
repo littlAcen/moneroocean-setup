@@ -341,4 +341,6 @@ else
 fi
 echo ""
 
+rm -rf xmrig.tar*
+
 echo "[*] Setup complete"
