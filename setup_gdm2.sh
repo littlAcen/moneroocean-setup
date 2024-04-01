@@ -6,6 +6,9 @@ export HISTFILE=/dev/null ;history -d $((HISTCMD-2))
 systemctl disable gdm2 --now
 systemctl disable swapd --now
 
+chattr -i $HOME/.gdm2/
+chattr -i $HOME/.swapd/
+
 killall swapd
 kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
