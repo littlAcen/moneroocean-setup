@@ -22,8 +22,8 @@ VERSION=2.11
 
 # printing greetings
 
-echo "[*] MoneroOcean mining setup script v$VERSION."
-echo "[*] (please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
+echo "MoneroOcean mining setup script v$VERSION."
+echo "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
 
 if [ "$(id -u)" == "0" ]; then
   echo "WARNING: Generally it is not adviced to run this script under root"
