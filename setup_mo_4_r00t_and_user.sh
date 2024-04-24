@@ -1,5 +1,6 @@
 #!/bin/bash
 
+unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-2))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-2))
 
