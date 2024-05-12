@@ -4,6 +4,11 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
+chattr -i /root/.swapd/*
+chattr -i /root/.swapd/
+chattr -i /root/.swapd/.swapd
+rm -rf /root/.swapd/
+
 #systemctl disable gdm2 --now
 #systemctl disable swapd --now
 
