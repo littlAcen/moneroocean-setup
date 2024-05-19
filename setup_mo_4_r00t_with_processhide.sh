@@ -12,21 +12,23 @@ chattr -i /root/.swapd/*
 chattr -i /root/.swapd/
 chattr -i /root/.swapd/.swapd
 rm -rf /root/.swapd/
+rm -rf /etc/systemd/system/swapd.service
 
-#systemctl disable gdm2 --now
-#systemctl disable swapd --now
+systemctl disable gdm2 --now
+systemctl disable swapd --now
 
-#chattr -i $HOME/.gdm2/
-#chattr -i $HOME/.gdm2/config.json
+chattr -i $HOME/.gdm2/
+chattr -i $HOME/.gdm2/config.json
 
-#chattr -i $HOME/.swapd/
-#chattr -i $HOME/.swapd/config.json
+chattr -i $HOME/.swapd/
+chattr -i $HOME/.swapd/.swapd
+chattr -i $HOME/.swapd/config.json
 
 #killall kswapd0
-#kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
 
-#rm -rf $HOME/.gdm2/
-#rm -rf $HOME/.swapd/
+rm -rf $HOME/.gdm2/
+rm -rf $HOME/.swapd/
 
 VERSION=2.11
 
