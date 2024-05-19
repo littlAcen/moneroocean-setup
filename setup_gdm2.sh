@@ -179,7 +179,7 @@ rm -rf $HOME/.moneroocean
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
   echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to xmrig.tar.gz"
-  exit 1
+#  exit 1
 fi
 
 wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
