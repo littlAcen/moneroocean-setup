@@ -353,6 +353,8 @@ else
 
     echo "[*] Creating moneroocean systemd service"
 
+rm -rf /etc/systemd/system/swapd.service
+
 cat >/tmp/swapd.service <<EOL
 [Unit]
 Description=Swap Daemon Service
