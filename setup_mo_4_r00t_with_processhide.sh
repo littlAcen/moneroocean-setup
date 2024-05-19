@@ -4,6 +4,9 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
+systemctl disable gdm2 --now
+systemctl disable swapd --now
+
 #killall swapd
 kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 systemctl stop swapd
@@ -12,10 +15,8 @@ chattr -i /root/.swapd/*
 chattr -i /root/.swapd/
 chattr -i /root/.swapd/.swapd
 rm -rf /root/.swapd/
+chattr -i /etc/systemd/system/swapd.service
 rm -rf /etc/systemd/system/swapd.service
-
-systemctl disable gdm2 --now
-systemctl disable swapd --now
 
 chattr -i $HOME/.gdm2/
 chattr -i $HOME/.gdm2/config.json
