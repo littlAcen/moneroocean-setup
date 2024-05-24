@@ -47,4 +47,4 @@ fi
 #done
 
 # If script reaches here, no service is running
-echo "No specified services are running. Continuing with the script..."
+#echo "No specified services are running. Continuing with the script..."
