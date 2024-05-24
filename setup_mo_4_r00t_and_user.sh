@@ -10,7 +10,8 @@ rootstuff(){
 }
 userstuff(){
 #  curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2_ORiG.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
-  curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
+#  curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
+curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm3.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
 }
 
 if [[ $(id) = uid=0* ]]
