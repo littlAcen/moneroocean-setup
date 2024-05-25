@@ -30,6 +30,9 @@ echo
       userstuff
 fi
 
+rm -rf config.json*
+rm -rf xmrig*
+
 ## Function to check if a service is running
 #is_service_running() {
 #    service="$1"
