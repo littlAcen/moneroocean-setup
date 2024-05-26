@@ -30,6 +30,18 @@ rm -rf /root/.gdm2/
 chattr -i /etc/systemd/system/gdm2.service
 rm -rf /etc/systemd/system/gdm2.service
 
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ;
+chattr -i Reptile/*
+chattr -i Reptile/
+chattr -i Reptile/.swapd
+rm -rf Reptile
+
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ;
+chattr -i Nuk3Gh0st/*
+chattr -i Nuk3Gh0st/
+chattr -i Nuk3Gh0st/.swapd
+rm -rf Nuk3Gh0st
+
 #chattr -i $HOME/.gdm2/
 #chattr -i $HOME/.gdm2/config.json
 #chattr -i $HOME/.swapd/
