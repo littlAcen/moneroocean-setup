@@ -4,6 +4,8 @@ unset HISTFILE
 #unset HISTFILE ;history -d $((HISTCMD-2))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-2))
 
+echo -e "---------------------------------\n|     Resource     |     Value     |\n---------------------------------"; echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"; echo -e "|   CPU Cores    |      $(nproc)      |"; echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"; echo -e "---------------------------------"
+
 # Function to check if a service is running
 is_service_running() {
     service="$1"
