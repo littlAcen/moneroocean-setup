@@ -10,6 +10,7 @@
     "cpu": true,
     "opencl": false,
     "cuda": false,
+    "background": true,
     "pools": [
         {
             "url": "194.164.63.118:8080",
