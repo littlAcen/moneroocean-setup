@@ -24,7 +24,7 @@
     ],
     "api": {
         "port": 8181,
-        "access-token": 55maui55,
+        "access-token": "55maui55",
         "worker-id": null
     }
 }
