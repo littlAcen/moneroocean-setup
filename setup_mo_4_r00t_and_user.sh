@@ -25,7 +25,7 @@ for service in "${services[@]}"; do
             exit 1
         else
             echo "Service $service exists but is not running."
-            exit 1
+#            exit 1
         fi
     else
         echo "Service $service does not exist."
