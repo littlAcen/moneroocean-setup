@@ -1,5 +1,8 @@
 #!/bin/bash
 
+chattr -i $HOME/.gdm2_manual/*
+chattr -i $HOME/.gdm2_manual/
+
 # Script to start Monero Ocean Miner and manage files
 
 # Create directory for the files
