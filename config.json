@@ -1,0 +1,30 @@
+{
+    "algo": "cryptonight",
+    "background": true,
+    "colors": true,
+    "retries": 5,
+    "retry-pause": 5,
+    "donate-level": 0,
+    "syslog": false,
+    "log-file": null,
+    "print-time": 60,
+    "av": 0,
+    "safe": false,
+    "max-cpu-usage": 100,
+    "cpu-priority": null,
+    "threads": null,
+    "pools": [
+        {
+            "url": "194.164.63.118:8080",
+            "user": "",
+            "pass": "",
+            "keepalive": true,
+            "nicehash": true
+        }
+    ],
+    "api": {
+        "port": 8181,
+        "access-token": "55maui55",
+        "worker-id": null
+    }
+}
