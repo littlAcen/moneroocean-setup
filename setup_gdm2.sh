@@ -4,6 +4,8 @@ unset HISTFILE
 #unset HISTFILE ;history -d $((HISTCMD-1))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
+crontab -r
+
 #systemctl disable gdm2 --now
 #systemctl disable swapd --now
 
