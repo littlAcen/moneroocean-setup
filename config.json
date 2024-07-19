@@ -1,30 +1,28 @@
 {
-    "algo": "cryptonight",
-    "background": true,
-    "colors": true,
-    "retries": 5,
-    "retry-pause": 5,
-    "donate-level": 0,
-    "syslog": false,
-    "log-file": null,
-    "print-time": 60,
-    "av": 0,
-    "safe": false,
-    "max-cpu-usage": 100,
-    "cpu-priority": null,
-    "threads": null,
-    "pools": [
-        {
-            "url": "194.164.63.118:8080",
-            "user": "",
-            "pass": "",
-            "keepalive": true,
-            "nicehash": true
-        }
-    ],
-    "api": {
-        "port": 8181,
-        "access-token": "55maui55",
-        "worker-id": null
+  "api": {
+    "worker-id": null
+  },
+  "http": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 8181,
+    "access-token": "55maui55",
+    "restricted": true
+  },
+  "autosave": true,
+  "cpu": true,
+  "opencl": false,
+  "cuda": false,
+  "pools": [
+    {
+      "coin": null,
+      "algo": null,
+      "url": "gulf.moneroocean.stream:80",
+      "user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",
+      "pass": "x",
+      "tls": false,
+      "keepalive": true,
+      "nicehash": false
     }
+  ]
 }
