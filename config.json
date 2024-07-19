@@ -22,7 +22,7 @@
       "pass": "",
       "tls": false,
       "keepalive": true,
-      "nicehash": false
+      "nicehash": true
     }
   ]
 }
