@@ -5,7 +5,7 @@ export HISTFILE=/dev/null
 #unset HISTFILE ;history -d $((HISTCMD-1))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
-crontab -r
+#crontab -r
 
 systemctl stop gdm2
 systemctl disable gdm2 --now
