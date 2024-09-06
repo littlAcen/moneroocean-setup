@@ -184,7 +184,7 @@ if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig
   exit 1
 fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
+# wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
 # tar xf $HOME/.gdm2/xmrig.tar.gz
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
