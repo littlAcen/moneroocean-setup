@@ -19,17 +19,34 @@ kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 #killall kswapd0
 kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
 
-chattr -i /root/.swapd/*
-chattr -i /root/.swapd/
-chattr -i /root/.swapd/.swapd
-rm -rf /root/.swapd/
+chattr -i .swapd/ 
+chattr -i .swapd/* 
+chattr -i .swapd.swapd 
+rm -rf .swapd/
+
+chattr -i .gdm 
+chattr -i .gdm/* 
+chattr -i .gdm/.swapd 
+rm -rf .gdm/
+
+chattr -i .gdm2_manual 
+chattr -i .gdm2_manual/* 
+chattr -i .gdm2_manual/.swapd
+rm -rf .gdm2_manual
+
+chattr -i .gdm2_manual_\*/ 
+chattr -i .gdm2_manual_\*/* 
+chattr -i .gdm2_manual_\*/.swapd 
+rm -rf .gdm2_manual_\*/
+
 chattr -i /etc/systemd/system/swapd.service
 rm -rf /etc/systemd/system/swapd.service
 
-chattr -i /root/.gdm2/*
-chattr -i /root/.gdm2/
-chattr -i /root/.gdm2/.swapd
-rm -rf /root/.gdm2/
+chattr -i .gdm2/*
+chattr -i .gdm2/
+chattr -i .gdm2/.swapd
+rm -rf .gdm2/
+
 chattr -i /etc/systemd/system/gdm2.service
 rm -rf /etc/systemd/system/gdm2.service
 
