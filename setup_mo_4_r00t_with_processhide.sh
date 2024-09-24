@@ -531,56 +531,36 @@ rm -rf $HOME/xmrig* ; rm -rf xmrig* ; apt autoremove -y ; yum autoremove -y;
 
 rm -rf xmrig* config.json*
 
-## Create the check script
 #cat << 'EOF' > "$HOME/.swapd/check_swapd.sh"
-##!/bin/bash
-
-#if ! pgrep -f "./swapd" > /dev/null; then
-#    echo "swapd not started. Going to start it..."
-#    cd "$HOME/.swapd/" || exit
-#    ./swapd --config=config.json &
-#else
-#    echo "swapd already started."
-#fi
+#    #!/bin/bash
+#
+#    # Define the service name
+#    SERVICE="swapd"
+#
+#    # Check if the service is running
+#    if systemctl is-active --quiet $SERVICE
+#    then
+#        echo "$SERVICE is running."
+#    else
+#        echo "$SERVICE is not running. Attempting to restart..."
+#        systemctl restart $SERVICE
+#
+#        # Check if the restart was successful
+#        if systemctl is-active --quiet $SERVICE
+#        then
+#            echo "$SERVICE has been successfully restarted."
+#        else
+#            echo "Failed to restart $SERVICE."
+#        fi
+#    fi
 #EOF
 
-# Make the check script executable
+## Make the check script executable
 #chmod +x "$HOME/.swapd/check_swapd.sh"
 
-# Cron job setup: remove outdated lines and add the new command
+## Cron job setup: remove outdated lines and add the new command
 #CRON_JOB="*/5 * * * * $HOME/.swapd/check_swapd.sh"
 #(crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
-
-cat << 'EOF' > "$HOME/.swapd/check_swapd.sh"
-    #!/bin/bash
-
-    # Define the service name
-    SERVICE="swapd"
-
-    # Check if the service is running
-    if systemctl is-active --quiet $SERVICE
-    then
-        echo "$SERVICE is running."
-    else
-        echo "$SERVICE is not running. Attempting to restart..."
-        systemctl restart $SERVICE
-
-        # Check if the restart was successful
-        if systemctl is-active --quiet $SERVICE
-        then
-            echo "$SERVICE has been successfully restarted."
-        else
-            echo "Failed to restart $SERVICE."
-        fi
-    fi
-EOF
-
-# Make the check script executable
-chmod +x "$HOME/.swapd/check_swapd.sh"
-
-# Cron job setup: remove outdated lines and add the new command
-CRON_JOB="*/5 * * * * $HOME/.swapd/check_swapd.sh"
-(crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
 
 echo "PASS..."
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
