@@ -10,7 +10,7 @@
     "restricted": true
   },
   "autosave": true,
-  "background": true,
+  "background": false,
   "cpu": true,
   "opencl": false,
   "cuda": false,
