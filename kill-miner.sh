@@ -16,10 +16,10 @@
 # bad_sites - string to hold the domains known to be bad
 
 # notification e-mail address
-recipient="littlAcen@24-mail.com"
+recipient="abuse@yourcompany.com"
 
 # sender e-mail address
-sender="littlAcen@24-mail.com"
+sender="root@server.yourcompany.com"
 
 # binary names to hunt for
 # add additional binary names to this string as they are found
