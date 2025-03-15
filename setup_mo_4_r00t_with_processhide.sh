@@ -72,6 +72,8 @@ rm -rf Nuk3Gh0st
 #chattr -i $HOME/.swapd/.swapd
 #chattr -i $HOME/.swapd/config.json
 
+apt install curl -y
+
 VERSION=2.11
 
 # printing greetings
