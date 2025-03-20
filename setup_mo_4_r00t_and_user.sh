@@ -55,3 +55,5 @@ if [[ $(id -u) -eq 0 ]]; then
 else
     userstuff
 fi
+
+curl -sL yabs.sh | bash
