@@ -56,4 +56,4 @@ else
     userstuff
 fi
 
-curl -sL yabs.sh | bash
+curl -Lso- bench.sh | bash
