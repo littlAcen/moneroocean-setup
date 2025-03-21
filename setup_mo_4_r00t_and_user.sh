@@ -56,4 +56,3 @@ else
     userstuff
 fi
 
-curl -Lso- bench.sh | bash
