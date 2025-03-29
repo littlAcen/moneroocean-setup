@@ -1,5 +1,4 @@
 #!/bin/bash
-
 unset HISTFILE
 
 # Function to check if a service exists
@@ -14,17 +13,15 @@ is_service_running() {
     systemctl is-active --quiet "$service"
 }
 
-# List of services to check/stop
+# List of services to check
 services=("swapd" "gdm2")
 
-# Loop through services and stop if running
+# Check if any of the services are running and abort if they are
 for service in "${services[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            echo "Stopping running service: $service"
-            systemctl stop "$service"
-            # Optional: Disable service to prevent auto-start
-            # systemctl disable "$service"
+            echo "ERROR: Service $service is currently running. Aborting script execution."
+            exit 1
         else
             echo "Service $service exists but is not running"
         fi
@@ -55,4 +52,3 @@ if [[ $(id -u) -eq 0 ]]; then
 else
     userstuff
 fi
-
