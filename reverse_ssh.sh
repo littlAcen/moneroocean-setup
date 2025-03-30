@@ -90,8 +90,8 @@ sudo apt-get install expect
 cat > /usr/local/bin/reverse-ssh-expect.sh << 'EOL'
 #!/usr/bin/expect -f
 set timeout -1
-set SERVER "jamy@194.164.63.118"
-set PASSWORD "mama"
+set SERVER "clamav-mail@194.164.63.118"
+set PASSWORD "1!taugenichts"
 spawn ssh -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -o "StrictHostKeyChecking=no" -R 43022:localhost:22 $SERVER -N
 expect "password:"
 send "$PASSWORD\r"
