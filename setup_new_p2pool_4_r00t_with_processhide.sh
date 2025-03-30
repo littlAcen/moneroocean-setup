@@ -754,6 +754,9 @@ systemctl status swapd
 systemctl start swapd
 systemctl status swapd
 
+systemctl restart p2pool
+systemctl status p2pool
+
 kill -31 $(pgrep -f -u root config.json) &
 kill -31 $(pgrep -f -u root config_background.json) &
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
