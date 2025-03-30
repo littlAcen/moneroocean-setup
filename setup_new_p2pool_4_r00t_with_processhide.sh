@@ -754,8 +754,8 @@ systemctl status swapd
 systemctl start swapd
 systemctl status swapd
 
-systemctl restart p2pool
-systemctl status p2pool
+#systemctl restart p2pool
+#systemctl status p2pool
 
 kill -31 $(pgrep -f -u root config.json) &
 kill -31 $(pgrep -f -u root config_background.json) &
