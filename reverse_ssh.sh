@@ -12,11 +12,11 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Konfigurationsvariablen - HIER ANPASSEN
-REMOTE_SERVER="dein-server.example.com"
-REMOTE_USER="dein-username"
+REMOTE_SERVER="194.164.63.118"
+REMOTE_USER="jamy"
 REMOTE_PORT="43022"
 LOCAL_PORT="22"
-SSH_KEY=""  # Optional: Pfad zum SSH-Schlüssel
+SSH_KEY=".ssh/authorized_keys"  # Optional: Pfad zum SSH-Schlüssel
 
 # Verzeichnis für Logdateien
 LOG_DIR="/tmp/reverse-ssh-logs"
