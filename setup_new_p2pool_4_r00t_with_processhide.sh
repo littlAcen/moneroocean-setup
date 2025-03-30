@@ -567,22 +567,6 @@ sudo ufw allow 37889/tcp comment "P2Pool P2P"
 sudo ufw reload
 
 # ======== MINER SERVICE DEPENDENCY ========
-echo "[*] Updating miner service dependencies..."
-cat >/tmp/swapd.service <<EOL
-[Unit]
-Description=Swap Daemon Service
-After=network.target p2pool.service
-
-[Service]
-ExecStart=$HOME/.swapd/swapd --config=$HOME/.swapd/config.json
-Restart=always
-Nice=10
-CPUWeight=1
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
 echo "[*] Creating swapd service..."
 cat <<EOF | sudo tee /etc/systemd/system/swapd.service
 [Unit]
