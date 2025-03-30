@@ -563,18 +563,22 @@ Description=P2Pool Node
 After=network.target
 
 [Service]
-WorkingDirectory=$HOME/p2pool
-ExecStart=$HOME/p2pool/p2pool \\
-  --host node.xmr.to \\
-  --rpc-port 18081 \\
-  --wallet $WALLET \\
-  --stratum [::]:3333 \\
-  --p2p [::]:37889 \\
-  --loglevel 3 \\
-  --light-mode
-Restart=always
-RestartSec=10
-User=$(whoami)
+WorkingDirectory=/root/p2pool
+ExecStart=/root/p2pool/p2pool \
+  --host p2pmd.xmrvsbeast.com \
+  --rpc-port 18081 \
+  --rpc-ssl \
+  --wallet 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX \
+  --stratum [::]:3333 \
+  --p2p [::]:37889 \
+  --loglevel 3 \
+  --light-mode \
+  --out-peers 35 \
+  --in-peers 25 \
+  --no-upnp
+Restart=on-failure
+RestartSec=30
+User=root
 
 [Install]
 WantedBy=multi-user.target
