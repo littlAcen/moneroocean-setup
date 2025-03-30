@@ -540,12 +540,11 @@ REMOTE_NODE="node.xmr.to:18081"  # Public remote node example
 
 # ======== P2POOL SETUP (NO LOCAL MONERO NODE) ========
 echo "[*] Installing P2Pool..."
+# Install to CORRECT location
 cd /tmp
-P2POOL_VERSION=$(curl -s https://api.github.com/repos/SChernykh/p2pool/releases/latest | grep 'tag_name' | cut -d\" -f4)
-curl -sL "https://github.com/SChernykh/p2pool/releases/download/${P2POOL_VERSION}/p2pool-linux-x86_64.tar.gz" -o p2pool.tar.gz
-tar -xzf p2pool.tar.gz -C $HOME/
-rm p2pool.tar.gz
-mv $HOME/p2pool-linux-x86_64 $HOME/.p2pool
+wget https://github.com/SChernykh/p2pool/releases/download/v4.4/p2pool-v4.4-linux-x64.tar.gz
+tar -xzf p2pool-v4.4-linux-x64.tar.gz -C $HOME/
+mv "$HOME/p2pool-v4.4-linux-x64" "$HOME/.p2pool"
 
 echo "[*] Creating P2Pool service..."
 cat <<EOF | sudo tee /etc/systemd/system/p2pool.service
