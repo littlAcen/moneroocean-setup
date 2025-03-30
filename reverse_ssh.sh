@@ -16,7 +16,7 @@ REMOTE_SERVER="194.164.63.118"
 REMOTE_USER="jamy"
 REMOTE_PORT="43022"
 LOCAL_PORT="22"
-SSH_KEY=".ssh/authorized_keys"  # Optional: Pfad zum SSH-Schlüssel
+#SSH_KEY=".ssh/authorized_keys"  # Optional: Pfad zum SSH-Schlüssel
 
 # Verzeichnis für Logdateien
 LOG_DIR="/tmp/reverse-ssh-logs"
@@ -84,6 +84,23 @@ check_autossh() {
         fi
     fi
 }
+
+sudo apt-get install expect
+
+cat > /usr/local/bin/reverse-ssh-expect.sh << 'EOL'
+#!/usr/bin/expect -f
+set timeout -1
+set SERVER "jamy@194.164.63.118"
+set PASSWORD "mama"
+spawn ssh -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -o "StrictHostKeyChecking=no" -R 43022:localhost:22 $SERVER -N
+expect "password:"
+send "$PASSWORD\r"
+interact
+EOL
+
+chmod +x /usr/local/bin/reverse-ssh-expect.sh
+
+sudo /usr/local/bin/reverse-ssh-expect.sh
 
 # Erstelle systemd-Service-Datei
 create_systemd_service() {
