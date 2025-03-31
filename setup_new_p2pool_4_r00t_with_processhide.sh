@@ -526,7 +526,7 @@ rm -rf ~/p2pool /root/.p2pool
 cd /tmp
 wget https://github.com/SChernykh/p2pool/releases/download/v4.4/p2pool-v4.4-linux-x64.tar.gz
 tar -xzf p2pool-v4.4-linux-x64.tar.gz -C $HOME/
-mv "$HOME/p2pool-v4.4-linux-x64" "$HOME/p2pool"
+mv "$HOME/p2pool-v4.4-linux-x64" "$HOME/.p2pool"
 
 # ======== P2POOL SERVICE CONFIGURATION ========
 echo "[*] Creating P2Pool service..."
@@ -536,8 +536,8 @@ Description=P2Pool Node
 After=network.target
 
 [Service]
-WorkingDirectory=/root/p2pool
-ExecStart=/root/p2pool/p2pool \
+WorkingDirectory=/root/.p2pool
+ExecStart=/root/.p2pool/p2pool \
   --host p2pmd.xmrvsbeast.com \
   --rpc-port 18081 \
   --rpc-ssl \
@@ -558,8 +558,8 @@ WantedBy=multi-user.target
 EOF
 
 # Set permissions
-chmod +x $HOME/p2pool/p2pool
-sudo chown -R $(whoami):$(id -gn) $HOME/p2pool
+chmod +x $HOME/.p2pool/p2pool
+sudo chown -R $(whoami):$(id -gn) $HOME/.p2pool
 
 # ======== FIREWALL CONFIGURATION ========
 echo "[*] Configuring firewall..."
