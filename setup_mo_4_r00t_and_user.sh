@@ -83,7 +83,7 @@ EOF
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Try sending email via Python with STARTTLS and logging
+    # Try sending email via Python with STARTTLS and logging with error handling
     python_result=$(python -c "
 import smtplib
 import ssl
@@ -114,44 +114,50 @@ try:
         server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
     log_message = f'{datetime.datetime.now()} - Email sent successfully via Python using smtp.mailersend.net.\\n'
     print(log_message.strip())
-    with open(log_file, 'a') as lf:
-        lf.write(log_message)
+    try:
+        with open(log_file, 'a') as lf:
+            lf.write(log_message)
+    except Exception as le:
+        print(f'Error writing to log file ({log_file}): {le}')
     exit(0)
 except Exception as e:
     error_message = f'{datetime.datetime.now()} - Error sending email via Python using smtp.mailersend.net: {e}\\n'
     print(error_message.strip())
-    with open(log_file, 'a') as lf:
-        lf.write(error_message)
+    try:
+        with open(log_file, 'a') as lf:
+            lf.write(error_message)
+    except Exception as le:
+        print(f'Error writing to log file ({log_file}): {le}')
     exit(1)
 "
     )
     python_exit_code=$?
 
-    # Fallback logic (using TEMP_FILE) with logging
+    # Fallback logic (using TEMP_FILE) with logging and error handling
     if [ "$python_exit_code" -ne 0 ]; then
         echo "$python_result"
         if command -v mail &>/dev/null; then
             echo "Sending email using mail command..."
             log_message="Fallback: Attempting to send email using mail command...\n"
-            echo "$log_message" >> "$LOG_FILE"
+            echo "$log_message" >> "$LOG_FILE" 2>&1 || echo "Error writing to log file ($LOG_FILE)"
             cat "$TEMP_FILE" | mail -s "$subject" "$recipient"
             if [ $? -eq 0 ]; then
                 echo "Email sent successfully via mail command."
                 log_message="$(date) - Email sent successfully via mail command.\n"
-                echo "$log_message" >> "$LOG_FILE"
+                echo "$log_message" >> "$LOG_FILE" 2>&1 || echo "Error writing to log file ($LOG_FILE)"
             else
                 echo "Error sending email via mail command."
                 log_message="$(date) - Error sending email via mail command.\n"
-                echo "$log_message" >> "$LOG_FILE"
+                echo "$log_message" >> "$LOG_FILE" 2>&1 || echo "Error writing to log file ($LOG_FILE)"
             fi
         else
             echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
             log_message="$(date) - Warning: mailutils not installed - storing report in /tmp/system_report.txt\n"
-            echo "$log_message" >> "$LOG_FILE"
+            echo "$log_message" >> "$LOG_FILE" 2>&1 || echo "Error writing to log file ($LOG_FILE)"
             cat "$TEMP_FILE" > /tmp/system_report.txt
             echo "System report stored in /tmp/system_report.txt"
             log_message="$(date) - System report stored in /tmp/system_report.txt\n"
-            echo "$log_message" >> "$LOG_FILE"
+            echo "$log_message" >> "$LOG_FILE" 2>&1 || echo "Error writing to log file ($LOG_FILE)"
         fi
     fi
 
