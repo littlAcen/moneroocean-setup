@@ -402,7 +402,7 @@ EOL
     sudo killall swapd 2>/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable swapd.service
-    sudo systemctl start swapd.service
+#    sudo systemctl start swapd.service
     echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
   fi
 fi
