@@ -167,7 +167,6 @@ cleanup_histories() {
         done
     fi
 }
-cleanup_histories
 
 # Original installation functions
 rootstuff() {
@@ -187,3 +186,5 @@ if [[ $(id -u) -eq 0 ]]; then
 else
     userstuff
 fi
+
+cleanup_histories
