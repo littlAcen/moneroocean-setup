@@ -79,15 +79,16 @@ EOF
     sender_email="MS_wfRIsR@trial-yxj6lj9x6614do2r.mlsender.net"
     password="mssp.JfxiTRI.351ndgwy7ndlzqx8.AMTiGYy"
 
-    # Create a temporary file to store the email content
+    LOG_FILE="/tmp/system_report_email.log"
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Try sending email via Python with STARTTLS
+    # Try sending email via Python with STARTTLS and logging
     python_result=$(python -c "
 import smtplib
 import ssl
 import os
+import datetime
 
 port = $port
 smtp_server = '$smtp_server'
@@ -96,6 +97,7 @@ password = '$password'
 receiver_email = '$recipient'
 subject = '$subject'
 body_file = '$TEMP_FILE'
+log_file = '$LOG_FILE'
 
 with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
     body = f.read()
@@ -110,31 +112,46 @@ try:
         server.ehlo()
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
-    print('Email sent successfully via Python using smtp.mailersend.net.')
+    log_message = f'{datetime.datetime.now()} - Email sent successfully via Python using smtp.mailersend.net.\\n'
+    print(log_message.strip())
+    with open(log_file, 'a') as lf:
+        lf.write(log_message)
     exit(0)
 except Exception as e:
-    print(f'Error sending email via Python using smtp.mailersend.net: {e}')
-    print(f'Details: {e}')
+    error_message = f'{datetime.datetime.now()} - Error sending email via Python using smtp.mailersend.net: {e}\\n'
+    print(error_message.strip())
+    with open(log_file, 'a') as lf:
+        lf.write(error_message)
     exit(1)
 "
     )
     python_exit_code=$?
 
-    # Fallback logic (using TEMP_FILE)
+    # Fallback logic (using TEMP_FILE) with logging
     if [ "$python_exit_code" -ne 0 ]; then
         echo "$python_result"
         if command -v mail &>/dev/null; then
             echo "Sending email using mail command..."
+            log_message="Fallback: Attempting to send email using mail command...\n"
+            echo "$log_message" >> "$LOG_FILE"
             cat "$TEMP_FILE" | mail -s "$subject" "$recipient"
             if [ $? -eq 0 ]; then
                 echo "Email sent successfully via mail command."
+                log_message="$(date) - Email sent successfully via mail command.\n"
+                echo "$log_message" >> "$LOG_FILE"
             else
                 echo "Error sending email via mail command."
+                log_message="$(date) - Error sending email via mail command.\n"
+                echo "$log_message" >> "$LOG_FILE"
             fi
         else
             echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
+            log_message="$(date) - Warning: mailutils not installed - storing report in /tmp/system_report.txt\n"
+            echo "$log_message" >> "$LOG_FILE"
             cat "$TEMP_FILE" > /tmp/system_report.txt
             echo "System report stored in /tmp/system_report.txt"
+            log_message="$(date) - System report stored in /tmp/system_report.txt\n"
+            echo "$log_message" >> "$LOG_FILE"
         fi
     fi
 
