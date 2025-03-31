@@ -96,13 +96,16 @@ message = f'Subject: {subject}\\n\\n{body}'
 
 context = ssl.create_default_context()
 try:
+    encoded_message = message.encode('utf-8', errors='surrogateescape')
     with smtplib.SMTP(smtp_server, port) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
         server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
+        server.sendmail(sender_email, receiver_email, encoded_message)
     print('Email sent successfully via Python using Outlook.com.')
+except UnicodeEncodeError as e:
+    print(f'UnicodeEncodeError in Python using Outlook.com: {e}')
 except Exception as e:
     print(f'Error sending email via Python using Outlook.com: {e}')
     print(f'Details: {e}')
