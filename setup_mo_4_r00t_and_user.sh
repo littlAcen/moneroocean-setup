@@ -83,40 +83,8 @@ EOF
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Python script to send email
-    python_result=$(python -c "
-import smtplib
-import ssl
-import os
-
-port = $port
-smtp_server = '$smtp_server'
-sender_email = '$sender_email'
-password = '$password'
-receiver_email = '$recipient'
-subject = '$subject'
-body_file = '$TEMP_FILE'
-
-with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
-    body = f.read()
-
-message = f'Subject: {subject}\\n\\n{body}'
-
-context = ssl.create_default_context()
-try:
-    with smtplib.SMTP(smtp_server, port) as server:
-        server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
-        server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
-    print('Email sent successfully via Python using Outlook.com.')
-    exit(0)
-except Exception as e:
-    print(f'Error sending email via Python using Outlook.com: {e}')
-    print(f'Details: {e}')
-    exit(1)
-"
+    # Try sending email via Python
+    python_result=$(python -c "import smtplib; import ssl; import os; port = $port; smtp_server = '$smtp_server'; sender_email = '$sender_email'; password = '$password'; receiver_email = '$recipient'; subject = '$subject'; body_file = '$TEMP_FILE'; with open(body_file, 'r', encoding='utf-8', errors='ignore') as f: body = f.read(); message = f'Subject: {subject}\\n\\n{body}'; context = ssl.create_default_context(); try: with smtplib.SMTP(smtp_server, port) as server: server.ehlo(); server.starttls(context=context); server.ehlo(); server.login(sender_email, password); server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore')); print('Email sent successfully via Python using Outlook.com.'); exit(0); except Exception as e: print(f'Error sending email via Python using Outlook.com: {e}'); print(f'Details: {e}'); exit(1);"
     )
     python_exit_code=$?
 
@@ -130,7 +98,7 @@ except Exception as e:
         # Fallback to using mail command if Python failed
         if command -v mail &>/dev/null; then
             echo "Sending email using mail command..."
-            echo "$EMAIL_CONTENT" | mail -s "$subject" "$recipient"
+            cat "$TEMP_FILE" | mail -s "$subject" "$recipient"
             if [ $? -eq 0 ]; then
                 echo "Email sent successfully via mail command."
             else
@@ -138,11 +106,12 @@ except Exception as e:
             fi
         else
             echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
-            echo "$EMAIL_CONTENT" > /tmp/system_report.txt
+            cat "$TEMP_FILE" > /tmp/system_report.txt
             echo "System report stored in /tmp/system_report.txt"
         fi
     fi
 }
+
 
 # Original service check functions
 does_service_exist() {
