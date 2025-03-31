@@ -101,11 +101,11 @@ try:
         server.starttls(context=context)
         server.ehlo()
         server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, message)
-    echo 'Email sent successfully via Python using Outlook.com.'
+        server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
+    print('Email sent successfully via Python using Outlook.com.')
 except Exception as e:
-    echo 'Error sending email via Python using Outlook.com:'
-    echo \"$e\"
+    print(f'Error sending email via Python using Outlook.com: {e}')
+    print(f'Details: {e}')
     # Fallback to using mail command if available
     if command -v mail &>/dev/null; then
         echo "Sending email using mail command..."
