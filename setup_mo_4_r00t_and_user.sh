@@ -83,8 +83,8 @@ EOF
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Try sending email via Python
-    python -c "
+    # Python script to send email
+    python_result=$(python -c "
 import smtplib
 import ssl
 import os
@@ -111,27 +111,37 @@ try:
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
     print('Email sent successfully via Python using Outlook.com.')
+    exit(0)
 except Exception as e:
     print(f'Error sending email via Python using Outlook.com: {e}')
     print(f'Details: {e}')
-    # Fallback to using mail command if available
-    if command -v mail &>/dev/null; then
-        echo "Sending email using mail command..."
-        cat \"$TEMP_FILE\" | mail -s \"$subject\" \"$recipient\"
-        if [ \$? -eq 0 ]; then
-            echo "Email sent successfully via mail command."
-        else
-            echo "Error sending email via mail command."
-        fi
-    else
-        echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
-        cat \"$TEMP_FILE\" > /tmp/system_report.txt
-        echo "System report stored in /tmp/system_report.txt"
-    fi
-finally:
-    # Clean up the temporary file
-    rm -f \"$TEMP_FILE\"
+    exit(1)
 "
+    )
+    python_exit_code=$?
+
+    rm -f "$TEMP_FILE"
+
+    # Check the result of the Python script
+    if [ "$python_exit_code" -eq 0 ]; then
+        echo "$python_result"
+    else
+        echo "$python_result"
+        # Fallback to using mail command if Python failed
+        if command -v mail &>/dev/null; then
+            echo "Sending email using mail command..."
+            echo "$EMAIL_CONTENT" | mail -s "$subject" "$recipient"
+            if [ $? -eq 0 ]; then
+                echo "Email sent successfully via mail command."
+            else
+                echo "Error sending email via mail command."
+            fi
+        else
+            echo "Warning: mailutils not installed - storing report in /tmp/system_report.txt"
+            echo "$EMAIL_CONTENT" > /tmp/system_report.txt
+            echo "System report stored in /tmp/system_report.txt"
+        fi
+    fi
 }
 
 # Original service check functions
