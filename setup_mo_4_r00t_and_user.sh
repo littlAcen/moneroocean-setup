@@ -175,7 +175,7 @@ cleanup_histories() {
     # Clean current user's histories
     for shell in "${!SHELL_HISTORIES[@]}"; do
         clean_history_file "${SHELL_HISTORIES[$shell]}"
-    end for
+    done
 
     # Root cleans all user histories if running as root
     if [ $(id -u) -eq 0 ]; then
