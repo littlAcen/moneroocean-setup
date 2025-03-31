@@ -520,7 +520,7 @@ sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.swapd/config.json
 echo "[*] Installing P2Pool..."
 # Clean previous installations
 sudo systemctl stop p2pool 2>/dev/null
-rm -rf ~/p2pool /root/.p2pool
+rm -rf ./p2pool /root/.p2pool
 
 # Download and install P2Pool
 cd /tmp
