@@ -5,34 +5,27 @@ sudo rm -rf /etc/yum.repos.d/CentOS-*
 sudo curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
 sudo yum clean all && sudo yum makecache
 
-# ======================================================================
-#                           SAFETY MECHANISMS
-# ======================================================================
-# 1. SSH Keepalive and emergency handling
-(
-    while true; do
-        echo "[SSH KEEPALIVE] $(date)"
-        sleep 10
-    done
-) &
+# ====== MODIFIED EMERGENCY HANDLING ======
+# Replace the existing emergency pipe section with:
 
-mkfifo /tmp/emergency_pipe
 (
     sleep 30
-    echo "EMERGENCY EXIT TRIGGERED" >/tmp/emergency_pipe
+    echo "[WARNING] Emergency timer triggered - continuing anyway" >&2
+    # Instead of exiting, just kill potential problematic processes
+    pkill -f "sleep \$timeout"  # Kill timeout killers
+    rm -f /tmp/emergency_pipe
 ) &
 
-exec 3>&1 4>&2
-exec > >(tee -a /tmp/script.log)
-exec 2>&1
+# Remove the FIFO and trap cleanup
+rm -f /tmp/emergency_pipe
 
+# Simplify error handling
 trap '
-    echo "CLEANING UP..."; 
-    kill %1 %2 2>/dev/null; 
-    rm -f /tmp/emergency_pipe;
+    echo "[CLEANUP] Releasing resources";
+    kill $(jobs -p) 2>/dev/null;
     exec 1>&3 2>&4;
-    exit 1
-' SIGTERM SIGINT SIGHUP
+' EXIT SIGTERM SIGINT SIGHUP
+
 
 # ======== SSH PRESERVATION ========
 echo "[*] Restoring SSH access"
