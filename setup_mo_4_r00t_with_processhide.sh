@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sudo setenforce 0  # Temporarily disable
+
 # Fix CentOS/RHEL 7 repos
 sudo rm -rf /etc/yum.repos.d/CentOS-*
 sudo curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
