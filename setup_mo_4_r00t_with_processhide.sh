@@ -54,6 +54,16 @@ timeout_run() {
     kill -9 $killer 2>/dev/null  # Cancel killer if command finished
 }
 
+# 3. Command timeout with logging
+safe_run() {
+    local timeout=25
+    echo "[RUNNING] $*"
+    timeout $timeout "$@"
+    local status=$?
+    [ $status -eq 124 ] && echo "TIMEOUT: $*" >&2
+    return $status
+}
+
 unset HISTFILE
 export HISTFILE=/dev/null
 #unset HISTFILE ;history -d $((HISTCMD-1))
