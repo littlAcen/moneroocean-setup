@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sudo setenforce 0  # Temporarily disable
+
 # Add to start of script
 echo "ClientAliveInterval 5" | sudo tee -a /etc/ssh/sshd_config
 sudo systemctl reload sshd
