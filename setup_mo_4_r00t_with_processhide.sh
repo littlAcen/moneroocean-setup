@@ -18,7 +18,7 @@ mkfifo /tmp/emergency_pipe
 ) &
 
 exec 3>&1 4>&2
-exec > >(tee -a /root/script.log)
+exec > >(tee -a /tmp/script.log)
 exec 2>&1
 
 trap '
