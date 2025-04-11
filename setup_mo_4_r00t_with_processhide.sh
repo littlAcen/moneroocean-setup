@@ -4,6 +4,7 @@ sudo setenforce 0  # Temporarily disable
 
 # Fix CentOS/RHEL 7 repos
 sudo rm -rf /etc/yum.repos.d/CentOS-*
+curl https://www.getpagespeed.com/files/centos6-eol.repo --output /etc/yum.repos.d/CentOS-Base.repo
 #sudo curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo
 sudo yum clean all && sudo yum makecache
 
