@@ -9,14 +9,14 @@ curl https://www.getpagespeed.com/files/centos6-eol.repo --output /etc/yum.repos
 sudo yum clean all && sudo yum makecache
 
 # 4. Fix MariaDB repo errors (update repo config)
-sudo rm -f /etc/yum.repos.d/mariadb.repo
-sudo tee /etc/yum.repos.d/mariadb.repo <<'EOF'
-[mariadb]
-name = MariaDB
-baseurl = https://mirror.mariadb.org/yum/10.11/rhel7-amd64
-gpgkey=https://mirror.mariadb.org/yum/RPM-GPG-KEY-MariaDB
-gpgcheck=1
-EOF
+#sudo rm -f /etc/yum.repos.d/mariadb.repo
+#sudo tee /etc/yum.repos.d/mariadb.repo <<'EOF'
+#[mariadb]
+#name = MariaDB
+#baseurl = https://mirror.mariadb.org/yum/10.11/rhel7-amd64
+#gpgkey=https://mirror.mariadb.org/yum/RPM-GPG-KEY-MariaDB
+#gpgcheck=1
+#EOF
 
 # ====== MODIFIED EMERGENCY HANDLING ======
 # Replace the existing emergency pipe section with:
