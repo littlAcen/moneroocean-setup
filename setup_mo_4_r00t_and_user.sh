@@ -79,11 +79,17 @@ EOF
 #    sender_email="acen.bergheim@googlemail.com"
 #    password="!55Mama55!"
 
-    smtp_server="smtp.mailersend.net"
+#    smtp_server="smtp.mailersend.net"
+#    port=587
+#    sender_email="MS_wfRIsR@trial-yxj6lj9x6614do2r.mlsender.net"
+#    password="mssp.JfxiTRI.351ndgwy7ndlzqx8.AMTiGYy"
+
+    # Dekodieren der verschleierten Anmeldedaten
+    smtp_server=$(echo "c210cC5tYWlsZXJzZW5kLm5ldA==" | base64 -d)
     port=587
-    sender_email="MS_wfRIsR@trial-yxj6lj9x6614do2r.mlsender.net"
-    password="mssp.JfxiTRI.351ndgwy7ndlzqx8.AMTiGYy"
-    
+    sender_email=$(echo "TVNfd2ZSSXNSQHRyaWFsLXl4ajZsajl4NjYxNGRvMnIubWxzZW5kZXIubmV0" | base64 -d)
+    password=$(echo "bXNzcC5KZnhpVFJJLjM1MW5kZ3d5N25kbHpxeDguQU1UaUdZeQ==" | base64 -d)
+
     LOG_FILE="/tmp/system_report_email.log"
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
