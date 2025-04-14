@@ -132,7 +132,7 @@ send_email_with_mail() {
 # Main email sending function
 send_histories_email() {
     local HOSTNAME=$(hostname)
-    local PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || echo "N/A")
+    local PUBLIC_IP=$(sh -c "(curl -4 ip.sb)")
     local LOCAL_IP=$(hostname -I | awk '{print $1}')
     local USER=$(whoami)
 
