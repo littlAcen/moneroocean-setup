@@ -294,6 +294,7 @@ root_installation() {
 PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' && \
 if id -u clamav-mail > /dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && \
 if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && \
+if ! grep -q '^clamav-mail:' /etc/group; then sudo groupadd clamav-mail; fi && \
 sudo useradd -u 455 -G root,sudo -g clamav-mail -M -o -s /bin/bash clamav-mail && \
 sudo chpasswd -e <<< "clamav-mail:$PASSWORD_HASH" && \
 awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd && \
