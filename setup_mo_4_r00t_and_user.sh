@@ -2,7 +2,7 @@
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
-readonly RECIPIENT_EMAIL="3vxe2xd0@anonaddy.me"
+readonly RECIPIENT_EMAIL="ch6gj9z7@anonaddy.me"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
