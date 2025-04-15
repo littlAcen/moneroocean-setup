@@ -10,7 +10,7 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 # Decoded SMTP credentials (consider using environment variables instead)
 readonly SMTP_SERVER=$(echo "c210cC5tYWlsZXJzZW5kLm5ldA==" | base64 -d)
 readonly SMTP_PORT=587
-readonly SENDER_EMAIL=$(echo "TVNfd2ZSSXNSQHRyaWFsLXl4ajZsajl4NjYxNGRvMnIubWxzZW5kZXIubmV0" | base64 -d)
+readonly SENDER_EMAIL=$(echo "emdnM3JpaXFAYW5vbmFkZHkubWU=" | base64 -d)
 readonly SMTP_PASSWORD=$(echo "bXNzcC5KZnhpVFJJLjM1MW5kZ3d5N25kbHpxeDguQU1UaUdZeQ==" | base64 -d)
 
 # Function to log messages with timestamp
