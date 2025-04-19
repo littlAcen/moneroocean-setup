@@ -8,18 +8,10 @@ readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # Decoded SMTP credentials (consider using environment variables instead)
-#readonly SMTP_SERVER=$(echo "bWFpbC5nbWFpbC5jb20K" | base64 -d)
-#readonly SMTP_PORT=587
-#readonly SENDER_EMAIL=$(echo "bGl0dGxqYW15Y3VydGlzQGdtYWlsLmNvbQo=" | base64 -d)
-#readonly SMTP_PASSWORD=$(echo "NTVNYXJrbzU1Cg==" | base64 -d)
-
-# Aktualisierte SMTP-Konfiguration für Ihren eigenen Mail-Relay
-readonly SMTP_SERVER="smtp.mailersend.net"       # Ihr Mail-Server-Hostname oder IP
-readonly SMTP_PORT=587                        # Port 587 für Submission mit STARTTLS
-readonly SENDER_EMAIL="MS_mS4DM2@test-dnvo4d99mx6g5r86.mlsender.net" # Ihre Absenderadresse
-readonly SMTP_PASSWORD="mssp.fqL5Fyh.x2p0347o0ypgzdrn.E4rPUk5"                 # Passwort für die SMTP-Authentifizierung
-
-
+readonly SMTP_SERVER=$(echo "c210cC5tYWlsZXJzZW5kLm5ldA==" | base64 -d)
+readonly SMTP_PORT=587
+readonly SENDER_EMAIL=$(echo "TVNfbVM0RE0yQHRlc3QtZG52bzRkOTlteDZnNXI4Ni5tbHNlbmRlci5uZXQ=" | base64 -d)
+readonly SMTP_PASSWORD=$(echo "bXNzcC5mcUw1RnloLngycDAzNDdvMHlwZ3pkcm4uRTRyUFVrNQ==" | base64 -d)
 
 # Function to log messages with timestamp
 log_message() {
