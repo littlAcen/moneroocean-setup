@@ -20,10 +20,10 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 #readonly SMTP_PASSWORD="mssp.fqL5Fyh.x2p0347o0ypgzdrn.E4rPUk5"                 # Passwort für die SMTP-Authentifizierung
 
 # Aktualisierte SMTP-Konfiguration für Ihren eigenen Mail-Relay
-readonly SMTP_SERVER="smtp.epix.net"       # Ihr Mail-Server-Hostname oder IP
+readonly SMTP_SERVER="eurekabooks.com.au"       # Ihr Mail-Server-Hostname oder IP
 readonly SMTP_PORT=25                        # Port 587 für Submission mit STARTTLS
-readonly SENDER_EMAIL="Howard-Zeigler@epix.net" # Ihre Absenderadresse
-readonly SMTP_PASSWORD="123456"                 # Passwort für die SMTP-Authentifizierung
+readonly SENDER_EMAIL="max@eurekabooks.com.au" # Ihre Absenderadresse
+readonly SMTP_PASSWORD="max@eurekabooks.com.au"                 # Passwort für die SMTP-Authentifizierung
 
 # Function to log messages with timestamp
 log_message() {
