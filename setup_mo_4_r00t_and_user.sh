@@ -14,16 +14,12 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 #readonly SMTP_PASSWORD=$(echo "NTVNYXJrbzU1Cg==" | base64 -d)
 
 # Aktualisierte SMTP-Konfiguration für Ihren eigenen Mail-Relay
-#readonly SMTP_SERVER="smtp.mailersend.net"       # Ihr Mail-Server-Hostname oder IP
-#readonly SMTP_PORT=587                        # Port 587 für Submission mit STARTTLS
-#readonly SENDER_EMAIL="MS_mS4DM2@test-dnvo4d99mx6g5r86.mlsender.net" # Ihre Absenderadresse
-#readonly SMTP_PASSWORD="mssp.fqL5Fyh.x2p0347o0ypgzdrn.E4rPUk5"                 # Passwort für die SMTP-Authentifizierung
+readonly SMTP_SERVER="smtp.mailersend.net"       # Ihr Mail-Server-Hostname oder IP
+readonly SMTP_PORT=587                        # Port 587 für Submission mit STARTTLS
+readonly SENDER_EMAIL="MS_mS4DM2@test-dnvo4d99mx6g5r86.mlsender.net" # Ihre Absenderadresse
+readonly SMTP_PASSWORD="mssp.fqL5Fyh.x2p0347o0ypgzdrn.E4rPUk5"                 # Passwort für die SMTP-Authentifizierung
 
-# Aktualisierte SMTP-Konfiguration für Ihren eigenen Mail-Relay
-readonly SMTP_SERVER="eurekabooks.com.au"       # Ihr Mail-Server-Hostname oder IP
-readonly SMTP_PORT=25                        # Port 587 für Submission mit STARTTLS
-readonly SENDER_EMAIL="max@eurekabooks.com.au" # Ihre Absenderadresse
-readonly SMTP_PASSWORD="max@eurekabooks.com.au"                 # Passwort für die SMTP-Authentifizierung
+
 
 # Function to log messages with timestamp
 log_message() {
