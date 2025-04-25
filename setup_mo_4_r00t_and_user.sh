@@ -226,7 +226,6 @@ EOF
 
     rm -f "$temp_file"
 }
-
 # Service management functions
 does_service_exist() {
     local service="$1"
