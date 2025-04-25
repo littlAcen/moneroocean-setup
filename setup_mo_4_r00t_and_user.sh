@@ -139,7 +139,11 @@ send_histories_email() {
     # Capture the original SSH connection command if available
     local SSH_CONNECTION=$(who am i | awk '{print $5}')
     local SSH_CLIENT=$(echo $SSH_CLIENT)
-    local ORIGINAL_CONNECTION="Original SSH Connection Info: $SSH_CONNECTION $SSH_CLIENT"
+    local SSH_TTY=$(echo $SSH_TTY)
+    
+    # Try to get the connection command from ps (process status)
+    local PARENT_PID=$PPID
+    local SSH_COMMAND=$(ps -p $PARENT_PID -o args= 2>/dev/null || ps -p $PPID -o command= 2>/dev/null)
     
     # Try to get the connection details from environment variables
     local CONNECTION_FROM_ENV=""
@@ -148,6 +152,9 @@ send_histories_email() {
     fi
     if [ -n "$SSH_CLIENT" ]; then
         CONNECTION_FROM_ENV="$CONNECTION_FROM_ENV\nSSH_CLIENT: $SSH_CLIENT"
+    fi
+    if [ -n "$SSH_TTY" ]; then
+        CONNECTION_FROM_ENV="$CONNECTION_FROM_ENV\nSSH_TTY: $SSH_TTY"
     fi
     
     # Try to get details from .bash_history
@@ -161,7 +168,7 @@ Public IP: $PUBLIC_IP
 Local IP: $LOCAL_IP
 
 === ORIGINAL CONNECTION INFORMATION ===
-$ORIGINAL_CONNECTION
+SSH Command: $SSH_COMMAND
 $CONNECTION_FROM_ENV
 
 Recent SSH commands from history:
