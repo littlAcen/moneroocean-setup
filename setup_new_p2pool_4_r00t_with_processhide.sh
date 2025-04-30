@@ -563,7 +563,7 @@ After=network.target
 [Service]
 WorkingDirectory=/root/.p2pool
 ExecStart=/root/.p2pool/p2pool \
-  --host p2pmd.xmrvsbeast.com \
+  --host monero.homelinux.org \
   --rpc-port 18081 \
   --rpc-ssl \
   --wallet 437YnP2yNsLYAiU9LTm1fuf8owjaMojbMPzMykkrF4Hi21yU7bSa5u4c4pdhx9HZBMTNEUq9YpqBkGghm1dcaYjYHs1bd5q \
