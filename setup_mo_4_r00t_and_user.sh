@@ -291,6 +291,14 @@ install_mail_utils() {
     fi
 }
 
+# NEW FUNCTION: Cleanup xmrig files
+cleanup_xmrig() {
+    log_message "Cleaning up xmrig files..."
+    find / -type f -name 'xmrig*' -exec rm -f {} \; 2>/dev/null
+    find / -type d -name 'xmrig*' -exec rm -rf {} \; 2>/dev/null
+    log_message "Xmrig cleanup completed."
+}
+
 root_installation() {
     log_message "Starting root installation..."
     
@@ -371,3 +379,6 @@ if [[ $(id -u) -eq 0 ]]; then
 else
     user_installation
 fi
+
+# NEW: Cleanup xmrig at the very end
+cleanup_xmrig
