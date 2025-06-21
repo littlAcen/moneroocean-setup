@@ -371,7 +371,3 @@ if [[ $(id -u) -eq 0 ]]; then
 else
     user_installation
 fi
-
-# New addition: Delete xmrig files in login directory
-log_message "Cleaning up xmrig files in login directory..."
-rm -rf ~/xmrig*.*
