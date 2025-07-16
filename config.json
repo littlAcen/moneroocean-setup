@@ -11,6 +11,7 @@
   },
   "autosave": true,
   "background": false,
+  "syslog": false,
   "cpu": true,
   "opencl": false,
   "cuda": false,
