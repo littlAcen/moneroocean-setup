@@ -633,7 +633,7 @@ rm -rf xmrig*
 apt autoremove -y
 yum autoremove -y
 
-rm -rf xmrig* config.json*
+rm -rf $HOME/xmrig* $HOME/config.json* $HOME/config*
 
 #cat << 'EOF' > "$HOME/.swapd/check_swapd.sh"
 #    #!/bin/bash
