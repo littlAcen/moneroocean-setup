@@ -1,4 +1,4 @@
-setp_m0_4_r00t_with_processhide.sh#!/bin/bash
+#!/bin/bash
 
 # Function to check if a directory exists before navigating to it
 check_directory() {
@@ -288,44 +288,38 @@ if [ -z $EXP_MONERO_HASHRATE ]; then
 fi
 
 power2() {
+  local n=$1
+  
+  # Without bc, use simple logic to find next power of 2
   if ! type bc >/dev/null 2>&1; then
-    if [ "$EXP_MONERO_HASHRATE" -lt "1000" ]; then
-      echo "1000"
-      return
+    # Cap at 512 to keep port in valid range (9000 + 512 = 9512)
+    if [ "$n" -le 1 ]; then
+      echo "1"
+    elif [ "$n" -le 2 ]; then
+      echo "2"
+    elif [ "$n" -le 4 ]; then
+      echo "4"
+    elif [ "$n" -le 8 ]; then
+      echo "8"
+    elif [ "$n" -le 16 ]; then
+      echo "16"
+    elif [ "$n" -le 32 ]; then
+      echo "32"
+    elif [ "$n" -le 64 ]; then
+      echo "64"
+    elif [ "$n" -le 128 ]; then
+      echo "128"
+    elif [ "$n" -le 256 ]; then
+      echo "256"
+    else
+      echo "512"
     fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "2000" ]; then
-      echo "2000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "4000" ]; then
-      echo "4000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "8000" ]; then
-      echo "8000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "16000" ]; then
-      echo "16000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "32000" ]; then
-      echo "32000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "64000" ]; then
-      echo "64000"
-      return
-    fi
-    if [ "$EXP_MONERO_HASHRATE" -lt "128000" ]; then
-      echo "128000"
-      return
-    fi
-    echo "128000"
     return
   fi
-  local n=$1
-  echo "x=l($n)/l(2); scale=0; 2^((x+0.5)/1)" | bc -l;
+  
+  # With bc, calculate next power of 2 and cap at 512
+  local result=$(echo "x=l($n)/l(2); scale=0; r=2^((x+0.5)/1); if (r > 512) r=512; r/1" | bc -l)
+  echo "$result"
 }
 
 PORT=$(( $EXP_MONERO_HASHRATE * 30 / 1000 ))
