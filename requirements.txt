@@ -1,0 +1,43 @@
+# Python Dependencies for moneroocean-setup
+# Generated: 2025-12-20
+#
+# SECURITY NOTICE: This requirements.txt is provided for dependency management
+# improvements only. Some dependencies listed below are used in malicious code.
+
+# SSH/SFTP Libraries
+paramiko>=3.4.0  # SSH client - REQUIRED, fixes CVE-2023-48795 (Terrapin Attack)
+# pysftp - DEPRECATED AND REMOVED - unmaintained since 2016, has security vulnerabilities
+# Replace pysftp usage with paramiko.SFTPClient directly
+
+# Terminal UI Libraries
+rich>=13.7.0     # Terminal formatting and tables
+colorlog>=6.8.0  # Colored logging output
+tqdm>=4.66.0     # Progress bars
+
+# Note: The following are Python standard library modules (no installation needed):
+# - argparse (CLI argument parsing)
+# - concurrent.futures (parallel execution)
+# - ftplib (FTP client)
+# - logging (logging framework)
+# - os, sys (operating system interfaces)
+# - re (regular expressions)
+# - shutil (file operations)
+# - socket (network sockets)
+# - threading (multithreading)
+# - time, datetime (time handling)
+# - subprocess (process execution)
+# - signal (signal handling)
+# - queue (thread-safe queues)
+# - mmap (memory-mapped files)
+# - curses (terminal control)
+# - urllib (URL handling)
+# - collections (container datatypes)
+
+# Development Dependencies (optional)
+# pytest>=7.4.0          # Testing framework
+# black>=23.12.0         # Code formatter
+# flake8>=7.0.0          # Linting
+# mypy>=1.8.0            # Type checking
+# pip-audit>=2.6.0       # Security vulnerability scanner
+# safety>=2.3.0          # Dependency security checker
+# bandit>=1.7.5          # Security linting
