@@ -712,11 +712,38 @@ if ! type curl >/dev/null 2>&1; then
 fi
 
 echo "[VERBOSE] Fetching latest XMRig release version..."
-LATEST_XMRIG_RELEASE=$(curl -s https://github.com/xmrig/xmrig/releases/latest | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
+# Use GitHub API for more reliable version detection
+LATEST_XMRIG_RELEASE=$(curl -s https://api.github.com/repos/xmrig/xmrig/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+# Fallback to direct HTML parsing if API fails
+if [ -z "$LATEST_XMRIG_RELEASE" ]; then
+  echo "[VERBOSE] API method failed, trying HTML parsing..."
+  LATEST_XMRIG_RELEASE=$(curl -sL https://github.com/xmrig/xmrig/releases/latest | grep -oP 'xmrig/xmrig/releases/tag/\K[^"]+' | head -1)
+fi
+
+# Fallback to known working version if all else fails
+if [ -z "$LATEST_XMRIG_RELEASE" ]; then
+  echo "[WARNING] Could not detect latest version, using fallback v6.21.3"
+  LATEST_XMRIG_RELEASE="v6.21.3"
+fi
+
 echo "[VERBOSE] Found release: $LATEST_XMRIG_RELEASE"
+
+# Verify version was detected
+if [ -z "$LATEST_XMRIG_RELEASE" ]; then
+  echo "[ERROR] Failed to detect XMRig version!"
+  echo "[ERROR] Cannot proceed without valid version number"
+  exit 1
+fi
 
 LATEST_XMRIG_VERSION="${LATEST_XMRIG_RELEASE#v}"  # Strip the 'v' prefix for directory name
 echo "[VERBOSE] Version number (without 'v'): $LATEST_XMRIG_VERSION"
+
+# Verify version number is valid (contains numbers)
+if [ -z "$LATEST_XMRIG_VERSION" ]; then
+  echo "[ERROR] Invalid version number after stripping 'v' prefix!"
+  exit 1
+fi
 
 LATEST_XMRIG_LINUX_RELEASE="xmrig-$LATEST_XMRIG_RELEASE-linux-static-x64.tar.gz"
 
@@ -738,6 +765,17 @@ if curl -L --progress-bar "https://github.com/xmrig/xmrig/releases/download/$LAT
   echo ""
   echo "[VERBOSE] Download completed successfully"
   echo "[VERBOSE] File size: $(du -h /tmp/xmrig.tar.gz | cut -f1)"
+  
+  # Verify it's actually a gzip file
+  if ! file /tmp/xmrig.tar.gz | grep -q "gzip compressed"; then
+    echo "[ERROR] Downloaded file is not a valid gzip archive!"
+    echo "[ERROR] File type: $(file /tmp/xmrig.tar.gz)"
+    echo "[ERROR] File contents:"
+    head -20 /tmp/xmrig.tar.gz
+    echo "[ERROR] Download URL was: https://github.com/xmrig/xmrig/releases/download/$LATEST_XMRIG_RELEASE/$LATEST_XMRIG_LINUX_RELEASE"
+    exit 1
+  fi
+  
   echo "[*] Extracting archive to /tmp..."
   
   tar xf /tmp/xmrig.tar.gz -C /tmp
