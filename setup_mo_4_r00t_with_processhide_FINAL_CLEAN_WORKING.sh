@@ -847,13 +847,70 @@ rm -rf "$HOME"/.gdm2*
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 
-# First, check if file already exists (from previous manual upload)
+# ========================================================================
+# SMART FILE DETECTION: Check script directory first
+# ========================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CURRENT_DIR="$(pwd)"
+
+echo "[*] Checking for local xmrig.tar.gz file..."
+echo "    Script directory: $SCRIPT_DIR"
+echo "    Current directory: $CURRENT_DIR"
+
+FOUND_LOCAL=false
+
+# Check script directory first
+if [ -f "$SCRIPT_DIR/xmrig.tar.gz" ]; then
+    echo "[✓] Found xmrig.tar.gz in script directory!"
+    if file "$SCRIPT_DIR/xmrig.tar.gz" 2>/dev/null | grep -q "gzip compressed"; then
+        echo "[*] Copying to /tmp/xmrig.tar.gz..."
+        cp "$SCRIPT_DIR/xmrig.tar.gz" /tmp/xmrig.tar.gz
+        if [ $? -eq 0 ]; then
+            echo "[✓] Successfully copied local file to /tmp/"
+            FOUND_LOCAL=true
+        fi
+    else
+        echo "[!] File exists but is not a valid gzip archive - ignoring"
+    fi
+fi
+
+# Check current directory if not found in script directory
+if [ "$FOUND_LOCAL" = false ] && [ "$CURRENT_DIR" != "$SCRIPT_DIR" ]; then
+    if [ -f "$CURRENT_DIR/xmrig.tar.gz" ]; then
+        echo "[✓] Found xmrig.tar.gz in current directory!"
+        if file "$CURRENT_DIR/xmrig.tar.gz" 2>/dev/null | grep -q "gzip compressed"; then
+            echo "[*] Copying to /tmp/xmrig.tar.gz..."
+            cp "$CURRENT_DIR/xmrig.tar.gz" /tmp/xmrig.tar.gz
+            if [ $? -eq 0 ]; then
+                echo "[✓] Successfully copied local file to /tmp/"
+                FOUND_LOCAL=true
+            fi
+        else
+            echo "[!] File exists but is not a valid gzip archive - ignoring"
+        fi
+    fi
+fi
+
+# If we found and copied a local file, mark it for the summary
+if [ "$FOUND_LOCAL" = true ]; then
+    touch /tmp/.local_file_used
+    echo "[✓] Using local xmrig.tar.gz - skipping download"
+fi
+
+# ========================================================================
+# Now proceed with normal download logic
+# ========================================================================
+
+# First, check if file already exists in /tmp (from local copy or previous manual upload)
 if [ -f /tmp/xmrig.tar.gz ]; then
     # Verify it's a valid tar.gz file
     if file /tmp/xmrig.tar.gz 2>/dev/null | grep -q "gzip compressed"; then
-        echo "[✓] Found existing xmrig.tar.gz in /tmp/ - using it"
-        echo "[*] (This file was likely manually uploaded previously)"
-        touch /tmp/.manual_upload_used  # Mark that manual upload was used
+        if [ "$FOUND_LOCAL" = false ]; then
+            echo "[✓] Found existing xmrig.tar.gz in /tmp/ - using it"
+            echo "[*] (This file was likely manually uploaded previously)"
+            touch /tmp/.manual_upload_used  # Mark that manual upload was used
+        fi
         DOWNLOAD_SUCCESS=true
     else
         echo "[!] Found /tmp/xmrig.tar.gz but it's not a valid gzip file - removing"
@@ -1545,8 +1602,11 @@ else
     echo "  Download Tool: curl"
 fi
 
-# Check if manual upload was used (file existed before download attempt)
-if [ -f /tmp/.manual_upload_used ]; then
+# Check how the file was obtained
+if [ -f /tmp/.local_file_used ]; then
+    echo "  Download Mode: Local file (from script directory)"
+    rm -f /tmp/.local_file_used
+elif [ -f /tmp/.manual_upload_used ]; then
     echo "  Download Mode: Manual upload (SSL too old for HTTPS)"
     rm -f /tmp/.manual_upload_used
 else
