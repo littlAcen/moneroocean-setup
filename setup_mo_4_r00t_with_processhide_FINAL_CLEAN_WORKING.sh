@@ -431,7 +431,8 @@ EOFSYSV
 echo "========================================================================="
 echo ""
 
-sudo setenforce 0  # Temporarily disable
+# Disable SELinux if present
+[ -f /usr/sbin/setenforce ] && setenforce 0 2>/dev/null || true
 
 # Fix CentOS/RHEL 7 repos
 #sudo rm -rf /etc/yum.repos.d/CentOS-*
