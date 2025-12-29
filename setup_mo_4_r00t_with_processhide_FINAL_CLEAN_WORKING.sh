@@ -1129,7 +1129,6 @@ After=network.target
 ExecStart="$HOME"/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
 Nice=10
-CPUWeight=1
 
 [Install]
 WantedBy=multi-user.target
