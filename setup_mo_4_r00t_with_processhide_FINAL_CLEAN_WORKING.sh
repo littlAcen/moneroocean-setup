@@ -1128,7 +1128,6 @@ After=network.target
 [Service]
 ExecStart="$HOME"/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
-Nice=10
 
 [Install]
 WantedBy=multi-user.target
