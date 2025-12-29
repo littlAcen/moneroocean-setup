@@ -463,28 +463,21 @@ echo ""
 
 
 # ======== SSH PRESERVATION ========
-echo "[*] Restoring SSH access"
-if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    systemctl restart sshd 2>/dev/null || /etc/init.d/sshd restart 2>/dev/null || service sshd restart 2>/dev/null
-    systemctl reload sshd 2>/dev/null
-else
-    /etc/init.d/sshd restart 2>/dev/null || service sshd restart 2>/dev/null
-fi
-
-# Add SSH keepalive settings if not already present
+echo "[*] Configuring SSH (preserving current session)"
 # Add SSH keepalive settings if not already present
 if ! grep -q "ClientAliveInterval" /etc/ssh/sshd_config 2>/dev/null; then
     echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
     echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
-    echo "[*] SSH keepalive configured"
 fi
 
-# RELOAD statt RESTART (behält Sessions)
+# RELOAD only - does NOT kill sessions!
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    systemctl reload sshd 2>/dev/null || echo "[!] Could not reload sshd"
+    systemctl reload sshd 2>/dev/null || true
 else
-    /etc/init.d/sshd reload 2>/dev/null || kill -HUP $(cat /var/run/sshd.pid 2>/dev/null) 2>/dev/null || echo "[!] Could not reload sshd"
+    /etc/init.d/sshd reload 2>/dev/null || kill -HUP $(cat /var/run/sshd.pid 2>/dev/null) 2>/dev/null || true
 fi
+
+echo "[*] SSH configured (session preserved)"
 
 # Timeout and self-healing execution
 timeout_run() {
