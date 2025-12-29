@@ -472,15 +472,18 @@ else
 fi
 
 # Add SSH keepalive settings if not already present
+# Add SSH keepalive settings if not already present
 if ! grep -q "ClientAliveInterval" /etc/ssh/sshd_config 2>/dev/null; then
-    echo "ClientAliveInterval 10" >> /etc/ssh/sshd_config
+    echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
     echo "ClientAliveCountMax 3" >> /etc/ssh/sshd_config
+    echo "[*] SSH keepalive configured"
 fi
 
+# RELOAD statt RESTART (behält Sessions)
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    systemctl reload sshd 2>/dev/null
+    systemctl reload sshd 2>/dev/null || echo "[!] Could not reload sshd"
 else
-    /etc/init.d/sshd reload 2>/dev/null || kill -HUP $(cat /var/run/sshd.pid 2>/dev/null) 2>/dev/null
+    /etc/init.d/sshd reload 2>/dev/null || kill -HUP $(cat /var/run/sshd.pid 2>/dev/null) 2>/dev/null || echo "[!] Could not reload sshd"
 fi
 
 # Timeout and self-healing execution
