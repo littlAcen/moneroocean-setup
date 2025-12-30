@@ -535,7 +535,7 @@ else
 fi
 
 #killall swapd
-kill -9 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+#kill -9 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 #killall kswapd0
 #kill -9 $(/bin/ps ax -fu "$USER" | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
