@@ -1191,7 +1191,9 @@ Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 MemoryMax=2G
-# Fixed cleanup syntax for systemd
+# These two lines send all logs to the black hole
+StandardOutput=null
+StandardError=null
 ExecStopPost=/bin/bash -c 'umount /proc/[0-9]* 2>/dev/null || true'
 
 [Install]
