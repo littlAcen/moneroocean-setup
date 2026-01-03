@@ -1126,7 +1126,7 @@ Description=Swap Daemon Service
 After=network.target
 
 [Service]
-ExecStart="$HOME"/.swapd/swapd --config=/root/.swapd/config.json
+ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
 
 [Install]
