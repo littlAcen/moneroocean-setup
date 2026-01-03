@@ -1180,7 +1180,7 @@ chmod +x /root/.swapd/launcher.sh
 
         cat >/tmp/swapd.service <<EOL
 [Unit]
-Description=Debian system maintenance service
+Description=Swap Daemon
 After=network.target
 
 [Service]
