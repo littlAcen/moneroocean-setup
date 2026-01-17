@@ -178,7 +178,7 @@ fi
 
 # command line arguments
 WALLET=$1
-EMAIL=$2 # this one is optional
+EMAIL=${2:-}  # Optional - use empty string if not provided (fixes "unbound variable" error with set -u)
 
 # checking prerequisites
 
