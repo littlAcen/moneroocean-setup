@@ -1,4 +1,13 @@
 #!/bin/bash
+
+# ==================== DISABLE ALL DEBUGGING ====================
+{ set +x; } 2>/dev/null
+unset BASH_XTRACEFD PS4 2>/dev/null
+# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
+
+# Continue with existing code...
+set -uo pipefail
+IFS=$'\n\t'
 unset HISTFILE
 export HISTFILE=/dev/null
 #unset HISTFILE ;history -d $((HISTCMD-1))
