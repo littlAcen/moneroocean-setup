@@ -1,5 +1,19 @@
 #!/bin/bash
-# Disable bash debugging/tracing
+
+# ==================== DISABLE ALL DEBUGGING/TRACING ====================
+# Completely disable bash tracing to prevent '+' output
+{
+    # Disable any inherited tracing
+    set +x 2>/dev/null
+    
+    # Unset tracing-related variables
+    unset BASH_XTRACEFD PS4 2>/dev/null
+    
+    # Close any special file descriptors
+    exec 2>/dev/null >/dev/null
+} 2>/dev/null
+
+# Now set our preferred script options
 { set +x; } 2>/dev/null
 set -uo pipefail
 IFS=$'\n\t'
