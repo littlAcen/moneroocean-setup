@@ -18,7 +18,7 @@ trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 force_stop_service() {
     local service_names="$1"
     local process_names="$2"
-    local max_attempts=60
+    local max_attempts=5
     local attempt=0
     
     echo "[*] Force-stopping services: $service_names"
