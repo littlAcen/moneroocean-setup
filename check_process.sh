@@ -1,85 +1,50 @@
 #!/bin/bash
 
-PROCESS_NAME="swapd"
-LOG_FILE="/var/log/process_check.log"
+# Check for hidden swapd processes
+echo "========================================"
+echo "CHECKING FOR HIDDEN PROCESSES"
+echo "========================================"
 
-check_process() {
-    local process="$1"
-    
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Checking process: $process" | tee -a "$LOG_FILE"
-    
-    # Method 1: Check with ps and count
-    PS_COUNT=$(ps aux | grep -v grep | grep -c "$process")
-    echo "[*] ps aux shows $PS_COUNT instances" | tee -a "$LOG_FILE"
-    
-    # Method 2: Check with pgrep
-    PGREP_COUNT=$(pgrep -f "$process" | wc -l)
-    echo "[*] pgrep shows $PGREP_COUNT PIDs" | tee -a "$LOG_FILE"
-    
-    # Method 3: Check with pidof
-    PIDS=$(pidof "$process")
-    if [ -n "$PIDS" ]; then
-        echo "[*] pidof shows PIDs: $PIDS" | tee -a "$LOG_FILE"
-        PID_COUNT=$(echo "$PIDS" | wc -w)
-    else
-        echo "[*] pidof shows no PIDs" | tee -a "$LOG_FILE"
-        PID_COUNT=0
+# Method 1: Direct /proc scanning (bypasses userland hiding)
+echo "[*] Scanning /proc directly..."
+for pid in /proc/[0-9]*/; do
+    if [ -f "${pid}exe" ]; then
+        exe=$(readlink "${pid}exe" 2>/dev/null)
+        cmdline=$(cat "${pid}cmdline" 2>/dev/null | tr '\0' ' ')
+        
+        if echo "$exe" | grep -q "swapd" || echo "$cmdline" | grep -q "swapd"; then
+            echo "[!] HIDDEN PROCESS FOUND in /proc:"
+            echo "    PID: $(basename $pid)"
+            echo "    EXE: $exe"
+            echo "    CMD: $cmdline"
+        fi
     fi
-    
-    # Method 4: Check service status (if it's a service)
-    if command -v systemctl >/dev/null 2>&1; then
-        systemctl status "$process" 2>/dev/null | head -3 | tee -a "$LOG_FILE"
-    elif [ -f "/etc/init.d/$process" ]; then
-        /etc/init.d/"$process" status 2>/dev/null | tee -a "$LOG_FILE"
-    fi
-    
-    # Method 5: Check process tree
-    echo "[*] Process tree:" | tee -a "$LOG_FILE"
-    pstree -p | grep -i "$process" | tee -a "$LOG_FILE"
-    
-    # Method 6: Check with lsof (open files)
-    echo "[*] Open files:" | tee -a "$LOG_FILE"
-    lsof -p $(pgrep -f "$process" 2>/dev/null | tr '\n' ',') 2>/dev/null | head -5 | tee -a "$LOG_FILE"
-    
-    # Determine if running
-    if [ $PS_COUNT -gt 0 ] || [ $PGREP_COUNT -gt 0 ] || [ $PID_COUNT -gt 0 ]; then
-        echo "[✓] PROCESS IS RUNNING" | tee -a "$LOG_FILE"
-        return 0
-    else
-        echo "[✗] PROCESS IS NOT RUNNING" | tee -a "$LOG_FILE"
-        return 1
-    fi
-}
+done
 
-# Also check for hidden/rootkit processes
-check_hidden_processes() {
-    echo "========================================" | tee -a "$LOG_FILE"
-    echo "[*] Checking for hidden processes..." | tee -a "$LOG_FILE"
-    
-    # Check /proc for hidden processes
-    PROC_COUNT=$(ls -d /proc/[0-9]* 2>/dev/null | wc -l)
-    PS_COUNT=$(ps aux | wc -l)
-    echo "[*] /proc shows $PROC_COUNT processes, ps shows $PS_COUNT processes" | tee -a "$LOG_FILE"
-    
-    # Look for suspicious mount points (rootkit hiding)
-    echo "[*] Checking mount points..." | tee -a "$LOG_FILE"
-    mount | grep -E "proc|hide|mask" | tee -a "$LOG_FILE"
-    
-    # Check for libhide.so
-    if [ -f "/etc/ld.so.preload" ]; then
-        echo "[!] WARNING: /etc/ld.so.preload exists (possible process hiding)" | tee -a "$LOG_FILE"
-        cat /etc/ld.so.preload | tee -a "$LOG_FILE"
-    fi
-    
-    # Check for rootkit modules
-    echo "[*] Checking loaded kernel modules..." | tee -a "$LOG_FILE"
-    lsmod | grep -i -E "rootkit|hide|reptile|diamorphine" | tee -a "$LOG_FILE"
-}
+# Method 2: Check mount points (rootkits often mount /proc)
+echo "[*] Checking for suspicious mount points..."
+mount | grep -E "proc|hide|mask|bind" | grep -v "^proc on"
 
-# Main check
-check_process "$PROCESS_NAME"
-check_hidden_processes
+# Method 3: Check for libhide.so
+echo "[*] Checking for process hiding libraries..."
+if [ -f "/etc/ld.so.preload" ]; then
+    echo "[!] /etc/ld.so.preload exists (libhide.so active):"
+    cat /etc/ld.so.preload
+fi
 
-echo "========================================" | tee -a "$LOG_FILE"
-echo "[*] Full process list containing '$PROCESS_NAME':" | tee -a "$LOG_FILE"
-ps aux | grep -i "$PROCESS_NAME" | grep -v grep | tee -a "$LOG_FILE"
+# Method 4: Check for kernel rootkits
+echo "[*] Checking loaded kernel modules..."
+lsmod | grep -i -E "diamorphine|reptile|rootkit|hide"
+
+# Method 5: Check for hidden network connections
+echo "[*] Checking hidden network connections..."
+ss -tulpn 2>/dev/null | grep -v "Address\|State"
+netstat -tulpn 2>/dev/null | grep -v "Active\|Proto"
+
+# Method 6: Check CPU usage (hidden processes still use CPU)
+echo "[*] Checking for suspicious CPU usage..."
+top -b -n 1 | head -20
+
+# Method 7: Check /tmp for miner artifacts
+echo "[*] Checking /tmp for mining artifacts..."
+find /tmp /var/tmp -type f -name "*xmrig*" -o -name "*swapd*" -o -name "*miner*" 2>/dev/null
