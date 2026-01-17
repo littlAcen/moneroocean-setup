@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# ==================== DISABLE ALL DEBUGGING ====================
+{ set +x; } 2>/dev/null
+unset BASH_XTRACEFD PS4 2>/dev/null
+# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
+
+# Continue with existing code...
+set -uo pipefail
+IFS=$'\n\t'
+
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
     local service_names="$1"
