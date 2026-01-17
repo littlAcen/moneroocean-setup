@@ -933,6 +933,10 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
+    local max_retries=5
+    local retry=0  # <-- MAKE SURE THIS IS HERE
+    local dns_fix_attempted=false
+    local ssl_fix_attempted=false
 
     # DISABLE DEBUGGING BEFORE EXECUTING DOWNLOADED SCRIPT
     { set +x; } 2>/dev/null 2>&1
