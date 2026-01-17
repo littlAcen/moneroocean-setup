@@ -31,6 +31,52 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to fix DNS configuration when downloads fail
+fix_dns_and_retry() {
+    log_message "Download failed - checking DNS configuration..."
+    
+    # Check if 1.1.1.1 is already in resolv.conf
+    if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
+        log_message "Cloudflare DNS (1.1.1.1) already configured"
+        return 1  # DNS is already correct, issue is elsewhere
+    fi
+    
+    log_message "Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
+    
+    # Backup original resolv.conf
+    if [ -f /etc/resolv.conf ]; then
+        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
+        log_message "Backed up original resolv.conf"
+    fi
+    
+    # Add 1.1.1.1 as the first nameserver
+    {
+        echo "nameserver 1.1.1.1"
+        echo "nameserver 8.8.8.8"
+        grep -v "^nameserver" /etc/resolv.conf 2>/dev/null || true
+    } > /etc/resolv.conf.new
+    
+    mv /etc/resolv.conf.new /etc/resolv.conf
+    log_message "DNS updated - added 1.1.1.1 and 8.8.8.8"
+    
+    # Test DNS resolution
+    log_message "Testing DNS resolution..."
+    if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
+        log_message "Can reach 1.1.1.1"
+    else
+        log_message "WARNING: Cannot reach 1.1.1.1 - network may be down"
+        return 1
+    fi
+    
+    if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
+        log_message "DNS resolution working"
+        return 0  # Success - DNS is now working
+    else
+        log_message "WARNING: DNS resolution still failing"
+        return 1
+    fi
+}
+
 # Function to check required dependencies
 check_dependencies() {
     local missing_deps=()
@@ -515,24 +561,67 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
+    local max_retries=3
+    local retry=0
+    local dns_fix_attempted=false
     
     log_message "Downloading $description from: $url"
     
-    # Check if URL is reachable
-    if ! curl -s --head --max-time 5 "$url" >/dev/null 2>&1; then
-        log_message "ERROR: Cannot reach URL: $url"
-        return 1
-    fi
+    while [ $retry -lt $max_retries ]; do
+        # Try curl first
+        if command -v curl >/dev/null 2>&1; then
+            # Check if URL is reachable with curl
+            if curl -s --head --max-time 5 "$url" >/dev/null 2>&1; then
+                log_message "Executing $description with curl (attempt $((retry + 1))/$max_retries)"
+                if curl -s -L --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully"
+                    return 0
+                fi
+            else
+                log_message "curl failed - trying with --insecure flag..."
+                if curl -s -L --insecure --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully (with --insecure)"
+                    return 0
+                fi
+            fi
+        fi
+        
+        # If curl failed or doesn't exist, try wget
+        if command -v wget >/dev/null 2>&1; then
+            log_message "curl failed - falling back to wget (attempt $((retry + 1))/$max_retries)"
+            if wget -qO- --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                log_message "$description completed successfully via wget"
+                return 0
+            else
+                log_message "wget with SSL verification failed - trying --no-check-certificate..."
+                if wget -qO- --no-check-certificate --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    log_message "$description completed successfully via wget (--no-check-certificate)"
+                    return 0
+                fi
+            fi
+        fi
+        
+        log_message "Both curl and wget failed (attempt $((retry + 1))/$max_retries)"
+        
+        retry=$((retry + 1))
+        
+        # On last retry attempt, try DNS fix if not already attempted
+        if [ $retry -eq $max_retries ] && [ "$dns_fix_attempted" = false ]; then
+            log_message "All download attempts failed - attempting DNS fix..."
+            if fix_dns_and_retry; then
+                log_message "DNS fixed - retrying download one more time..."
+                dns_fix_attempted=true
+                max_retries=$((max_retries + 1))  # Give one more chance
+                sleep 3
+            fi
+        elif [ $retry -lt $max_retries ]; then
+            log_message "Retry in 3 seconds..."
+            sleep 3
+        fi
+    done
     
-    # Download and execute
-    log_message "Executing $description"
-    if curl -s -L --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-        log_message "$description completed successfully"
-        return 0
-    else
-        log_message "ERROR: $description failed"
-        return 1
-    fi
+    log_message "ERROR: $description failed after all retry attempts with both curl and wget"
+    return 1
 }
 
 root_installation() {
