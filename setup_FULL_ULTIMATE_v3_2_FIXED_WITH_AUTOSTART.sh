@@ -1886,7 +1886,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/root/.swapd/launcher.sh
+ExecStart=/bin/bash /root/.swapd/launcher.sh
 Restart=always
 RestartSec=10
 TimeoutStartSec=30
