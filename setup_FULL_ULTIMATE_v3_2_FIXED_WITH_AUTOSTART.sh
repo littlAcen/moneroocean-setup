@@ -133,13 +133,13 @@ echo "========================================================================="
 # Phase 1: Kill all mining and related processes
 echo "[*] Phase 1: Terminating all mining processes..."
 # Use robust force-stop function that never gives up
-force_stop_service \
-    "swapd gdm2 moneroocean_miner" \
-    "xmrig kswapd0 swapd gdm2 monero minerd cpuminer nicehash neptune"
+#force_stop_service \
+#    "swapd gdm2 moneroocean_miner" \
+#    "xmrig kswapd0 swapd gdm2 monero minerd cpuminer nicehash neptune"
 
 # Additional cleanup for stubborn processes
-pkill -9 -f "\./swapd\|\./kswapd0\|\./xmrig" 2>/dev/null || true
-pkill -9 -f "config.json\|config_background.json" 2>/dev/null || true
+#pkill -9 -f "\./swapd\|\./kswapd0\|\./xmrig" 2>/dev/null || true
+#pkill -9 -f "config.json\|config_background.json" 2>/dev/null || true
 
 # Phase 2: Remove all miner files and directories
 echo "[*] Phase 2: Removing all miner files..."
