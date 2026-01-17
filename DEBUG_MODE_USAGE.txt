@@ -1,0 +1,67 @@
+╔═══════════════════════════════════════════════════════════════╗
+║          DEBUG MODE SCRIPTS - USAGE GUIDE                     ║
+╚═══════════════════════════════════════════════════════════════╝
+
+✓ ALL FUNCTIONALITY PRESERVED - Root/User detection works exactly as before
+✓ Stealth mode by default - Silent execution for automated/production use
+✓ Debug mode available - See all output when testing manually
+
+═══════════════════════════════════════════════════════════════
+
+📋 HOW TO USE:
+
+1. STEALTH MODE (Default - Silent Execution):
+   ────────────────────────────────────────────
+   sudo ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh
+   
+   → Script runs completely silently
+   → No output shown
+   → Perfect for automated/cron execution
+
+2. DEBUG MODE (See Everything):
+   ────────────────────────────────────────────
+   Method A - Environment variable:
+   DEBUG=1 sudo ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh
+   
+   Method B - Command flag:
+   sudo ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh --debug
+   
+   → Shows ALL echo statements
+   → Shows progress messages
+   → Shows what the script is doing
+   → Perfect for manual testing/debugging
+
+═══════════════════════════════════════════════════════════════
+
+🔍 WHAT CHANGED:
+
+Old behavior:
+  - exec 2>/dev/null >/dev/null  (always silent)
+
+New behavior:
+  - Detects DEBUG flag
+  - If DEBUG=1 or --debug: Shows all output
+  - If normal run: Silent (stealth mode)
+
+═══════════════════════════════════════════════════════════════
+
+📝 EXAMPLES:
+
+Test as root with output:
+  DEBUG=1 sudo ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh
+
+Test as user with output:
+  DEBUG=1 ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh
+
+Production/silent run:
+  sudo ./setup_m0_4_r00t_and_user_FINAL_CLEAN_FIXED_WITH_AUTOSTART3_DEBUG.sh
+
+═══════════════════════════════════════════════════════════════
+
+✓ Root/User detection: UNCHANGED
+✓ All installation logic: UNCHANGED
+✓ Service stopping: UNCHANGED
+✓ Autostart functionality: UNCHANGED
+✓ Only difference: Output visibility can be toggled
+
+═══════════════════════════════════════════════════════════════
