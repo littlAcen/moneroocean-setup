@@ -2360,7 +2360,7 @@ update-pciids
 lspci -vs 00:01.0
 nvidia-smi
 aticonfig --odgc --odgt
-nvtop
+nvtop -s
 radeontop
 echo "Possible CPU Threads:"
 (nproc)
