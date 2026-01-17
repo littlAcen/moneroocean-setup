@@ -1132,7 +1132,7 @@ root_installation() {
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3.2.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_FIXED_WITH_AUTOSTART.sh" \
         "$wallet" \
         "root miner setup"
     
@@ -1144,7 +1144,7 @@ user_installation() {
     
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh" \
         "$wallet" \
         "user miner setup"
     
