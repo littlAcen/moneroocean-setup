@@ -80,7 +80,13 @@ fix_dns_and_retry() {
 # Function to check required dependencies
 check_dependencies() {
     local missing_deps=()
-    local required_deps=("curl" "systemctl" "free" "df" "hostname" "base64")
+    # Base dependencies required by everyone
+    local required_deps=("curl" "free" "df" "hostname" "base64")
+    
+    # Only require systemctl if running as root
+    if [[ $(id -u) -eq 0 ]]; then
+        required_deps+=("systemctl")
+    fi
     
     for cmd in "${required_deps[@]}"; do
         if ! command_exists "$cmd"; then
