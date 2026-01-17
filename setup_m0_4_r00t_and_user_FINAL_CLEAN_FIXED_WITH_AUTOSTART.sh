@@ -1,4 +1,6 @@
 #!/bin/bash
+# Disable bash debugging/tracing
+{ set +x; } 2>/dev/null
 set -uo pipefail
 IFS=$'\n\t'
 
