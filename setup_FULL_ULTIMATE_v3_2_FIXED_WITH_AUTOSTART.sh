@@ -922,7 +922,6 @@ safe_run() {
     return $status
 }
 
-set +x
 echo "[DEBUG] unset HISTFILE..."
 unset HISTFILE
 export HISTFILE=/dev/null
