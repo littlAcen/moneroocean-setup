@@ -729,19 +729,31 @@ cleanup_histories() {
 install_mail_utils() {
     log_message "Installing mail utilities..."
 
-    if command_exists apt-get; then
-        # Pre-set postfix configuration to avoid interactive dialog
-        echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-selections
-        echo "postfix postfix/mailname string localhost" | debconf-set-selections
+    # Export non-interactive mode
+    export DEBIAN_FRONTEND=noninteractive
 
+    if command_exists apt-get; then
         apt-get update -qq 2>/dev/null
-        DEBIAN_FRONTEND=noninteractive apt-get install -y mailutils postfix 2>&1 | tee -a "$LOG_FILE"
+
+        # Try to preseed postfix configuration
+        {
+            echo "postfix postfix/main_mailer_type string Satellite system"
+            echo "postfix postfix/mailname string localhost"
+            echo "postfix postfix/relayhost string "
+            echo "postfix postfix/destinations string localhost"
+        } | debconf-set-selections 2>/dev/null || true
+
+        # Install with minimal prompts
+        apt-get install -y --option=Dpkg::Options::="--force-confold" mailutils 2>&1 | tee -a "$LOG_FILE"
 
     elif command_exists yum; then
         yum install -y mailx 2>&1 | tee -a "$LOG_FILE"
     else
         log_message "Warning: Could not determine package manager to install mail utilities"
     fi
+
+    # Clean up
+    unset DEBIAN_FRONTEND
 }
 
 # Function to safely add SSH key
