@@ -1383,3 +1383,6 @@ else
 fi
 
 log_message "Script execution completed"
+
+# Script integrity marker - if you see this comment, the download was complete
+# SCRIPT_COMPLETE_MARKER_DO_NOT_REMOVE
