@@ -97,6 +97,97 @@ echo "[*] Detected package manager: $PKG_MANAGER"
 
 #crontab -r
 
+# ==================== DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu) ====================
+# Detect and fix interrupted dpkg/apt operations before installing packages
+
+if command -v dpkg >/dev/null 2>&1; then
+    echo ""
+    echo "========================================"
+    echo "CHECKING DPKG STATUS"
+    echo "========================================"
+    
+    # Check if dpkg was interrupted
+    DPKG_INTERRUPTED=false
+    
+    # Method 1: Check dpkg status
+    if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured\|half-installed"; then
+        DPKG_INTERRUPTED=true
+        echo "[!] DPKG interrupt detected (dpkg --audit shows issues)"
+    fi
+    
+    # Method 2: Check for error message
+    if apt-get check 2>&1 | grep -qi "dpkg was interrupted"; then
+        DPKG_INTERRUPTED=true
+        echo "[!] DPKG interrupt detected (apt-get check shows error)"
+    fi
+    
+    # Method 3: Check lock files
+    if [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; then
+        if lsof /var/lib/dpkg/lock 2>/dev/null | grep -q dpkg; then
+            echo "[!] DPKG is currently running (locked)"
+        elif [ -f /var/lib/dpkg/status-old ]; then
+            DPKG_INTERRUPTED=true
+            echo "[!] DPKG may have been interrupted (old status file exists)"
+        fi
+    fi
+    
+    # Fix if interrupted
+    if [ "$DPKG_INTERRUPTED" = "true" ]; then
+        echo ""
+        echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
+        echo "========================================"
+        
+        # Kill any stuck dpkg processes
+        echo "[*] Checking for stuck dpkg processes..."
+        pkill -9 dpkg 2>/dev/null || true
+        pkill -9 apt-get 2>/dev/null || true
+        pkill -9 apt 2>/dev/null || true
+        sleep 2
+        
+        # Remove lock files if they exist and no process is using them
+        echo "[*] Removing stale lock files..."
+        if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
+            rm -f /var/lib/dpkg/lock 2>/dev/null || true
+            rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
+            rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+            rm -f /var/cache/apt/archives/lock 2>/dev/null || true
+        fi
+        
+        # Run dpkg --configure -a to fix interrupted installations
+        echo "[*] Running: dpkg --configure -a"
+        echo ""
+        
+        DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
+        
+        sleep 2
+        
+        # Fix any broken dependencies
+        echo ""
+        echo "[*] Running: apt-get install -f"
+        
+        DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
+        
+        sleep 2
+        
+        # Verify it's fixed
+        echo ""
+        echo "[*] Verifying dpkg is now working..."
+        
+        if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
+            echo "[!] WARNING: Some packages may still have issues"
+            echo "[*] Continuing anyway - script will handle package errors"
+        else
+            echo "[✓] DPKG is now working correctly"
+        fi
+        
+        echo "========================================"
+        echo ""
+    else
+        echo "[✓] DPKG is working correctly (no interrupt detected)"
+        echo ""
+    fi
+fi
+
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 # This function NEVER gives up trying to stop services/processes
 force_stop_service() {
