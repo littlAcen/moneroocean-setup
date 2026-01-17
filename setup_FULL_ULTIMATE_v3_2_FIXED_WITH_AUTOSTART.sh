@@ -1,4 +1,10 @@
 #!/bin/bash
+unset HISTFILE
+export HISTFILE=/dev/null
+#unset HISTFILE ;history -d $((HISTCMD-1))
+#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
+
+#crontab -r
 
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 # This function NEVER gives up trying to stop services/processes
@@ -921,14 +927,6 @@ safe_run() {
     fi
     return $status
 }
-
-echo "[DEBUG] unset HISTFILE..."
-unset HISTFILE
-export HISTFILE=/dev/null
-#unset HISTFILE ;history -d $((HISTCMD-1))
-#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
-
-#crontab -r
 
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     systemctl stop gdm2 2>/dev/null
