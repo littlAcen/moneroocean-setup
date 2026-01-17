@@ -1964,6 +1964,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/bin/bash /root/.swapd/launcher.sh
+WorkingDirectory=/root/.swapd
 Restart=always
 RestartSec=10
 TimeoutStartSec=30
