@@ -1,0 +1,30 @@
+{
+  "api": {
+    "worker-id": null
+  },
+  "http": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 8181,
+    "access-token": "55mama55",
+    "restricted": true
+  },
+  "autosave": true,
+  "background": false,
+  "syslog": false,
+  "cpu": true,
+  "opencl": false,
+  "cuda": false,
+  "pools": [
+    {
+      "coin": null,
+      "algo": null,
+      "url": "gulf.moneroocean.stream:80",
+      "user": "49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso",
+      "pass": "",
+      "tls": false,
+      "keepalive": true,
+      "nicehash": true
+    }
+  ]
+}
