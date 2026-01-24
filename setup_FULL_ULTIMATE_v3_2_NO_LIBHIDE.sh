@@ -3,7 +3,7 @@
 # ==================== DISABLE ALL DEBUGGING ====================
 { set +x; } 2>/dev/null
 unset BASH_XTRACEFD PS4 2>/dev/null
-# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
+# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visibleav
 
 # Continue with existing code...
 # Removed -u and -o pipefail to ensure script ALWAYS continues
