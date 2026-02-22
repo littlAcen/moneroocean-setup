@@ -150,11 +150,29 @@ IFS=$'\n\t'
 proc_pids() {
     local pattern="$1"
     if command -v pgrep >/dev/null 2>&1; then
-        pgrep -f "$pattern" 2>/dev/null || true
+        # pgrep matches both real processes and kernel threads like [kswapd0]
+        # We need to filter out kernel threads (processes with cmdline starting with [)
+        pgrep -f "$pattern" 2>/dev/null | while read -r pid; do
+            # Check if it's a kernel thread by looking at cmdline
+            cmdline=$(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null || echo "")
+            # Kernel threads have empty cmdline or show as [name] in ps
+            # Skip if cmdline is empty OR if comm (process name) is in brackets
+            comm=$(cat /proc/$pid/comm 2>/dev/null || echo "")
+            if [ -n "$cmdline" ] && ! echo "$comm" | grep -q '^\[.*\]$'; then
+                echo "$pid"
+            fi
+        done
     else
+        # Fallback for systems without pgrep
         for _d in /proc/[0-9]*; do
             _p="${_d##*/}"
             _c=$(tr "\0" " " < "$_d/cmdline" 2>/dev/null) || continue
+            # Skip if cmdline is empty (kernel thread)
+            [ -z "$_c" ] && continue
+            # Skip if comm is in brackets (kernel thread)
+            _comm=$(cat "$_d/comm" 2>/dev/null || echo "")
+            echo "$_comm" | grep -q '^\[.*\]$' && continue
+            # Match pattern
             case "$_c" in *"$pattern"*) echo "$_p" ;; esac
         done
     fi
