@@ -3158,6 +3158,8 @@ fi
 echo ""
 echo '========================================================================'
 
+ps ax|grep swapd
+
 sleep 5
 
 kill -31 $(pgrep -f -u root config.json)
