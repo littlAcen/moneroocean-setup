@@ -3135,9 +3135,6 @@ else
     fi
 fi
 
-echo '========================================================================'
-echo ""
-
 ps ax|grep swapd
 sleep 5
 kill -31 $(pgrep -f -u root config.json)
@@ -3145,6 +3142,9 @@ kill -59 $(pgrep -f -u root config.json)
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
 ps ax|grep swapd
+
+echo '========================================================================'
+echo ""
 
 # Exit successfully
 exit 0
