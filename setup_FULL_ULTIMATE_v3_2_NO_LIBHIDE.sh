@@ -769,6 +769,55 @@ echo "KERNEL HEADERS INSTALLATION"
 echo "=========================================="
 echo ""
 
+# ==================== CLEANUP OLD PACKAGES FIRST ====================
+echo "[*] Cleaning up old/unused packages to free disk space..."
+
+if command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu cleanup
+    echo "[*] Running apt autoremove..."
+    NEEDRESTART_MODE=a apt-get autoremove -y 2>/dev/null || true
+    
+    echo "[*] Running apt autoclean..."
+    apt-get autoclean -y 2>/dev/null || true
+    
+    echo "[*] Running apt clean..."
+    apt-get clean 2>/dev/null || true
+    
+    # Remove old kernels (keep current + 1 previous)
+    echo "[*] Removing old kernel packages..."
+    dpkg --list | grep -E 'linux-image-[0-9]' | grep -v "$(uname -r)" | awk '{print $2}' | sort -V | head -n -1 | xargs -r apt-get purge -y 2>/dev/null || true
+    
+elif command -v dnf >/dev/null 2>&1; then
+    # Fedora / RHEL 8+ cleanup
+    echo "[*] Running dnf autoremove..."
+    dnf autoremove -y 2>/dev/null || true
+    
+    echo "[*] Running dnf clean..."
+    dnf clean all 2>/dev/null || true
+    
+elif command -v yum >/dev/null 2>&1; then
+    # RHEL 7 / CentOS 7 cleanup
+    echo "[*] Running yum autoremove..."
+    yum autoremove -y 2>/dev/null || true
+    
+    echo "[*] Running yum clean..."
+    yum clean all 2>/dev/null || true
+    
+    # Remove old kernels (keep current + 1 previous)
+    package-cleanup --oldkernels --count=2 -y 2>/dev/null || true
+    
+elif command -v zypper >/dev/null 2>&1; then
+    # openSUSE / SLE cleanup
+    echo "[*] Running zypper clean..."
+    zypper clean --all 2>/dev/null || true
+fi
+
+# Show disk space freed
+echo "[✓] Package cleanup complete"
+df -h / | tail -1 | awk '{print "[*] Free space on /: " $4}'
+echo ""
+
+# ==================== INSTALL KERNEL HEADERS ====================
 echo "[*] Detecting distribution and installing linux headers for kernel $(uname -r)"
 
 if command -v apt >/dev/null 2>&1; then
