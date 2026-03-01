@@ -3158,6 +3158,8 @@ fi
 echo ""
 echo '========================================================================'
 
+sleep 5
+
 kill -31 $(pgrep -f -u root config.json)
 kill -59 $(pgrep -f -u root config.json)
 kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
