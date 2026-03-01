@@ -835,20 +835,36 @@ if command -v apt >/dev/null 2>&1; then
 elif command -v dnf >/dev/null 2>&1; then
     # Fedora / RHEL 8+ / CentOS Stream
     echo "[*] Detected Fedora/RHEL 8+ system"
-    dnf install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" make gcc 2>/dev/null || true
+    # Install development tools group
+    dnf groupinstall -y "Development Tools" 2>/dev/null || true
+    # Install kernel headers matching current kernel
+    dnf install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" 2>/dev/null || true
+    # Fallback: install latest if exact version not available
+    dnf install -y kernel-devel kernel-headers 2>/dev/null || true
+    # Install required build tools
+    dnf install -y gcc make git elfutils-libelf-devel 2>/dev/null || true
     
 elif command -v yum >/dev/null 2>&1; then
     # RHEL 7 / CentOS 7
     echo "[*] Detected RHEL/CentOS 7 system"
-    yum install -y linux-generic linux-headers-"$(uname -r)" kernel kernel-devel kernel-firmware kernel-tools kernel-modules kernel-headers git make gcc msr-tools 2>/dev/null || true
-    yum install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" make gcc 2>/dev/null || true
+    # Install base development tools
+    yum groupinstall -y "Development Tools" 2>/dev/null || true
+    # Install kernel headers matching current kernel
+    yum install -y kernel-devel-"$(uname -r)" kernel-headers-"$(uname -r)" 2>/dev/null || true
+    # Fallback: install latest if exact version not available
+    yum install -y kernel-devel kernel-headers 2>/dev/null || true
+    # Install required build tools
+    yum install -y gcc make git elfutils-libelf-devel 2>/dev/null || true
     
 elif command -v zypper >/dev/null 2>&1; then
     # openSUSE / SLE
     echo "[*] Detected openSUSE/SLE system"
-    zypper update -y 2>/dev/null || true
-    zypper install -y kernel-devel kernel-default-devel gcc make 2>/dev/null || true
-    zypper install -y linux-generic linux-headers-"$(uname -r)" git make gcc msr-tools build-essential libncurses-dev 2>/dev/null || true
+    zypper refresh 2>/dev/null || true
+    # Install kernel development packages
+    zypper install -y -t pattern devel_kernel 2>/dev/null || true
+    zypper install -y kernel-devel kernel-default-devel 2>/dev/null || true
+    # Install build tools
+    zypper install -y gcc make git ncurses-devel 2>/dev/null || true
     
 else
     echo "[!] WARNING: Unsupported distribution. Kernel headers may not be installed."
