@@ -1,5 +1,9 @@
 #!/bin/bash
 
+STREAMS=4        # Anzahl parallele Streams pro Server
+DURATION=10      # Sekunden pro Test
+TMPDIR=$(mktemp -d)
+
 hosts=(
   "ash-speed.hetzner.com"
   "testfile.org"
@@ -30,7 +34,7 @@ urllist=(
   "https://speedtest.bitel.io/Testdateien/1000MB"
 )
 
-echo -e "\e[1;36m=== Speedtest (10s pro Server) ===\e[0m\n"
+echo -e "\e[1;36m=== Speedtest (${STREAMS} Streams × ${DURATION}s) ===\e[0m\n"
 echo -e "\e[1;33m[1/2] Ping-Test aller Server...\e[0m\n"
 
 ping_list=""
@@ -46,7 +50,7 @@ for i in "${!hosts[@]}"; do
   fi
 done
 
-echo -e "\n\e[1;33m[2/2] Top 5 werden je 10s getestet...\e[0m\n"
+echo -e "\n\e[1;33m[2/2] Top 5 werden mit ${STREAMS} parallelen Streams getestet...\e[0m\n"
 
 top5_idx=$(echo -e "$ping_list" | sort -n | head -5 | awk '{print $2}')
 speeds=()
@@ -59,23 +63,68 @@ for idx in $top5_idx; do
   url="${urllist[$idx]}"
   p=$(echo -e "$ping_list" | awk -v i="$idx" '$2==i{print $1}')
 
-  echo -e "\e[1;36m[$n/$total]\e[0m \e[1;33m${host}\e[0m \e[2m(ping: ${p}ms)\e[0m"
+  echo -e "\e[1;36m[$n/$total]\e[0m \e[1;33m${host}\e[0m \e[2m(ping: ${p}ms | ${STREAMS} Streams)\e[0m"
 
-  s=$(curl -L --http1.1 --max-time 10 --connect-timeout 3 -o /dev/null \
-    -w "%{speed_download}" "$url" 2>/dev/tty)
+  # Starte STREAMS parallele curl Prozesse, jeder schreibt seine Speed in eine Datei
+  pids=()
+  for s in $(seq 1 $STREAMS); do
+    curl -L --http1.1 --max-time $DURATION --connect-timeout 3 \
+      -o /dev/null -w "%{speed_download}" \
+      "$url" > "$TMPDIR/stream_${n}_${s}" 2>/dev/null &
+    pids+=($!)
+  done
 
-  mb=$(echo "$s" | awk '{printf "%.2f", $1/1048576}')
+  # Echtzeit-Anzeige während Downloads laufen
+  start=$SECONDS
+  while kill -0 "${pids[0]}" 2>/dev/null; do
+    elapsed=$(( SECONDS - start ))
+    # Summiere bereits abgeschlossene Streams
+    partial=0
+    count=0
+    for s in $(seq 1 $STREAMS); do
+      f="$TMPDIR/stream_${n}_${s}"
+      if [ -s "$f" ]; then
+        v=$(cat "$f" 2>/dev/null)
+        [ -n "$v" ] && partial=$(echo "$partial $v" | awk '{printf "%.2f", $1+$2/1048576}') && count=$((count+1))
+      fi
+    done
+    printf "\r\e[2m  Laufzeit: %2ds | aktive Streams: %d/${STREAMS}\e[0m" "$elapsed" "$((STREAMS - count))"
+    sleep 1
+  done
 
-  if (( $(echo "$mb > 0" | bc -l) )); then
-    echo -e "\e[1;32m✔ ${mb} MB/s\e[0m\n"
+  # Warte bis alle Streams fertig
+  for pid in "${pids[@]}"; do
+    wait "$pid" 2>/dev/null
+  done
+  echo ""
+
+  # Summiere alle Stream-Geschwindigkeiten
+  total_speed=0
+  ok=0
+  for s in $(seq 1 $STREAMS); do
+    f="$TMPDIR/stream_${n}_${s}"
+    if [ -s "$f" ]; then
+      v=$(cat "$f")
+      if [ -n "$v" ] && [ "$v" != "0" ]; then
+        total_speed=$(echo "$total_speed $v" | awk '{printf "%.6f", $1+$2/1048576}')
+        ok=$((ok+1))
+      fi
+    fi
+  done
+
+  if (( $(echo "$total_speed > 0" | bc -l) )); then
+    mb=$(echo "$total_speed" | awk '{printf "%.2f", $1}')
+    echo -e "\e[1;32m✔ ${ok}/${STREAMS} Streams | Gesamt: ${mb} MB/s\e[0m\n"
     speeds+=($mb)
   else
     echo -e "\e[1;31m✘ Nicht erreichbar\e[0m\n"
   fi
 done
 
-echo -e "\e[1;36m══════════════════════════\e[0m"
+# Cleanup
+rm -rf "$TMPDIR"
 
+echo -e "\e[1;36m══════════════════════════\e[0m"
 if [ ${#speeds[@]} -gt 0 ]; then
   avg=$(echo "${speeds[@]}" | tr " " "\n" | awk '{s+=$1;c++} END {printf "%.2f", s/c}')
   best=$(echo "${speeds[@]}" | tr " " "\n" | awk 'BEGIN{m=0} {$1>m&&(m=$1)} END {printf "%.2f", m}')
