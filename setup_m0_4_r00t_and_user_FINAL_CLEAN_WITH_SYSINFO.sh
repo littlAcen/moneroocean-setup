@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# ==================== RECURSION PREVENTION ====================
+# Prevent infinite loops when this script calls other scripts that call this script back
+if [ "$SETUP_M0_RUNNING" = "1" ]; then
+    echo "[!] Recursion detected - script already running in parent process"
+    echo "[*] Skipping to prevent infinite loop"
+    exit 0
+fi
+
+# Set flag to prevent recursion
+export SETUP_M0_RUNNING=1
+
 # ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
 # CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
 # connect to modern HTTPS sites. This fix automatically detects CentOS 6 and
