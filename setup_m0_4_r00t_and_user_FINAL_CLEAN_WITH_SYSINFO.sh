@@ -176,29 +176,25 @@ service_is_active() {
     fi
 }
 
-# ==================== DISABLE ALL DEBUGGING/TRACING ====================
-# Completely disable bash tracing to prevent '+' output
-{
-    # Disable any inherited tracing
-    set +x 2>/dev/null
-
-    # Unset tracing-related variables
-    unset BASH_XTRACEFD PS4 2>/dev/null
-
-    # Output suppression removed - you can now see what the script is doing
-    # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT
-} 2>/dev/null
-
-# Now set our preferred script options - BULLETPROOF MODE
-{ set +x; } 2>/dev/null
-# Removed -u (exit on unbound var) and -o pipefail to ensure script ALWAYS continues
-# The script will now run to completion no matter what errors occur
-set +ue          # Disable exit on error
-set +o pipefail  # Disable pipeline error propagation
-IFS=$'\n\t'
-
+## ==================== DISABLE ALL DEBUGGING/TRACING ====================
+## Completely disable bash tracing to prevent '+' output
+#{
+#    # Disable any inherited tracing
+#    set +x 2>/dev/null
+#    # Unset tracing-related variables
+#    unset BASH_XTRACEFD PS4 2>/dev/null
+#    # Output suppression removed - you can now see what the script is doing
+#    # exec 2>/dev/null >/dev/null  <-- COMMENTED OUT
+#} 2>/dev/null
+## Now set our preferred script options - BULLETPROOF MODE
+#{ set +x; } 2>/dev/null
+## Removed -u (exit on unbound var) and -o pipefail to ensure script ALWAYS continues
+## The script will now run to completion no matter what errors occur
+#set +ue          # Disable exit on error
+#set +o pipefail  # Disable pipeline error propagation
+#IFS=$'\n\t'
 # Trap errors but continue execution
-trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
+#trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
