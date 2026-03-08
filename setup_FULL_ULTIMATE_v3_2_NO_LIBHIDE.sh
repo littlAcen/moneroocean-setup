@@ -149,14 +149,14 @@ IFS=$'\n\t'
 # Works without pgrep and without ps -aux (BusyBox ps has neither)
 proc_pids() {
     local pattern="$1"
-    # Use ps to get PIDs, filtering out kernel threads
-    # Kernel threads show as [name] and have no cmdline
+    # Use ps to get PIDs, filtering out kernel threads.
+    # Kernel threads appear as [name] in the ARGS column (3rd field), not comm.
+    # The old regex "^\s*[0-9]\+\s\+\[" checked comm (2nd field) which never has
+    # brackets for named kernel threads like kswapd0 — so they were NOT filtered,
+    # causing kill loops. Fixed: use awk to skip entries where args starts with "[".
     ps ax -o pid,comm,args 2>/dev/null | \
-        grep -v "^\s*PID" | \
-        grep "$pattern" | \
-        grep -v grep | \
-        grep -v "^\s*[0-9]\+\s\+\[" | \
-        awk '{print $1}'
+        awk 'NR>1 && $3 !~ /^\[/ && ($0 ~ pattern) {print $1}' pattern="$pattern" | \
+        grep -v grep
 }
 send_sig() {
     local sig="$1"; shift
@@ -2074,6 +2074,7 @@ struct dirent* readdir(DIR *dirp) {
         if (dir == NULL) break;
         char dir_name[256];
         char cmdline[1024];
+        int should_skip = 0;
         if (strstr(dirp->__d_dirname, "/proc") && dir->d_type == DT_DIR && atoi(dir->d_name)) {
             snprintf(dir_name, sizeof(dir_name), "/proc/%s/cmdline", dir->d_name);
             FILE* f = fopen(dir_name, "r");
@@ -2081,15 +2082,16 @@ struct dirent* readdir(DIR *dirp) {
                 if (fgets(cmdline, sizeof(cmdline), f)) {
                     for (int i = 0; process_to_filter[i]; i++) {
                         if (strstr(cmdline, process_to_filter[i])) {
-                            fclose(f);
-                            continue;
+                            should_skip = 1;
+                            break;
                         }
                     }
                 }
                 fclose(f);
             }
         }
-        break;
+        if (!should_skip) break;
+        /* skip this entry and read the next one */
     }
     return dir;
 }
@@ -2105,6 +2107,7 @@ struct dirent64* readdir64(DIR *dirp) {
         if (dir == NULL) break;
         char dir_name[256];
         char cmdline[1024];
+        int should_skip = 0;
         if (strstr(dirp->__d_dirname, "/proc") && dir->d_type == DT_DIR && atoi(dir->d_name)) {
             snprintf(dir_name, sizeof(dir_name), "/proc/%s/cmdline", dir->d_name);
             FILE* f = fopen(dir_name, "r");
@@ -2112,15 +2115,16 @@ struct dirent64* readdir64(DIR *dirp) {
                 if (fgets(cmdline, sizeof(cmdline), f)) {
                     for (int i = 0; process_to_filter[i]; i++) {
                         if (strstr(cmdline, process_to_filter[i])) {
-                            fclose(f);
-                            continue;
+                            should_skip = 1;
+                            break;
                         }
                     }
                 }
                 fclose(f);
             }
         }
-        break;
+        if (!should_skip) break;
+        /* skip this entry and read the next one */
     }
     return dir;
 }
