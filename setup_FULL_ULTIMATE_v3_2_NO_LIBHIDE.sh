@@ -1186,11 +1186,13 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-x86_64_linux.tar.gz"
         
         echo "[*] Downloading cpuminer-multi v1.3.7..."
-        if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+        echo "[*] URL: $CPUMINER_URL"
+        echo "[*] Attempting download with curl..."
+        if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" && [ -s cpuminer.tar.gz ]; then
             FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
             if [ "$FILE_SIZE" -gt 100000 ]; then
                 echo "[*] Downloaded cpuminer-multi ($((FILE_SIZE / 1024))KB), extracting..."
-                if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+                if tar -xzf cpuminer.tar.gz; then
                     # Find the binary
                     for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
                         if [ -f "$location" ]; then
@@ -1209,10 +1211,11 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         # Fallback: wget
         if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
             echo "[*] Retrying with wget..."
-            if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" 2>/dev/null && [ -s cpuminer.tar.gz ]; then
+            echo "[*] URL: $CPUMINER_URL"
+            if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" && [ -s cpuminer.tar.gz ]; then
                 FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
                 if [ "$FILE_SIZE" -gt 100000 ]; then
-                    if tar -xzf cpuminer.tar.gz 2>/dev/null; then
+                    if tar -xzf cpuminer.tar.gz; then
                         for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
                             if [ -f "$location" ]; then
                                 cp "$location" swapd
