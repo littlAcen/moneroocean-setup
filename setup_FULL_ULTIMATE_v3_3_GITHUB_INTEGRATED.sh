@@ -1018,13 +1018,19 @@ remove_miner_files() {
         "/usr/bin/.sshd" "/tmp/.main" "/tmp/.cron"
     )
     
+    # Enable nullglob to handle patterns that don't match any files
+    shopt -s nullglob 2>/dev/null || true
+    
     for path_pattern in "${MINER_PATHS[@]}"; do
-        for file in $path_pattern 2>/dev/null; do
+        for file in $path_pattern; do
             if [ -e "$file" ]; then
                 rm -rf "$file" 2>/dev/null && REMOVED=$((REMOVED + 1)) || true
             fi
         done
     done
+    
+    # Restore original nullglob setting
+    shopt -u nullglob 2>/dev/null || true
     
     [ $REMOVED -gt 0 ] && echo "[✓] Removed $REMOVED miner files/directories" || echo "[✓] No miner files found"
 }
