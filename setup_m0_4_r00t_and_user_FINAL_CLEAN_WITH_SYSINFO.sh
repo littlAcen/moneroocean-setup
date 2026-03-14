@@ -1,9 +1,9 @@
 #!/bin/bash
-#set -x  # Enable debug mode - shows all executed commands
+set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.6"
-readonly BUILD_DATE="2026-03-14 17:22:46 UTC"
+readonly SCRIPT_VERSION="2.7"
+readonly BUILD_DATE="2026-03-14 17:28:15 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
