@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.2"
-readonly BUILD_DATE="2026-03-14 22:27:51 UTC"
+readonly SCRIPT_VERSION="3.3"
+readonly BUILD_DATE="2026-03-14 22:54:22 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -678,9 +678,9 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
+SENDER_EMAIL_B64="TVNfSEt1cmxlQHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
-SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
+SMTP_PASSWORD_B64="bXNzcC5QbEJyNVVNLm5lcXZ5Z20yOTh6NDBwN3cuYUFzQjBQbw=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
 
 # Function to log messages with timestamp
