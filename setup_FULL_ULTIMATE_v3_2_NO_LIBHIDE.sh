@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 # ==================== WALLET ADDRESS FROM COMMAND LINE ====================
 if [ -z "$1" ]; then
     echo "ERROR: Wallet address required!"
