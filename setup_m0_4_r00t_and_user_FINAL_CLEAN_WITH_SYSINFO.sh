@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.1"
-readonly BUILD_DATE="2026-03-14 19:14:07 UTC"
+readonly SCRIPT_VERSION="3.2"
+readonly BUILD_DATE="2026-03-14 22:27:51 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -1097,6 +1097,27 @@ EOF
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
     log_message "Report saved to: $REPORT_FILE"
+
+    # Install Python3 if not present (needed for email)
+    if ! command_exists python3; then
+        log_message "Python3 not found - installing..."
+        if command -v apt >/dev/null 2>&1; then
+            DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y -q python3 >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y -q python3 >/dev/null 2>&1
+        fi
+        
+        if command_exists python3; then
+            log_message "Python3 installed successfully"
+        else
+            log_message "Failed to install Python3"
+        fi
+    else
+        log_message "Python3 already installed: $(which python3)"
+    fi
 
     # Try sending methods in order of preference
     local success=false
