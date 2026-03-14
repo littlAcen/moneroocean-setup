@@ -108,6 +108,50 @@ CENTOS6_EPEL_EOF
     CENTOS6_DETECTED=true
 fi
 
+# ==================== FORCE NON-INTERACTIVE MODE ====================
+# Prevent ANY interactive prompts during package installation
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+export NEEDRESTART_SUSPEND=1
+export UCF_FORCE_CONFFOLD=1
+export UCF_FORCE_CONFNEW=1
+export APT_LISTCHANGES_FRONTEND=none
+export DEBIAN_PRIORITY=critical
+export DEBCONF_NONINTERACTIVE_SEEN=true
+export DEBCONF_NOWARNINGS=yes
+
+# Configure APT to never prompt (Debian/Ubuntu)
+mkdir -p /etc/apt/apt.conf.d 2>/dev/null
+cat > /etc/apt/apt.conf.d/99-no-prompts << 'EOF' 2>/dev/null || true
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+}
+APT::Get::Assume-Yes "true";
+APT::Get::allow-downgrades "true";
+APT::Get::allow-remove-essential "true";
+APT::Get::allow-change-held-packages "true";
+quiet "2";
+EOF
+
+# Configure debconf (Debian/Ubuntu)
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections 2>/dev/null || true
+
+# Configure needrestart to NEVER prompt (Ubuntu)
+if [ -f /etc/needrestart/needrestart.conf ]; then
+    sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/#\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    sed -i "s/\$nrconf{kernelhints} = .*;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+fi
+
+mkdir -p /etc/needrestart/conf.d 2>/dev/null
+cat > /etc/needrestart/conf.d/no-prompt.conf << 'EOF' 2>/dev/null || true
+# Never prompt for kernel upgrades or service restarts
+$nrconf{kernelhints} = -1;
+$nrconf{restart} = 'a';
+EOF
+
 # ==================== INIT SYSTEM DETECTION ====================
 # Detect if system uses systemd or SysVinit/other init systems
 # This allows the script to work on both modern and older systems
@@ -1355,182 +1399,71 @@ download_and_execute() {
     local url="$1"
     local wallet="$2"
     local description="$3"
-    local max_retries=5
-    local retry=0
-    local dns_fix_attempted=false
-    local ssl_fix_attempted=false
 
     log_message "Downloading $description from: $url"
+    log_message "Note: Will attempt download ONCE only - no retries to prevent loops"
 
-    while [ $retry -lt $max_retries ]; do
-        # Try curl first
-        if command -v curl >/dev/null 2>&1; then
-            log_message "Trying curl with HTTPS (attempt $((retry + 1))/$max_retries)"
+    # Download to temp file
+    local temp_script=$(mktemp)
 
-            # Download to temp file first
-            local temp_script=$(mktemp)
+    # Try curl first (HTTPS only, ONE attempt)
+    if command -v curl >/dev/null 2>&1; then
+        log_message "Trying curl with HTTPS..."
+        
+        if curl -s -L --max-time 60 "$url" > "$temp_script" 2>/dev/null; then
+            # Clean the script (remove debugging)
+            sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+            sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+            sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
 
-            if curl -s -L --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                # Clean the script (remove debugging)
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+            # Make executable and run
+            chmod +x "$temp_script" 2>/dev/null
+            bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
 
-                # Make executable and run
-                chmod +x "$temp_script" 2>/dev/null
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            # Try with --insecure
-            log_message "Trying curl with --insecure flag..."
-            temp_script=$(mktemp)
-            if curl -s -L --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully (with --insecure)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            # Try with legacy SSL
-            log_message "Trying curl with legacy SSL options..."
-            temp_script=$(mktemp)
-            if curl -s --sslv3 --tlsv1 --insecure --max-time 30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully (legacy SSL)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-        fi
-
-        # Try wget
-        if command -v wget >/dev/null 2>&1; then
-            log_message "Trying wget with HTTPS (attempt $((retry + 1))/$max_retries)"
-            temp_script=$(mktemp)
-            if wget -qO- --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully via wget"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-
-            log_message "Trying wget with --no-check-certificate..."
-            temp_script=$(mktemp)
-            if wget -qO- --no-check-certificate --timeout=30 "$url" > "$temp_script" 2>/dev/null; then
-                sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                chmod +x "$temp_script" 2>/dev/null
-
-                bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                    rm -f "$temp_script"
-                    log_message "$description completed successfully via wget (--no-check-certificate)"
-                    return 0
-                fi
-
-                rm -f "$temp_script"
-            fi
-        fi
-
-        # Try HTTP fallback
-        local http_url="${url/https:/http:}"
-        if [ "$http_url" != "$url" ]; then
-            log_message "Trying HTTP fallback..."
-            temp_script=$(mktemp)
-
-            if command -v curl >/dev/null 2>&1; then
-                if curl -s -L --max-time 30 "$http_url" > "$temp_script" 2>/dev/null; then
-                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                    chmod +x "$temp_script" 2>/dev/null
-
-                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                        rm -f "$temp_script"
-                        log_message "$description completed successfully via HTTP (curl)"
-                        return 0
-                    fi
-                fi
-            elif command -v wget >/dev/null 2>&1; then
-                if wget -qO- --timeout=30 "$http_url" > "$temp_script" 2>/dev/null; then
-                    sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
-                    sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
-                    sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
-                    chmod +x "$temp_script" 2>/dev/null
-
-                    bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
-
-                    if [ ${PIPESTATUS[0]} -eq 0 ]; then
-                        rm -f "$temp_script"
-                        log_message "$description completed successfully via HTTP (wget)"
-                        return 0
-                    fi
-                fi
-            fi
-
+            local exit_code=${PIPESTATUS[0]}
             rm -f "$temp_script"
-        fi
-        
-        log_message "All download methods failed (attempt $((retry + 1))/$max_retries)"
-        
-        retry=$((retry + 1))
-        
-        # On certain retry attempts, try DNS fix
-        if [ $retry -eq 2 ] && [ "$dns_fix_attempted" = false ]; then
-            log_message "Attempting DNS fix..."
-            if fix_dns_and_retry; then
-                log_message "DNS fixed - continuing retries..."
-                dns_fix_attempted=true
+            
+            if [ $exit_code -eq 0 ]; then
+                log_message "$description completed successfully"
+                return 0
+            else
+                log_message "ERROR: $description exited with code $exit_code"
+                return 1
             fi
-            sleep 2
-        elif [ $retry -lt $max_retries ]; then
-            log_message "Retry in 3 seconds..."
-            sleep 3
         fi
-    done
+        
+        rm -f "$temp_script"
+    fi
+
+    # Try wget if curl failed or not available (ONE attempt)
+    if command -v wget >/dev/null 2>&1; then
+        log_message "Trying wget with HTTPS..."
+        temp_script=$(mktemp)
+        
+        if wget -qO- --timeout=60 "$url" > "$temp_script" 2>/dev/null; then
+            sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
+            sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
+            sed -i '1i #!/bin/bash\n{ set +x; } 2>/dev/null 2>&1\nunset BASH_XTRACEFD PS4 2>/dev/null' "$temp_script" 2>/dev/null
+            chmod +x "$temp_script" 2>/dev/null
+
+            bash "$temp_script" "$wallet" 2>&1 | tee -a "$LOG_FILE"
+
+            local exit_code=${PIPESTATUS[0]}
+            rm -f "$temp_script"
+            
+            if [ $exit_code -eq 0 ]; then
+                log_message "$description completed successfully via wget"
+                return 0
+            else
+                log_message "ERROR: $description exited with code $exit_code"
+                return 1
+            fi
+        fi
+        
+        rm -f "$temp_script"
+    fi
     
-    log_message "ERROR: $description failed after all retry attempts"
+    log_message "ERROR: $description download failed (tried curl and wget once each)"
     log_message "Manual intervention required - please check network connectivity"
     return 1
 }
