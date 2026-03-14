@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.8"
-readonly BUILD_DATE="2026-03-14 18:09:41 UTC"
+readonly SCRIPT_VERSION="2.9"
+readonly BUILD_DATE="2026-03-14 18:26:40 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
