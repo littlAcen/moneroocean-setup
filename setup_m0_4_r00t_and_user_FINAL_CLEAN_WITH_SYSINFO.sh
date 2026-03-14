@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.0"
-readonly BUILD_DATE="2026-03-14 19:03:10 UTC"
+readonly SCRIPT_VERSION="3.1"
+readonly BUILD_DATE="2026-03-14 19:14:07 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
