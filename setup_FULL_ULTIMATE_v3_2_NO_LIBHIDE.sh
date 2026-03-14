@@ -4170,6 +4170,27 @@ else
     echo "=========================================="
     echo ""
     
+    # Final verification
+    echo "=========================================="
+    echo "FINAL VERIFICATION"
+    echo "=========================================="
+    echo ""
+    
+    echo "[*] Checking process visibility:"
+    echo ""
+    ps aux | grep swapd
+    echo ""
+    
+    if [ "$SYSTEMD_AVAILABLE" = true ]; then
+        echo "[*] Service status:"
+        echo ""
+        systemctl status swapd --no-pager -l 2>/dev/null || systemctl status swapd 2>/dev/null || echo "[!] systemctl not available"
+        echo ""
+    fi
+    
+    echo "=========================================="
+    echo ""
+    
     # Cleanup DNS fix flag file
     rm -f /tmp/.dns_fix_attempted_* 2>/dev/null || true
     
