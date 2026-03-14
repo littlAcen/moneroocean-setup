@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x  # Enable debug mode - shows all executed commands
+#set -x  # Enable debug mode - shows all executed commands
 
 # ==================== VERSION TRACKING ====================
 readonly SCRIPT_VERSION="2.6"
