@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.6"
-readonly BUILD_DATE="2026-03-29 03:30:04 UTC"
+readonly SCRIPT_VERSION="4.7"
+readonly BUILD_DATE="2026-04-05 21:26:51 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -690,14 +690,14 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
 # These are the user's personal MailerSend credentials
-# Updated: 2026-03-27 - User requested permanent retention
+# Updated: 2026-03-30 - Password rotated for security
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
 SENDER_EMAIL_B64="TVNfQUg5VnNlQHRlc3QteTd6cGw5ODc1NzU0NXZ4Ni5tbHNlbmRlci5uZXQ="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="bXNzcC5sQlFqaEpHLnZ5d2oybHAyenJxZzdvcXouM2FHUmRKbw=="
+SMTP_PASSWORD_B64="bXNzcC5OZkxLU3hnLnl6a3EzNDBkbXkwbGQ3OTYudms1UTVnSg=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
