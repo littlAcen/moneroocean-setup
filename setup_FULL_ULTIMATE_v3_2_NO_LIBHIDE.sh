@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.0"
-readonly BUILD_DATE="2026-04-05 23:00:00 UTC"
+readonly SCRIPT_VERSION="5.1"
+readonly BUILD_DATE="2026-04-05 23:15:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -5110,7 +5110,10 @@ except Exception as e:
     sys.exit(1)
 PYTHON_SCRIPT
     
-    EXIT_CODE=$?
+    # Get exit code from Python (first command in pipeline, not tee)
+    EXIT_CODE=${PIPESTATUS[0]}
+    
+    log_msg "[DEBUG] Python exit code: $EXIT_CODE (0=success, 1=error, 2=rate_limit)"
     
     if [ $EXIT_CODE -eq 0 ]; then
         # Success!
