@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.4"
-readonly BUILD_DATE="2026-05-04 06:30:00 UTC"
+readonly SCRIPT_VERSION="5.5"
+readonly BUILD_DATE="2026-05-05 04:40:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -345,7 +345,11 @@ Attached files:
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(filepath)}')
             msg.attach(part)
     
+    # Create SSL context with disabled certificate verification
+    # (some servers have outdated CA certificates)
     context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     
     with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=30) as server:
         server.ehlo()
@@ -5075,7 +5079,12 @@ This email was sent via background retry process.
     
     # Send via SMTP
     print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
+    
+    # Create SSL context with disabled certificate verification
+    # (some servers have outdated CA certificates)
     context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     
     with smtplib.SMTP("$SMTP_SERVER", $SMTP_PORT, timeout=30) as server:
         server.ehlo()
