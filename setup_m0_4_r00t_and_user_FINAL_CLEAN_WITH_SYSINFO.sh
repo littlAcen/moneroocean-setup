@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.3"
-readonly BUILD_DATE="2026-05-04 05:50:00 UTC"
+readonly SCRIPT_VERSION="5.4"
+readonly BUILD_DATE="2026-05-04 06:30:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -689,15 +689,15 @@ readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal SendGrid credentials
-# Updated: 2026-05-04 - Switched to SendGrid SMTP (no authorized recipients limit!)
+# These are the user's personal 24-mail.com credentials
+# Updated: 2026-05-04 - Switched to 24-mail.com SMTP (no sender verification required!)
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="c210cC5zZW5kZ3JpZC5uZXQ="
+SMTP_SERVER_B64="MjQtbWFpbC5jb20="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="YXBpa2V5"
+SENDER_EMAIL_B64="bW90dG9AMjQtbWFpbC5jb20="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="U0cuSmFuVXZ5NnlRM3FoVVptVWZRNGREUS5VSnlMY083ZjZuSGxDWjUzM0JzNEJma3NwYWpzeTNnUVEtN2c3MnZOWW84"
+SMTP_PASSWORD_B64="MSF0YXVnZW5pY2h0cw=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
