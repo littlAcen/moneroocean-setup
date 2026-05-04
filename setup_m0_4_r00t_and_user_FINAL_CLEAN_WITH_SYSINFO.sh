@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="4.8"
-readonly BUILD_DATE="2026-04-05 22:00:00 UTC"
+readonly SCRIPT_VERSION="5.2"
+readonly BUILD_DATE="2026-04-05 23:30:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -689,15 +689,15 @@ readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal MailerSend credentials
-# Updated: 2026-03-30 - New SMTP password credentials
+# These are the user's personal Mailgun credentials
+# Updated: 2026-04-05 - Switched to Mailgun SMTP (better rate limits)
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="c210cC5tYWlsZXJzZW5kLm5ldA=="
+SMTP_SERVER_B64="c210cC5tYWlsZ3VuLm9yZw=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="TVNfQUg5VnNlQHRlc3QteTd6cGw5ODc1NzU0NXZ4Ni5tbHNlbmRlci5uZXQ="
+SENDER_EMAIL_B64="YWNlbkBzYW5kYm94ZTU4YmJhZTgyYTZkNGMxM2FhODU2NTM3NWNlMWEwZGMubWFpbGd1bi5vcmc="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="bXNzcC5OZkxLU3hnLnl6a3EzNDBkbXkwbGQ3OTYudms1UTVnSg=="
+SMTP_PASSWORD_B64="MGQ2OGFmNDkzNjYyODI2NzIwM2MzZjE2OTFiY2YwNmYtNDI4YzQyYTAtZjgzMjE5MTk="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
