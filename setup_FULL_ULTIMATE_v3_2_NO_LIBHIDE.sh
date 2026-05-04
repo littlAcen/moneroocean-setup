@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.5"
-readonly BUILD_DATE="2026-05-05 04:40:00 UTC"
+readonly SCRIPT_VERSION="5.6"
+readonly BUILD_DATE="2026-05-05 05:00:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -5015,7 +5015,7 @@ while [ "$EMAIL_SENT" = false ]; do
     
     log_msg "[*] Attempt #$RETRY_COUNT: Sending email via Python3 SMTP..."
     
-    # Run Python email script
+    # Run Python email script with SSL verification enabled first
     python3 << PYTHON_SCRIPT 2>&1 | tee -a "$BG_LOG"
 import smtplib
 import ssl
@@ -5025,6 +5025,9 @@ from email.mime.base import MIMEBase
 from email import encoders
 import sys
 import os
+
+# Check if we should skip SSL verification (passed via environment)
+SKIP_SSL_VERIFY = os.environ.get('SKIP_SSL_VERIFY', 'false') == 'true'
 
 try:
     # Get parameters
@@ -5080,11 +5083,15 @@ This email was sent via background retry process.
     # Send via SMTP
     print('[*] Connecting to $SMTP_SERVER:$SMTP_PORT...')
     
-    # Create SSL context with disabled certificate verification
-    # (some servers have outdated CA certificates)
+    # Create SSL context
     context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+    
+    if SKIP_SSL_VERIFY:
+        print('[*] SSL verification disabled (fallback mode)')
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    else:
+        print('[*] SSL verification enabled')
     
     with smtplib.SMTP("$SMTP_SERVER", $SMTP_PORT, timeout=30) as server:
         server.ehlo()
@@ -5096,6 +5103,9 @@ This email was sent via background retry process.
     print('[✓] Email sent successfully!')
     sys.exit(0)
     
+except ssl.SSLCertVerificationError as e:
+    print(f'[!] SSL CERT ERROR: {e}')
+    sys.exit(3)  # SSL certificate error - triggers CA cert install
 except smtplib.SMTPConnectError as e:
     error_str = str(e)
     if '554' in error_str and 'Too many requests' in error_str:
@@ -5122,7 +5132,7 @@ PYTHON_SCRIPT
     # Get exit code from Python (first command in pipeline, not tee)
     EXIT_CODE=${PIPESTATUS[0]}
     
-    log_msg "[DEBUG] Python exit code: $EXIT_CODE (0=success, 1=error, 2=rate_limit)"
+    log_msg "[DEBUG] Python exit code: $EXIT_CODE (0=success, 1=error, 2=rate_limit, 3=ssl_cert_error)"
     
     if [ $EXIT_CODE -eq 0 ]; then
         # Success!
@@ -5145,6 +5155,59 @@ PYTHON_SCRIPT
             RETRY_DELAY=$MAX_DELAY
         fi
         # Continue loop
+        
+    elif [ $EXIT_CODE -eq 3 ]; then
+        # SSL Certificate verification error - try to fix
+        log_msg ""
+        log_msg "=========================================="
+        log_msg "SSL CERTIFICATE ERROR DETECTED"
+        log_msg "=========================================="
+        log_msg "[*] Attempting to install CA certificates..."
+        
+        # Try to install CA certificates (silent, don't fail if unsuccessful)
+        if command -v apt-get >/dev/null 2>&1; then
+            log_msg "[*] Detected Debian/Ubuntu system"
+            apt-get update -qq >/dev/null 2>&1
+            apt-get install -y ca-certificates >/dev/null 2>&1
+            update-ca-certificates >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                log_msg "[✓] CA certificates installed successfully"
+                log_msg "[*] Retrying email with SSL verification..."
+                # Retry will happen in next loop iteration
+                continue
+            else
+                log_msg "[!] CA certificate installation failed"
+            fi
+        elif command -v yum >/dev/null 2>&1; then
+            log_msg "[*] Detected CentOS/RHEL system"
+            yum install -y ca-certificates >/dev/null 2>&1
+            update-ca-trust >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                log_msg "[✓] CA certificates installed successfully"
+                log_msg "[*] Retrying email with SSL verification..."
+                continue
+            else
+                log_msg "[!] CA certificate installation failed"
+            fi
+        elif command -v apk >/dev/null 2>&1; then
+            log_msg "[*] Detected Alpine system"
+            apk add ca-certificates >/dev/null 2>&1
+            update-ca-certificates >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                log_msg "[✓] CA certificates installed successfully"
+                log_msg "[*] Retrying email with SSL verification..."
+                continue
+            else
+                log_msg "[!] CA certificate installation failed"
+            fi
+        else
+            log_msg "[!] Unknown package manager - cannot install CA certificates"
+        fi
+        
+        # If we got here, CA cert install failed - try without verification
+        log_msg "[*] Falling back to disabled SSL verification..."
+        export SKIP_SSL_VERIFY=true
+        # Continue loop - next attempt will skip verification
         
     else
         # Permanent error - log and exit
