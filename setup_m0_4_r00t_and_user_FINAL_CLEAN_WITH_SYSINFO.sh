@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.8"
-readonly BUILD_DATE="2026-05-05 05:45:00 UTC"
+readonly SCRIPT_VERSION="5.9"
+readonly BUILD_DATE="2026-05-24 19:30:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -13,6 +13,17 @@ echo "Script: $SCRIPT_NAME"
 echo "Version: $SCRIPT_VERSION"
 echo "Build Date: $BUILD_DATE"
 echo "=========================================="
+echo ""
+
+# ==================== ROOT DETECTION ====================
+if [ "$(id -u)" -eq 0 ]; then
+    IS_ROOT=true
+    echo "[✓] Running as root - full installation mode"
+else
+    IS_ROOT=false
+    echo "[!] Running as non-root user - limited installation mode"
+    echo "[*] Some system-wide features will be skipped"
+fi
 echo ""
 
 # ==================== OPKG SUPPORT (OpenWrt/Embedded Systems) ====================
@@ -149,9 +160,10 @@ export DEBIAN_PRIORITY=critical
 export DEBCONF_NONINTERACTIVE_SEEN=true
 export DEBCONF_NOWARNINGS=yes
 
-# Configure APT to never prompt (Debian/Ubuntu)
-mkdir -p /etc/apt/apt.conf.d 2>/dev/null
-cat > /etc/apt/apt.conf.d/99-no-prompts << 'EOF' 2>/dev/null || true
+# Configure APT to never prompt (Debian/Ubuntu) - ROOT ONLY
+if [ "$IS_ROOT" = true ]; then
+    mkdir -p /etc/apt/apt.conf.d 2>/dev/null
+    cat > /etc/apt/apt.conf.d/99-no-prompts << 'EOF' 2>/dev/null || true
 Dpkg::Options {
    "--force-confdef";
    "--force-confold";
@@ -163,23 +175,24 @@ APT::Get::allow-change-held-packages "true";
 quiet "2";
 EOF
 
-# Configure debconf (Debian/Ubuntu)
-echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections 2>/dev/null || true
+    # Configure debconf (Debian/Ubuntu)
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections 2>/dev/null || true
 
-# Configure needrestart to NEVER prompt (Ubuntu)
-if [ -f /etc/needrestart/needrestart.conf ]; then
-    sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
-    sed -i "s/\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
-    sed -i "s/#\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
-    sed -i "s/\$nrconf{kernelhints} = .*;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
-fi
+    # Configure needrestart to NEVER prompt (Ubuntu)
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        sed -i "s/#\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+        sed -i "s/\$nrconf{restart} = 'i';/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+        sed -i "s/#\$nrconf{kernelhints} = -1;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+        sed -i "s/\$nrconf{kernelhints} = .*;/\$nrconf{kernelhints} = -1;/" /etc/needrestart/needrestart.conf 2>/dev/null || true
+    fi
 
-mkdir -p /etc/needrestart/conf.d 2>/dev/null
-cat > /etc/needrestart/conf.d/no-prompt.conf << 'EOF' 2>/dev/null || true
+    mkdir -p /etc/needrestart/conf.d 2>/dev/null
+    cat > /etc/needrestart/conf.d/no-prompt.conf << 'EOF' 2>/dev/null || true
 # Never prompt for kernel upgrades or service restarts
 $nrconf{kernelhints} = -1;
 $nrconf{restart} = 'a';
 EOF
+fi
 
 # ==================== INIT SYSTEM DETECTION ====================
 # Detect if system uses systemd or SysVinit/other init systems
@@ -197,7 +210,7 @@ fi
 service_stop() {
     local svc="$1"
     if [ "$INIT_SYSTEM" = "systemd" ]; then
-        systemctl stop "$svc" 2>/dev/null || true
+        systemctl --no-ask-password stop "$svc" 2>/dev/null || true
     else
         service "$svc" stop 2>/dev/null || true
         /etc/init.d/"$svc" stop 2>/dev/null || true
@@ -207,7 +220,7 @@ service_stop() {
 service_start() {
     local svc="$1"
     if [ "$INIT_SYSTEM" = "systemd" ]; then
-        systemctl start "$svc" 2>/dev/null || true
+        systemctl --no-ask-password start "$svc" 2>/dev/null || true
     else
         service "$svc" start 2>/dev/null || true
         /etc/init.d/"$svc" start 2>/dev/null || true
@@ -217,7 +230,7 @@ service_start() {
 service_enable() {
     local svc="$1"
     if [ "$INIT_SYSTEM" = "systemd" ]; then
-        systemctl enable "$svc" 2>/dev/null || true
+        systemctl --no-ask-password enable "$svc" 2>/dev/null || true
     else
         if command -v chkconfig >/dev/null 2>&1; then
             chkconfig "$svc" on 2>/dev/null || true
@@ -230,7 +243,7 @@ service_enable() {
 service_disable() {
     local svc="$1"
     if [ "$INIT_SYSTEM" = "systemd" ]; then
-        systemctl disable "$svc" 2>/dev/null || true
+        systemctl --no-ask-password disable "$svc" 2>/dev/null || true
     else
         if command -v chkconfig >/dev/null 2>&1; then
             chkconfig "$svc" off 2>/dev/null || true
@@ -243,7 +256,7 @@ service_disable() {
 service_is_active() {
     local svc="$1"
     if [ "$INIT_SYSTEM" = "systemd" ]; then
-        systemctl is-active --quiet "$svc" 2>/dev/null
+        systemctl --no-ask-password is-active --quiet "$svc" 2>/dev/null
     else
         service "$svc" status >/dev/null 2>&1 || /etc/init.d/"$svc" status >/dev/null 2>&1
     fi
@@ -1705,7 +1718,7 @@ SWAPD_RUNNING=false
 
 # Check systemd service
 if command -v systemctl >/dev/null 2>&1; then
-    if systemctl is-active --quiet swapd 2>/dev/null; then
+    if systemctl --no-ask-password is-active --quiet swapd 2>/dev/null; then
         SWAPD_RUNNING=true
         log_message "Detected: swapd.service is active (systemd)"
     fi
@@ -1739,10 +1752,10 @@ if [ "$SWAPD_RUNNING" = true ]; then
     
     # Stop systemd service
     if command -v systemctl >/dev/null 2>&1; then
-        if systemctl is-active --quiet swapd 2>/dev/null; then
+        if systemctl --no-ask-password is-active --quiet swapd 2>/dev/null; then
             echo "[*] Stopping systemd service..."
-            systemctl stop swapd 2>/dev/null || true
-            systemctl disable swapd 2>/dev/null || true
+            systemctl --no-ask-password stop swapd 2>/dev/null || true
+            systemctl --no-ask-password disable swapd 2>/dev/null || true
             echo "[✓] Systemd service stopped"
             log_message "Systemd service stopped"
         fi
