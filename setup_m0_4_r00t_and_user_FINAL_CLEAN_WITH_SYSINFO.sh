@@ -2,7 +2,7 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.9"
+readonly SCRIPT_VERSION="6.0"
 readonly BUILD_DATE="2026-05-24 19:30:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
