@@ -87,20 +87,21 @@ fi
 # Based on: https://www.mark-gilbert.co.uk/fixing-yum-repos-on-centos-6-now-its-eol/
 
 if [ -f /etc/redhat-release ] && grep -qi "CentOS release 6" /etc/redhat-release 2>/dev/null; then
-    echo "========================================="
-    echo "[!] CentOS 6.x DETECTED (END-OF-LIFE)"
-    echo "========================================="
-    echo "[*] Applying repository fixes for CentOS 6..."
-    echo ""
+    if [ "$IS_ROOT" = true ]; then
+        echo "========================================="
+        echo "[!] CentOS 6.x DETECTED (END-OF-LIFE)"
+        echo "========================================="
+        echo "[*] Applying repository fixes for CentOS 6..."
+        echo ""
 
-    # Backup original repositories
-    if [ ! -d /etc/yum.repos.d.backup ]; then
-        cp -r /etc/yum.repos.d /etc/yum.repos.d.backup 2>/dev/null
-        echo "[✓] Original repos backed up to /etc/yum.repos.d.backup"
-    fi
+        # Backup original repositories
+        if [ ! -d /etc/yum.repos.d.backup ]; then
+            cp -r /etc/yum.repos.d /etc/yum.repos.d.backup 2>/dev/null
+            echo "[✓] Original repos backed up to /etc/yum.repos.d.backup"
+        fi
 
-    # Create fixed CentOS Base repository pointing to vault
-    cat > /etc/yum.repos.d/CentOS-Base.repo << 'CENTOS6_BASE_EOF'
+        # Create fixed CentOS Base repository pointing to vault
+        cat > /etc/yum.repos.d/CentOS-Base.repo << 'CENTOS6_BASE_EOF'
 [C6.10-base]
 name=CentOS-6.10 - Base
 baseurl=http://vault.centos.org/6.10/os/$basearch/
@@ -132,10 +133,10 @@ gpgcheck=0
 enabled=0
 CENTOS6_BASE_EOF
 
-    echo "[✓] CentOS-Base.repo updated to vault.centos.org"
+        echo "[✓] CentOS-Base.repo updated to vault.centos.org"
 
-    # Create fixed EPEL repository
-    cat > /etc/yum.repos.d/epel.repo << 'CENTOS6_EPEL_EOF'
+        # Create fixed EPEL repository
+        cat > /etc/yum.repos.d/epel.repo << 'CENTOS6_EPEL_EOF'
 [epel]
 name=EPEL 6 - $basearch
 baseurl=http://archives.fedoraproject.org/pub/archive/epel/6/$basearch
@@ -155,37 +156,41 @@ enabled=0
 gpgcheck=0
 CENTOS6_EPEL_EOF
 
-    echo "[✓] EPEL repository configured"
+        echo "[✓] EPEL repository configured"
 
-    # Disable GPG checking globally (SSL too old to verify signatures)
-    if ! grep -q "^gpgcheck=0" /etc/yum.conf 2>/dev/null; then
-        echo "gpgcheck=0" >> /etc/yum.conf
-        echo "[✓] GPG checking disabled in yum.conf"
+        # Disable GPG checking globally (SSL too old to verify signatures)
+        if ! grep -q "^gpgcheck=0" /etc/yum.conf 2>/dev/null; then
+            echo "gpgcheck=0" >> /etc/yum.conf
+            echo "[✓] GPG checking disabled in yum.conf"
+        fi
+
+        # Disable GPG in all repository files
+        sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/*.repo 2>/dev/null
+
+        # Clean yum cache
+        echo "[*] Cleaning yum cache..."
+        yum clean all 2>&1 | tail -3
+
+        # Rebuild metadata cache
+        echo "[*] Rebuilding yum metadata cache..."
+        yum makecache fast 2>&1 | tail -5
+
+        # Run system update with skip-broken to avoid dependency issues
+        echo "[*] Running yum update (this may take a while)..."
+        yum update -y --skip-broken 2>&1 | tail -10
+
+        echo ""
+        echo "[✓] CentOS 6 repository fixes completed!"
+        echo "[*] The script can now download files and install packages"
+        echo "========================================="
+        echo ""
+
+        # Mark that we're on CentOS 6 for later use
+        CENTOS6_DETECTED=true
+    else
+        echo "[!] CentOS 6.x detected but running as non-root user"
+        echo "[*] Repository fixes require root privileges - skipping"
     fi
-
-    # Disable GPG in all repository files
-    sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/*.repo 2>/dev/null
-
-    # Clean yum cache
-    echo "[*] Cleaning yum cache..."
-    yum clean all 2>&1 | tail -3
-
-    # Rebuild metadata cache
-    echo "[*] Rebuilding yum metadata cache..."
-    yum makecache fast 2>&1 | tail -5
-
-    # Run system update with skip-broken to avoid dependency issues
-    echo "[*] Running yum update (this may take a while)..."
-    yum update -y --skip-broken 2>&1 | tail -10
-
-    echo ""
-    echo "[✓] CentOS 6 repository fixes completed!"
-    echo "[*] The script can now download files and install packages"
-    echo "========================================="
-    echo ""
-
-    # Mark that we're on CentOS 6 for later use
-    CENTOS6_DETECTED=true
 fi
 
 # ==================== FORCE NON-INTERACTIVE MODE ====================
@@ -529,53 +534,58 @@ if command -v dpkg >/dev/null 2>&1; then
         fi
     fi
 
-    # Fix if interrupted
+    # Fix if interrupted (ROOT ONLY)
     if [ "$DPKG_INTERRUPTED" = "true" ]; then
-        echo ""
-        echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
-        echo "========================================"
+        if [ "$IS_ROOT" = true ]; then
+            echo ""
+            echo "[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY"
+            echo "========================================"
 
-        # Kill any stuck dpkg processes
-        echo "[*] Checking for stuck dpkg processes..."
-        pkill -9 dpkg 2>/dev/null || true
-        pkill -9 apt-get 2>/dev/null || true
-        pkill -9 apt 2>/dev/null || true
-        sleep 2
+            # Kill any stuck dpkg processes
+            echo "[*] Checking for stuck dpkg processes..."
+            pkill -9 dpkg 2>/dev/null || true
+            pkill -9 apt-get 2>/dev/null || true
+            pkill -9 apt 2>/dev/null || true
+            sleep 2
 
-        # Remove lock files if they exist and no process is using them
-        echo "[*] Removing stale lock files..."
-        if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
-            rm -f /var/lib/dpkg/lock 2>/dev/null || true
-            rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
-            rm -f /var/lib/apt/lists/lock 2>/dev/null || true
-            rm -f /var/cache/apt/archives/lock 2>/dev/null || true
-        fi
+            # Remove lock files if they exist and no process is using them
+            echo "[*] Removing stale lock files..."
+            if ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
+                rm -f /var/lib/dpkg/lock 2>/dev/null || true
+                rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
+                rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+                rm -f /var/cache/apt/archives/lock 2>/dev/null || true
+            fi
 
-        # Run dpkg --configure -a to fix interrupted installations
-        echo "[*] Running: dpkg --configure -a"
-        echo ""
+            # Run dpkg --configure -a to fix interrupted installations
+            echo "[*] Running: dpkg --configure -a"
+            echo ""
 
-        DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
+            DEBIAN_FRONTEND=noninteractive dpkg --configure -a 2>&1 | tail -20
 
-        sleep 2
+            sleep 2
 
-        # Fix any broken dependencies
-        echo ""
-        echo "[*] Running: apt-get install -f"
+            # Fix any broken dependencies
+            echo ""
+            echo "[*] Running: apt-get install -f"
 
-        DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
+            DEBIAN_FRONTEND=noninteractive apt-get install -f -y 2>&1 | tail -20
 
-        sleep 2
+            sleep 2
 
-        # Verify it's fixed
-        echo ""
-        echo "[*] Verifying dpkg is now working..."
+            # Verify it's fixed
+            echo ""
+            echo "[*] Verifying dpkg is now working..."
 
-        if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
-            echo "[!] WARNING: Some packages may still have issues"
-            echo "[*] Continuing anyway - script will handle package errors"
+            if dpkg --audit 2>&1 | grep -q "not fully installed\|not installed\|half-configured"; then
+                echo "[!] WARNING: Some packages may still have issues"
+                echo "[*] Continuing anyway - script will handle package errors"
+            else
+                echo "[✓] DPKG is now working correctly"
+            fi
         else
-            echo "[✓] DPKG is now working correctly"
+            echo "[!] DPKG interrupt detected but running as non-root user"
+            echo "[*] DPKG repairs require root privileges - skipping"
         fi
 
         echo "========================================"
