@@ -784,7 +784,7 @@ init_compatibility
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
-readonly RECIPIENT_EMAIL="acenbergheim@googlemail.com"
+readonly RECIPIENT_EMAIL="littlAcen@yahoo.de"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
