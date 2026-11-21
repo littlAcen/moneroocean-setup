@@ -6,10 +6,7 @@
   <component name="BlackConnectSettings" previewMode="true" triggerOnEachSave="true" triggerOnReformat="true" showSyntaxErrorMsgs="true" />
   <component name="ChangeListManager">
     <list default="true" id="3a10f072-a0ad-4130-8e69-82132829579e" name="Changes" comment="email recipient">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/moneroocean-setup.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/moneroocean-setup.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh" beforeDir="false" afterPath="$PROJECT_DIR$/setup_FULL_ULTIMATE_v3_2_NO_LIBHIDE.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

