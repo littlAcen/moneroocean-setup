@@ -505,7 +505,7 @@ clean_previous_installations() {
     done
 
     # Clean systemd service files
-    rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service 2>/dev/null
+    #rm -f /etc/systemd/system/swapd.service /etc/systemd/system/gdm2.service 2>/dev/null
 
     # Clean init scripts (SysVinit)
     rm -f /etc/init.d/swapd /etc/init.d/gdm2 /etc/init.d/moneroocean_miner 2>/dev/null
